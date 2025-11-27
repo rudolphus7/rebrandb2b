@@ -54,8 +54,15 @@ export async function GET(request: Request) {
       const finalPrice = Math.ceil(basePrice * (1 + MARGIN_PERCENT / 100));
 
       let imageUrl = null;
-      if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
-
+      if (offer.picture) {
+        // Беремо перше фото, якщо це масив
+        let rawUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
+        
+        // 🔥 ФІКС: Примусово міняємо http на https
+        if (rawUrl) {
+            imageUrl = rawUrl.replace('http://', 'https://');
+        }
+      }
       // --- 2. ПАРСИНГ КОЛЬОРУ (НОВЕ!) ---
       let colorValue = null;
       if (offer.param) {
