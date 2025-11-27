@@ -21,11 +21,13 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ totalMoney: 0, totalOrders: 0 });
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ title: "", price: "", subtitle: "", description: "" });
+  const [formData, setFormData] = useState({ 
+    title: "", price: "", subtitle: "", description: "",
+    brand: "", sku: "" // <--- НОВІ ПОЛЯ
+  });
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Стан для кнопки синхронізації
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("Синхронізувати з Totobi");
 
@@ -53,48 +55,26 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- ЛОГІКА СИНХРОНІЗАЦІЇ (РОЗУМНА КНОПКА) ---
   async function handleSync() {
-    if(!confirm("Почати повну синхронізацію? Це відбуватиметься поетапно.")) return;
-    
+    if(!confirm("Почати повну синхронізацію?")) return;
     setIsSyncing(true);
-    let offset = 0;
-    let limit = 50; 
-    let isFinished = false;
-    let totalProcessed = 0;
-
+    let offset = 0; let limit = 50; let isFinished = false; let totalProcessed = 0;
     try {
       while (!isFinished) {
         setSyncStatus(`⏳ Оброблено ${offset}...`);
-        
         const res = await fetch(`/api/sync?offset=${offset}&limit=${limit}`);
-        
-        if (!res.ok) throw new Error("Помилка сервера (500)");
-        
+        if (!res.ok) throw new Error("Помилка сервера");
         const data = await res.json();
-        
         if (data.error) throw new Error(data.error);
-
-        if (data.done) {
-          isFinished = true;
-        } else {
-          totalProcessed += (data.processed || 0);
-          offset = data.nextOffset;
-        }
+        if (data.done) isFinished = true;
+        else { totalProcessed += (data.processed || 0); offset = data.nextOffset; }
       }
-      
       alert(`Успішно! Оброблено товарів: ${totalProcessed}`);
-      fetchData(); // Оновити таблицю
-
-    } catch (e: any) { 
-      alert("Помилка синхронізації: " + e.message); 
-    } finally {
-      setIsSyncing(false);
-      setSyncStatus("Синхронізувати з Totobi");
-    }
+      fetchData();
+    } catch (e: any) { alert("Помилка: " + e.message); } 
+    finally { setIsSyncing(false); setSyncStatus("Синхронізувати з Totobi"); }
   }
 
-  // --- ІНШІ ФУНКЦІЇ ---
   async function uploadImage(bucket: string) {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -111,7 +91,12 @@ export default function AdminDashboard() {
     try {
       let imageUrl = null;
       if (file) imageUrl = await uploadImage('products');
-      const data: any = { title: formData.title, price: parseFloat(formData.price) };
+      const data: any = { 
+        title: formData.title, 
+        price: parseFloat(formData.price),
+        brand: formData.brand, // <--- Зберігаємо бренд
+        sku: formData.sku // <--- Зберігаємо артикул
+      };
       if (imageUrl) data.image_url = imageUrl;
 
       if (editingId) await supabase.from('products').update(data).eq('id', editingId);
@@ -151,14 +136,26 @@ export default function AdminDashboard() {
 
   function startEditing(item: any, type: 'product' | 'banner') {
     setEditingId(item.id);
-    setFormData({ title: item.title || "", price: item.price || "", subtitle: item.subtitle || "", description: item.description || "" });
+    if (type === 'product') {
+        setFormData({ 
+            title: item.title || "", price: item.price || "", 
+            subtitle: "", description: "",
+            brand: item.brand || "", sku: item.sku || "" // <--- Заповнюємо
+        });
+    } else {
+        setFormData({ 
+            title: item.title || "", price: "", 
+            subtitle: item.subtitle || "", description: item.description || "",
+            brand: "", sku: "" 
+        });
+    }
     setFile(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function resetForm() {
     setEditingId(null);
-    setFormData({ title: "", price: "", subtitle: "", description: "" });
+    setFormData({ title: "", price: "", subtitle: "", description: "", brand: "", sku: "" });
     setFile(null);
   }
 
@@ -267,23 +264,23 @@ export default function AdminDashboard() {
           <div>
             <div className="flex justify-between items-center mb-6">
                <h1 className="text-3xl font-bold">Товари</h1>
-               
-               {/* КНОПКА СИНХРОНІЗАЦІЇ */}
-               <button 
-                 onClick={handleSync}
-                 disabled={isSyncing}
-                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-lg disabled:opacity-50 disabled:cursor-wait"
-               >
+               <button onClick={handleSync} disabled={isSyncing} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-lg disabled:opacity-50 disabled:cursor-wait">
                  <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} /> {syncStatus}
                </button>
             </div>
             
             <div className="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
-              <form onSubmit={handleProductSubmit} className="flex gap-4 items-end">
-                <div className="flex-1"><label className="text-xs font-bold text-gray-500">Назва</label><input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full border p-2 rounded" required /></div>
-                <div className="w-32"><label className="text-xs font-bold text-gray-500">Ціна</label><input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full border p-2 rounded" required /></div>
-                <div className="flex-1"><label className="text-xs font-bold text-gray-500">Фото</label><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm" /></div>
-                <button disabled={uploading} className="bg-slate-900 text-white px-6 py-2 rounded">{uploading ? "..." : "Додати"}</button>
+              <form onSubmit={handleProductSubmit} className="space-y-4">
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Назва</label><input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full border p-2 rounded" required /></div>
+                  <div className="w-32"><label className="text-xs font-bold text-gray-500">Ціна</label><input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full border p-2 rounded" required /></div>
+                </div>
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Бренд</label><input type="text" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full border p-2 rounded" placeholder="Gildan" /></div>
+                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Артикул (SKU)</label><input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full border p-2 rounded" placeholder="123-456" /></div>
+                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Фото</label><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm" /></div>
+                </div>
+                <button disabled={uploading} className="bg-slate-900 text-white px-6 py-2 rounded">{uploading ? "..." : "Зберегти"}</button>
               </form>
             </div>
 
@@ -293,8 +290,13 @@ export default function AdminDashboard() {
                   <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                     {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover" /> : <ImageIcon className="w-full h-full p-4 text-gray-300" />}
                   </div>
-                  <div className="flex-1"><h3 className="font-bold text-sm">{item.title}</h3><p className="text-sm text-gray-500">{item.price} ₴</p></div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-sm">{item.title}</h3>
+                    <p className="text-sm text-gray-500">{item.price} ₴</p>
+                    <p className="text-xs text-gray-400 mt-1">{item.brand} | {item.sku}</p>
+                  </div>
                   <button onClick={() => deleteItem('products', item.id)} className="text-red-500"><Trash2 size={18}/></button>
+                  <button onClick={() => startEditing(item, 'product')} className="text-blue-500"><Pencil size={18}/></button>
                 </div>
               ))}
             </div>

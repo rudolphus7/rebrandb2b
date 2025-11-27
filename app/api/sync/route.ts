@@ -3,7 +3,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { supabase } from '@/lib/supabaseClient';
 
 const SUPPLIER_URL = "https://totobi.com.ua/index.php?dispatch=yml.get&access_key=lg3bjy2gvww";
-const MARGIN_PERCENT = 20; 
+const MARGIN_PERCENT = 0; 
 
 export async function GET(request: Request) {
   try {
@@ -54,24 +54,23 @@ export async function GET(request: Request) {
       const finalPrice = Math.ceil(basePrice * (1 + MARGIN_PERCENT / 100));
 
       let imageUrl = null;
-      if (offer.picture) {
-        // Беремо перше фото, якщо це масив
-        let rawUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
-        
-        // 🔥 ФІКС: Примусово міняємо http на https
-        if (rawUrl) {
-            imageUrl = rawUrl.replace('http://', 'https://');
-        }
-      }
-      // --- 2. ПАРСИНГ КОЛЬОРУ (НОВЕ!) ---
+      if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
+      if (imageUrl) imageUrl = imageUrl.replace('http://', 'https://');
+
+      // --- 2. ПАРСИНГ КОЛЬОРУ ТА БРЕНДУ (НОВЕ!) ---
       let colorValue = null;
+      let brandValue = offer.vendor; // Іноді бренд тут
+
       if (offer.param) {
         const params = Array.isArray(offer.param) ? offer.param : [offer.param];
-        // Шукаємо параметр з назвою "Колір" або "Група Кольорів"
+        
+        // Колір
         const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Група Кольорів');
-        if (colorParam) {
-            colorValue = colorParam['#text']; // Наприклад: "Чорний" або "black"
-        }
+        if (colorParam) colorValue = colorParam['#text'];
+
+        // Бренд (ТМ)
+        const brandParam = params.find((p: any) => p['@_name'] === 'ТМ' || p['@_name'] === 'Бренд' || p['@_name'] === 'Виробник');
+        if (brandParam) brandValue = brandParam['#text'];
       }
 
       return {
@@ -86,7 +85,8 @@ export async function GET(request: Request) {
         amount: parseInt(offer.amount) || 0,
         reserve: parseInt(offer.reserve) || 0,
         sizes: sizesData,
-        color: colorValue // <--- ЗАПИСУЄМО КОЛІР
+        color: colorValue,
+        brand: brandValue // <--- ЗАПИСУЄМО БРЕНД
       };
     }).filter((p: any) => p.external_id && p.title);
 

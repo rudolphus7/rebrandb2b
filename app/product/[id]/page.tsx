@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
-import ProductImage from "../../components/ProductImage"; // Імпорт нашого компонента
+import ProductImage from "../../components/ProductImage";
+import Header from "../../components/Header"; 
 import { 
   ArrowLeft, ShoppingBag, Heart, Share2, Truck, ShieldCheck, 
   CheckCircle, Star, Package, ChevronRight, Check, Info
@@ -17,11 +18,17 @@ export default function ProductPage() {
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]); // Всі кольори цієї моделі
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<any>(null);
   
   // Стан для введення кількості розмірів: { "S": 5, "M": 2 }
   const [quantities, setQuantities] = useState<{[key: string]: number}>({});
+  const [cartCount, setCartCount] = useState(0); // Лічильник для шапки (поки локальний)
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
     async function fetchProductData() {
       if (!params.id) return;
       
@@ -95,6 +102,7 @@ export default function ProductPage() {
     // Поки що емулюємо це:
     console.log("Adding to cart:", itemsToAdd);
     alert(`Додано ${itemsToAdd.reduce((acc, item) => acc + item.quantity, 0)} одиниць товару!`);
+    setCartCount(prev => prev + 1);
   };
 
   // Підрахунок загальної суми вибраних товарів
@@ -109,6 +117,8 @@ export default function ProductPage() {
       return total;
   };
 
+  async function handleLogout() { await supabase.auth.signOut(); router.push("/"); }
+
   if (loading) return <div className="min-h-screen bg-[#111] flex items-center justify-center text-white">Завантаження...</div>;
   if (!product) return <div className="min-h-screen bg-[#111] flex items-center justify-center text-white">Товар не знайдено</div>;
 
@@ -118,23 +128,20 @@ export default function ProductPage() {
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans pb-20">
       
-      {/* HEADER */}
-      <header className="bg-[#1a1a1a] border-b border-white/10 py-4 sticky top-0 z-50">
-        <div className="max-w-[1400px] mx-auto px-6 flex items-center justify-between">
-          <Link href="/catalog" className="flex items-center gap-2 text-gray-400 hover:text-white transition font-bold text-sm uppercase tracking-wider">
-            <ArrowLeft size={18} /> Назад у каталог
-          </Link>
-          <div className="text-xl font-black italic tracking-tighter">REBRAND</div>
-          <div className="w-32"></div>
-        </div>
-      </header>
+      {/* УНІВЕРСАЛЬНА ШАПКА */}
+      <Header 
+        onCartClick={() => alert("Кошик поки працює тільки на головній")} 
+        cartCount={cartCount}
+        onLogout={handleLogout}
+        onMobileMenuClick={() => {}}
+      />
 
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         
         {/* BREADCRUMBS */}
         <div className="text-xs text-gray-500 mb-8 flex items-center gap-2 uppercase tracking-widest flex-wrap">
            <Link href="/" className="hover:text-white">Головна</Link> <ChevronRight size={12}/>
-           <Link href="/catalog" className="hover:text-white">Одяг</Link> <ChevronRight size={12}/>
+           <Link href="/catalog" className="hover:text-white">Каталог</Link> <ChevronRight size={12}/>
            <span className="text-white truncate max-w-[300px]">{product.title}</span>
         </div>
 
@@ -204,7 +211,7 @@ export default function ProductPage() {
                             Колір: <span className="text-white font-bold">{product.color}</span>
                         </span>
                     )}
-                    <span className="flex items-center gap-2">Бренд: <span className="text-white font-bold">Gildan</span></span>
+                    <span className="flex items-center gap-2">Бренд: <span className="text-white font-bold">{product.brand || "Не вказано"}</span></span>
                  </div>
               </div>
 
