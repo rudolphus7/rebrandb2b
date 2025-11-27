@@ -6,7 +6,7 @@ import Link from "next/link";
 import LoginPage from "./components/LoginPage"; 
 import { 
   Search, ShoppingBag, LogOut, User, X, ArrowRight, Package, 
-  Phone, Send, MessageCircle, ChevronDown, ArrowDown, Star, Zap
+  Phone, Send, MessageCircle, ChevronDown, ArrowDown, Star, Zap, Plus // <--- ОСЬ ЦЬОГО НЕ ВИСТАЧАЛО
 } from "lucide-react";
 
 export default function Home() {
