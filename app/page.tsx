@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Link from "next/link"; 
-import LoginPage from "./components/LoginPage"; 
+import loginPage from "./components/loginpage";
 import { 
   Search, ShoppingBag, LogOut, User, Plus, X, ArrowRight, Package, 
   Phone, Send, MessageCircle, ChevronDown 
@@ -108,7 +108,7 @@ export default function Home() {
     setCart([]);
   }
 
-  if (!session) return <LoginPage onLogin={handleLogin} />;
+  if (!session) return <loginPage onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 flex flex-col">
