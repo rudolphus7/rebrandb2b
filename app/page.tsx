@@ -4,377 +4,361 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Link from "next/link"; 
 import LoginPage from "./components/LoginPage"; 
+import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Search, ShoppingBag, LogOut, User, X, ArrowRight, Package, 
-  Phone, Send, MessageCircle, ChevronDown, ArrowDown, Star, Zap, Plus // <--- ОСЬ ЦЬОГО НЕ ВИСТАЧАЛО
+  Search, ShoppingBag, LogOut, User, X, ArrowRight, ArrowLeft,
+  Menu, LayoutGrid, Star, ShieldCheck, Zap, Truck, Package, Heart, 
+  Flame, Percent, Sparkles, ChevronRight
 } from "lucide-react";
+
+// --- ДАНІ ДЛЯ МЕГА-МЕНЮ (КАТАЛОГ) ---
+const CATALOG_MENU = [
+  {
+    category: "Одяг & Текстиль",
+    items: ["Футболки", "Худі & Світшоти", "Поло", "Кепки & Шапки", "Жилетки & Куртки", "Фліс"]
+  },
+  {
+    category: "Офіс & Канцелярія",
+    items: ["Блокноти", "Ручки металеві", "Ручки пластикові", "Щоденники", "Папки", "Ланьярди"]
+  },
+  {
+    category: "Посуд & Напої",
+    items: ["Термочашки", "Пляшки для води", "Керамічні чашки", "Термоси", "Бокали"]
+  },
+  {
+    category: "Сумки & Рюкзаки",
+    items: ["Шопери (Еко-сумки)", "Рюкзаки для ноутбуків", "Спортивні сумки", "Бананки", "Косметички"]
+  },
+  {
+    category: "Гаджети",
+    items: ["Powerbanks", "USB-флешки", "Колонки", "Бездротові зарядки", "Навушники"]
+  },
+  {
+    category: "Дім & Відпочинок",
+    items: ["Пледи", "Парасолі", "Інструменти", "Ланчбокси", "Ігри"]
+  }
+];
+
+// --- ДАНІ ДЛЯ БАНЕРІВ ---
+const DEFAULT_SLIDES = [
+  {
+    id: 999,
+    title: "НОВА КОЛЕКЦІЯ",
+    subtitle: "WINTER 2025",
+    description: "Оверсайз худі з преміум бавовни. Ідеально під нанесення.",
+    image_url: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=2070&auto=format&fit=crop",
+  },
+  {
+    id: 1000,
+    title: "КОРПОРАТИВНИЙ",
+    subtitle: "МЕРЧ",
+    description: "Одягніть команду в якість. Знижки для B2B до -30%.",
+    image_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=2000&auto=format&fit=crop",
+  }
+];
 
 export default function Home() {
   const [session, setSession] = useState<any>(null);
+  
+  // Дані
   const [products, setProducts] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   
+  // UI Стани
   const [cart, setCart] = useState<any[]>([]);
   const [isOrdering, setIsOrdering] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false); // <--- СТАН ДЛЯ МЕГА-МЕНЮ
+  const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Ініціалізація
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchProducts();
+      if (session) fetchContent();
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) fetchProducts();
+      if (session) fetchContent();
     });
 
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handleScroll);
+    const timer = setInterval(() => { nextSlide(); }, 6000);
+    return () => { subscription.unsubscribe(); clearInterval(timer); };
+  }, [currentSlide, banners.length]);
 
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
+  async function fetchContent() {
+    const { data: prodData } = await supabase.from("products").select("*").order('id', { ascending: false });
+    if (prodData) setProducts(prodData);
 
-  async function fetchProducts() {
-    const { data, error } = await supabase.from("products").select("*").order('id', { ascending: false });
-    if (!error) setProducts(data || []);
+    const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
+    if (bannerData && bannerData.length > 0) setBanners(bannerData); else setBanners(DEFAULT_SLIDES);
   }
 
-  function addToCart(product: any) {
-    setCart([...cart, product]);
-    setIsCartOpen(true);
-  }
+  // --- ЛОГІКА СЛАЙДЕРА ---
+  const activeBanners = banners.length > 0 ? banners : DEFAULT_SLIDES;
+  const nextSlide = () => { setCurrentSlide((prev) => (prev === activeBanners.length - 1 ? 0 : prev + 1)); };
+  const prevSlide = () => { setCurrentSlide((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1)); };
 
-  function removeFromCart(indexToRemove: number) {
-    setCart(cart.filter((_, index) => index !== indexToRemove));
-  }
-
+  // --- ЛОГІКА КОШИКА ---
+  function addToCart(product: any) { setCart([...cart, product]); setIsCartOpen(true); }
+  function removeFromCart(indexToRemove: number) { setCart(cart.filter((_, index) => index !== indexToRemove)); }
   const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
-
-  const filteredProducts = products.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
   async function placeOrder() {
     if (cart.length === 0) return alert("Кошик порожній!");
     setIsOrdering(true);
-
-    const { error } = await supabase.from('orders').insert([{
-        user_email: session.user.email,
-        total_price: totalPrice,
-        items: cart 
-    }]);
-
+    const { error } = await supabase.from('orders').insert([{ user_email: session.user.email, total_price: totalPrice, items: cart }]);
     if (!error) {
-      // Telegram notification (optional block)
-      try {
-        await fetch('/api/telegram', {
-          method: 'POST',
-          body: JSON.stringify({ email: session.user.email, total: totalPrice, items: cart })
-        });
-      } catch (e) {}
-
-      alert("Замовлення успішно створено!");
-      setCart([]); 
-      setIsOrdering(false);
-      setIsCartOpen(false);
-    } else {
-      alert("Помилка: " + error.message);
-      setIsOrdering(false);
-    }
+      try { await fetch('/api/telegram', { method: 'POST', body: JSON.stringify({ email: session.user.email, total: totalPrice, items: cart }) }); } catch (e) {}
+      alert("Замовлення прийнято!"); setCart([]); setIsOrdering(false); setIsCartOpen(false);
+    } else { alert(error.message); setIsOrdering(false); }
   }
 
-  async function handleLogin(emailInput: string, passwordInput: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
-    if (error) alert("Access Denied: " + error.message);
+  async function handleLogin(e: string, p: string) {
+    const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
+    if (error) alert(error.message);
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    setProducts([]); setCart([]);
-  }
-
-  // Функція для плавного скролу до секцій
-  const scrollToSection = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
+  async function handleLogout() { await supabase.auth.signOut(); setProducts([]); setCart([]); }
 
   if (!session) return <LoginPage onLogin={handleLogin} />;
 
+  const currentBanner = activeBanners[currentSlide];
+
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-600/30 flex flex-col scroll-smooth">
+    <div className="min-h-screen bg-[#111111] text-white font-sans flex flex-col">
       
-      {/* === HEADER (ШАПКА) === */}
-      <header 
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 border-b ${
-          isScrolled ? "bg-black/80 backdrop-blur-xl py-3 border-white/10" : "bg-transparent py-6 border-transparent"
-        }`}
-      >
-        <div className="max-w-[1800px] mx-auto px-6 flex items-center justify-between">
-          
-          {/* Логотип */}
-          <div 
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="text-2xl font-black tracking-tighter italic cursor-pointer flex items-center gap-2"
-          >
-            <span className="bg-white text-black px-2 py-1 rounded-sm not-italic">R</span> REBRAND
-          </div>
-
-          {/* Меню (Працює!) */}
-          <nav className="hidden xl:flex items-center gap-8 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
-            <button onClick={() => scrollToSection('about')} className="hover:text-white transition duration-300 relative group">
-              Про нас
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-500 transition-all duration-300 group-hover:w-full"></span>
-            </button>
-            <button onClick={() => scrollToSection('catalog')} className="text-white relative group">
-              Каталог
-              <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-blue-500"></span>
-            </button>
-            <button onClick={() => window.location.href = '#'} className="hover:text-white transition duration-300">Контакти</button>
-          </nav>
-
-          {/* Іконки */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 mr-4 border-r border-white/10 pr-6">
-               {[MessageCircle, Send, Phone].map((Icon, i) => (
-                 <button key={i} className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center hover:bg-white hover:text-black transition duration-300">
-                   <Icon size={14} />
-                 </button>
-               ))}
-            </div>
-
-            <Link href="/profile" className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition bg-zinc-900/50 rounded-full hover:bg-zinc-800">
-              <User size={18} />
-            </Link>
-
-            <button 
-              onClick={() => setIsCartOpen(true)}
-              className="w-10 h-10 flex items-center justify-center text-white relative transition hover:scale-110 bg-blue-600 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)]"
-            >
-              <ShoppingBag size={18} />
-              {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold border border-black">
-                  {cart.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* === HERO SECTION (ПЕРШИЙ ЕКРАН) === */}
-      <section className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Фонові ефекти */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#1a1a1a_0%,#000000_100%)]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
-        
-        <div className="relative z-10 text-center px-4 max-w-5xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-xs font-bold tracking-widest uppercase mb-6 animate-fade-in-up">
-            <Zap size={12} fill="currentColor" /> B2B Partner Portal v2.0
-          </div>
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600">
-            REBRAND<br/>STUDIO
-          </h1>
-          <p className="text-zinc-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 font-light leading-relaxed">
-            Єдина екосистема для замовлення мерчу, брендування та корпоративних подарунків. 
-            Швидко. Якісно. Гуртом.
-          </p>
-          
-          <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
-            <button 
-              onClick={() => scrollToSection('catalog')}
-              className="px-8 py-4 bg-white text-black font-bold text-sm tracking-widest uppercase hover:bg-blue-500 hover:text-white transition duration-300 rounded-full"
-            >
-              Перейти до каталогу
-            </button>
-            <button onClick={() => scrollToSection('about')} className="px-8 py-4 border border-white/20 text-white font-bold text-sm tracking-widest uppercase hover:bg-white/10 transition duration-300 rounded-full">
-              Дізнатись більше
-            </button>
-          </div>
-        </div>
-
-        {/* Скрол індикатор */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-zinc-500 animate-bounce">
-          <ArrowDown size={24} />
-        </div>
-      </section>
-
-      {/* === БЛОК "ПРО НАС" (Щоб працювало меню) === */}
-      <section id="about" className="py-24 bg-zinc-950 border-t border-white/5 relative overflow-hidden">
-        <div className="max-w-[1600px] mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
-           <div>
-              <h3 className="text-blue-500 font-bold mb-2 uppercase tracking-widest text-xs">Чому ми</h3>
-              <h2 className="text-3xl font-bold mb-4">Якість понад усе</h2>
-              <p className="text-zinc-500">Використовуємо тільки перевірені матеріали та сучасні методи нанесення.</p>
-           </div>
-           <div>
-              <h3 className="text-purple-500 font-bold mb-2 uppercase tracking-widest text-xs">Швидкість</h3>
-              <h2 className="text-3xl font-bold mb-4">Від 3 днів</h2>
-              <p className="text-zinc-500">Власне виробництво дозволяє нам віддавати замовлення в рекордні терміни.</p>
-           </div>
-           <div>
-              <h3 className="text-green-500 font-bold mb-2 uppercase tracking-widest text-xs">Сервіс</h3>
-              <h2 className="text-3xl font-bold mb-4">B2B Підхід</h2>
-              <p className="text-zinc-500">Персональний менеджер, документообіг та зручний кабінет для замовлень.</p>
-           </div>
-        </div>
-      </section>
-
-      {/* === КАТАЛОГ === */}
-      <section id="catalog" className="py-20 bg-black min-h-screen relative">
-        <div className="max-w-[1800px] mx-auto px-6">
-           
-          {/* Фільтр і Заголовок каталогу */}
-          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6 sticky top-24 z-30 py-4 bg-black/95 backdrop-blur">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tighter mb-2">КАТАЛОГ</h2>
-              <p className="text-zinc-500">Оберіть категорію або знайдіть товар</p>
-            </div>
+      {/* === HEADER (Sticky) === */}
+      <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/10 shadow-xl">
+        <div className="relative z-50 bg-[#111111] py-4"> {/* Верхній шар хедера */}
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 flex items-center justify-between gap-6">
             
-            <div className="relative w-full md:w-96 group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-blue-400 transition" size={18} />
+            {/* ЛОГО + КНОПКА КАТАЛОГУ */}
+            <div className="flex items-center gap-6 flex-shrink-0">
+              <div 
+                className="text-2xl font-black italic tracking-tighter cursor-pointer select-none"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              >
+                REBRAND
+              </div>
+              
+              {/* КНОПКА ВІДКРИТТЯ МЕГА-МЕНЮ */}
+              <button 
+                onClick={() => setIsCatalogOpen(!isCatalogOpen)}
+                className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border
+                  ${isCatalogOpen 
+                    ? "bg-white text-black border-white" 
+                    : "bg-[#252525] hover:bg-[#333] text-white border-white/10"
+                  }`}
+              >
+                {isCatalogOpen ? <X size={18} /> : <LayoutGrid size={18} />} 
+                Каталог
+              </button>
+            </div>
+
+            {/* ПОШУК */}
+            <div className="flex-1 max-w-2xl relative hidden md:block">
               <input 
                 type="text" 
-                placeholder="Пошук (наприклад: Худі)..." 
+                placeholder="Я шукаю..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-4 pl-12 pr-6 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-white placeholder-zinc-600 shadow-lg"
+                className="w-full bg-white text-black rounded-l-lg py-2.5 pl-4 pr-12 focus:outline-none placeholder-gray-500 font-medium"
               />
+              <button className="absolute right-0 top-0 bottom-0 bg-[#252525] hover:bg-[#333] px-4 rounded-r-lg border-l border-gray-300 flex items-center justify-center transition">
+                <Search size={20} className="text-white" />
+              </button>
+            </div>
+
+            {/* ІКОНКИ */}
+            <div className="flex items-center gap-5 flex-shrink-0">
+              <button className="md:hidden text-white"><Search size={24} /></button>
+              <Link href="/profile" className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group">
+                <User size={22} className="group-hover:scale-110 transition"/>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Кабінет</span>
+              </Link>
+              <button onClick={() => setIsCartOpen(true)} className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group relative">
+                <div className="relative">
+                  <ShoppingBag size={22} className="group-hover:scale-110 transition" />
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#111]">
+                      {cart.length}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden lg:block">Кошик</span>
+              </button>
+              <button onClick={handleLogout} className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-red-500 transition group">
+                <LogOut size={22} className="group-hover:scale-110 transition"/>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Вихід</span>
+              </button>
+              <button className="lg:hidden text-white" onClick={() => setIsMobileMenuOpen(true)}>
+                <Menu size={28} />
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* СІТКА ТОВАРІВ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {filteredProducts.map((product) => (
-              <div key={product.id} className="group flex flex-col gap-4">
-                {/* Картка Фото */}
-                <div className="aspect-[4/5] bg-zinc-900 rounded-2xl relative overflow-hidden">
-                  {product.image_url ? (
-                    <img 
-                      src={product.image_url} 
-                      className="w-full h-full object-cover transition duration-700 ease-in-out group-hover:scale-105" 
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 gap-2">
-                      <Package size={32} />
-                      <span className="text-xs font-bold tracking-widest">NO IMAGE</span>
-                    </div>
-                  )}
-                  
-                  {/* Бейдж "NEW" (фейковий для краси) */}
-                  <div className="absolute top-4 left-4 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
-                    New Drop
-                  </div>
-
-                  {/* Кнопка на фото (тільки десктоп) */}
-                  <button 
-                    onClick={() => addToCart(product)}
-                    className="absolute bottom-4 right-4 bg-white text-black p-3 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition duration-300 shadow-xl hover:bg-blue-500 hover:text-white"
-                  >
-                    <Plus size={24} />
-                  </button>
+        {/* === MEGA MENU DROPDOWN (Випадаюче меню) === */}
+        <AnimatePresence>
+          {isCatalogOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+              className="absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden"
+            >
+              <div className="max-w-[1400px] mx-auto flex min-h-[400px]">
+                
+                {/* ЛІВА КОЛОНКА (Спецпропозиції) */}
+                <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-4">
+                   <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
+                      <Sparkles size={20}/> Новинки
+                   </div>
+                   <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
+                      <Flame size={20}/> Акційні пропозиції
+                   </div>
+                   <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
+                      <Percent size={20}/> Уцінка
+                   </div>
+                   
+                   <div className="mt-auto p-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
+                      <p className="text-xs text-blue-200 font-bold uppercase mb-2">B2B Партнерство</p>
+                      <p className="text-sm text-gray-300 mb-3">Отримайте індивідуальні умови для великих замовлень.</p>
+                      <button className="text-xs bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-gray-200 transition">Детальніше</button>
+                   </div>
                 </div>
 
-                {/* Інфо під фото */}
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg text-white group-hover:text-blue-400 transition">{product.title}</h3>
-                    <span className="font-mono text-lg font-bold">{product.price} ₴</span>
+                {/* ПРАВА КОЛОНКА (Категорії) */}
+                <div className="flex-1 p-8">
+                   <div className="grid grid-cols-4 gap-x-8 gap-y-10">
+                      {CATALOG_MENU.map((section, idx) => (
+                        <div key={idx}>
+                           <h3 className="font-bold text-white uppercase tracking-wider mb-4 border-b border-white/10 pb-2 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition">
+                             {section.category} <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition"/>
+                           </h3>
+                           <ul className="space-y-2.5">
+                             {section.items.map((item, i) => (
+                               <li key={i}>
+                                 <a href="#catalog" onClick={() => { setIsCatalogOpen(false); setSearchQuery(item); }} className="text-sm text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block">
+                                   {item}
+                                 </a>
+                               </li>
+                             ))}
+                           </ul>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Затемнення фону, коли меню відкрите */}
+        {isCatalogOpen && (
+          <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30" onClick={() => setIsCatalogOpen(false)}></div>
+        )}
+      </header>
+
+      {/* === ГОЛОВНИЙ КОНТЕНТ === */}
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 lg:px-8 py-8 space-y-12">
+        
+        {/* === ГЕРОЙ-СЛАЙДЕР === */}
+        <div className="relative w-full h-[350px] md:h-[450px] bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl border border-white/5 group">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentBanner.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="absolute inset-0 w-full h-full"
+            >
+              <div className="absolute inset-0">
+                 {currentBanner.image_url ? (
+                    <img src={currentBanner.image_url} alt="Banner" className="w-full h-full object-cover opacity-60" />
+                 ) : (
+                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-600">NO IMAGE</div>
+                 )}
+                 <div className="absolute inset-0 bg-gradient-to-r from-[#111] via-[#111]/70 to-transparent"></div>
+              </div>
+
+              <div className="absolute inset-0 flex items-center">
+                <div className="px-8 md:px-16 w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                   <div>
+                      <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="inline-block border border-white/20 text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider bg-black/30 backdrop-blur-md">REBRAND Exclusive</motion.div>
+                      <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-4xl md:text-6xl font-black leading-none mb-2 text-white uppercase">{currentBanner.title}</motion.h2>
+                      <motion.h3 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="text-3xl md:text-5xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 uppercase">{currentBanner.subtitle}</motion.h3>
+                      <p className="text-gray-300 text-lg mb-8 max-w-md line-clamp-2">{currentBanner.description}</p>
+                      <button onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition">Детальніше</button>
+                   </div>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          
+          <div className="absolute bottom-8 right-8 flex items-center gap-4 z-20">
+             <span className="text-2xl font-mono font-bold text-white">{currentSlide + 1}<span className="text-gray-500 text-lg">/{activeBanners.length}</span></span>
+             <div className="flex gap-2">
+                <button onClick={prevSlide} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition"><ArrowLeft size={18}/></button>
+                <button onClick={nextSlide} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition shadow-lg"><ArrowRight size={18}/></button>
+             </div>
+          </div>
+        </div>
+
+        {/* === КАТАЛОГ === */}
+        <section id="catalog">
+          <div className="flex items-center justify-between mb-8">
+             <h2 className="text-3xl font-bold">Найкращі пропозиції</h2>
+             <div className="h-[1px] bg-white/10 flex-1 mx-6 hidden md:block"></div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className="bg-[#1a1a1a] rounded-2xl p-4 hover:shadow-2xl hover:-translate-y-1 transition duration-300 group border border-white/5 flex flex-col relative overflow-hidden">
+                <div className="absolute top-4 left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-2 py-1 rounded-md uppercase">Хіт</div>
+                <div className="aspect-[4/5] bg-black rounded-xl overflow-hidden mb-4 relative">
+                  {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" /> : <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700"><Package size={32}/></div>}
+                  <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition bg-black/50 p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100"><Heart size={18} /></button>
+                </div>
+                <div className="flex-1 flex flex-col">
+                  <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100">{product.title}</h3>
+                  <div className="mt-auto pt-4 flex items-center justify-between border-t border-white/5">
+                    <div><span className="text-2xl font-bold text-white">{product.price} <span className="text-sm font-normal text-gray-500">грн</span></span></div>
+                    <button onClick={() => addToCart(product)} className="bg-white text-black w-10 h-10 flex items-center justify-center rounded-xl hover:bg-blue-500 hover:text-white transition shadow-lg"><ShoppingBag size={20} /></button>
                   </div>
-                  
-                  <button 
-                    onClick={() => addToCart(product)}
-                    className="w-full py-3 border border-white/20 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black hover:border-white transition duration-300 flex items-center justify-center gap-2 group/btn"
-                  >
-                    <span>Купити</span>
-                    <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform"/>
-                  </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* === FOOTER === */}
-      <footer className="py-12 border-t border-white/10 bg-zinc-950 text-center text-zinc-600 text-sm">
-        <div className="mb-4 text-2xl font-black italic text-zinc-800">REBRAND</div>
-        <p>&copy; 2024 REBRAND STUDIO. All rights reserved.</p>
-      </footer>
+      <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12"><div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm"><p>&copy; 2024 REBRAND STUDIO. Усі права захищено.</p></div></footer>
 
-      {/* === КОШИК (DRAWER) === */}
-      {isCartOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity" onClick={() => setIsCartOpen(false)}></div>
-      )}
-
-      <div className={`fixed top-0 right-0 h-full w-full md:w-[480px] bg-zinc-950 border-l border-white/10 z-[70] transform transition-transform duration-500 shadow-2xl ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
-        <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-white/10 flex items-center justify-between bg-zinc-900/50">
-            <h2 className="text-lg font-bold uppercase tracking-widest flex items-center gap-2">
-              <ShoppingBag size={18} className="text-blue-500"/> Кошик ({cart.length})
-            </h2>
-            <button onClick={() => setIsCartOpen(false)} className="text-zinc-500 hover:text-white transition p-2 bg-white/5 rounded-full"><X size={20} /></button>
-          </div>
-
+      {isCartOpen && <div className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>}
+      <div className={`fixed top-0 right-0 h-full w-full md:w-[450px] bg-[#1a1a1a] border-l border-white/10 z-[70] transform transition-transform duration-300 shadow-2xl flex flex-col ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#151515]"><h2 className="text-xl font-bold">Кошик</h2><button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div>
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-4">
-                <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-2">
-                   <ShoppingBag size={32} strokeWidth={1} />
-                </div>
-                <p className="uppercase tracking-widest text-xs">Ваш кошик порожній</p>
-                <button onClick={() => setIsCartOpen(false)} className="text-blue-500 hover:text-white transition text-sm font-bold">Повернутись до каталогу</button>
-              </div>
-            ) : (
-              cart.map((item, idx) => (
-                <div key={idx} className="flex gap-4 p-3 bg-white/5 rounded-xl border border-white/5 hover:border-blue-500/30 transition group">
-                  <div className="w-20 h-24 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0">
-                    {item.image_url && <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />}
+            {cart.map((item, idx) => (
+               <div key={idx} className="flex gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
+                  <div className="w-20 h-20 bg-black rounded-lg overflow-hidden flex-shrink-0">{item.image_url && <img src={item.image_url} className="w-full h-full object-cover"/>}</div>
+                  <div className="flex-1 flex flex-col justify-between">
+                     <div className="flex justify-between"><h4 className="font-bold text-sm line-clamp-2">{item.title}</h4><button onClick={() => removeFromCart(idx)} className="text-gray-500 hover:text-red-500"><X size={18}/></button></div>
+                     <div className="font-bold text-lg">{item.price} ₴</div>
                   </div>
-                  <div className="flex-1 flex flex-col justify-between py-1">
-                    <div>
-                      <div className="flex justify-between items-start">
-                         <h4 className="font-bold text-sm text-white line-clamp-2">{item.title}</h4>
-                         <button onClick={() => removeFromCart(idx)} className="text-zinc-600 hover:text-red-500 transition"><X size={16}/></button>
-                      </div>
-                      <p className="text-xs text-zinc-500 mt-1">Артикул: {item.id}</p>
-                    </div>
-                    <p className="font-mono text-blue-400 font-bold">{item.price} ₴</p>
-                  </div>
-                </div>
-              ))
-            )}
+               </div>
+            ))}
           </div>
-
-          {cart.length > 0 && (
-            <div className="p-6 border-t border-white/10 bg-zinc-900">
-              <div className="flex justify-between mb-2">
-                <span className="text-zinc-400 text-sm">Сума товарів</span>
-                <span className="font-mono text-white">{totalPrice} ₴</span>
-              </div>
-              <div className="flex justify-between mb-6 pt-2 border-t border-white/5">
-                <span className="text-white font-bold uppercase tracking-widest text-sm">Всього до сплати</span>
-                <span className="text-2xl font-mono font-bold text-blue-400">{totalPrice} ₴</span>
-              </div>
-              <button 
-                onClick={placeOrder}
-                disabled={isOrdering}
-                className="w-full bg-white text-black hover:bg-blue-600 hover:text-white font-bold py-4 text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition duration-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isOrdering ? "Обробка..." : "Оформити замовлення"}
-              </button>
-            </div>
-          )}
-        </div>
+          {cart.length > 0 && <div className="p-6 bg-[#151515] border-t border-white/10"><div className="flex justify-between items-center mb-6"><span className="text-gray-400">Всього</span><span className="text-2xl font-bold">{totalPrice} ₴</span></div><button onClick={placeOrder} disabled={isOrdering} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition disabled:opacity-50">Оформити</button></div>}
       </div>
-
     </div>
   );
 }
