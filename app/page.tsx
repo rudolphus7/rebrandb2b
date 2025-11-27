@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
+import Link from "next/link"; // Імпорт для швидкого переходу
 
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   
-  // --- НОВЕ: Стан для кошика ---
+  // Стан для кошика
   const [cart, setCart] = useState<any[]>([]);
   const [isOrdering, setIsOrdering] = useState(false);
 
@@ -36,28 +37,23 @@ export default function Home() {
     if (!error) setProducts(data || []);
   }
 
-  // --- НОВЕ: Логіка Кошика ---
-  
-  // 1. Додати в кошик
+  // --- Логіка Кошика ---
   function addToCart(product: any) {
     setCart([...cart, product]);
-    // Можна додати alert("Додано!"), але краще просто візуально оновити кошик
   }
 
-  // 2. Видалити з кошика (за індексом, щоб не видалити всі однакові товари)
   function removeFromCart(indexToRemove: number) {
     setCart(cart.filter((_, index) => index !== indexToRemove));
   }
 
-  // 3. Підрахунок суми
   const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
 
-  // 4. ВІДПРАВКА ЗАМОВЛЕННЯ В SUPABASE
+  // ВІДПРАВКА ЗАМОВЛЕННЯ
   async function placeOrder() {
     if (cart.length === 0) return alert("Кошик порожній!");
     setIsOrdering(true);
 
-    // 1. Записуємо в Supabase (як і раніше)
+    // 1. Записуємо в Supabase
     const { error } = await supabase.from('orders').insert([
       {
         user_email: session.user.email,
@@ -72,17 +68,20 @@ export default function Home() {
       return;
     }
 
-    // 2. ВІДПРАВЛЯЄМО В TELEGRAM (Нова частина)
-    // Ми "стукаємо" в наш власний API, який ми створили в кроці 3
-    await fetch('/api/telegram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: session.user.email,
-        total: totalPrice,
-        items: cart
-      })
-    });
+    // 2. ВІДПРАВЛЯЄМО В TELEGRAM
+    try {
+      await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: session.user.email,
+          total: totalPrice,
+          items: cart
+        })
+      });
+    } catch (e) {
+      console.error("Telegram error", e);
+    }
 
     // 3. Успіх
     alert("Замовлення прийнято! Менеджери вже біжать на склад.");
@@ -125,45 +124,60 @@ export default function Home() {
       
       {/* ЛІВА ЧАСТИНА - ТОВАРИ */}
       <div className="flex-1 p-8">
+        
+        {/* === ОНОВЛЕНА ШАПКА З КНОПКОЮ КАБІНЕТУ === */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-blue-900">Товари</h1>
-          <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">Вийти ({session.user.email})</button>
+          
+          <div className="flex items-center gap-4">
+            {/* Кнопка Мій кабінет */}
+            <Link 
+              href="/profile" 
+              className="flex items-center gap-2 text-blue-900 font-medium hover:bg-blue-50 px-3 py-2 rounded transition border border-transparent hover:border-blue-100"
+            >
+              👤 Мій кабінет
+            </Link>
+            
+            {/* Кнопка Вийти */}
+            <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">
+              Вийти ({session.user.email})
+            </button>
+          </div>
         </div>
+        {/* ========================================= */}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product) => (
-           
-  <div key={product.id} className="bg-white p-6 rounded-lg shadow border hover:shadow-lg transition flex flex-col justify-between">
-    <div>
-      {/* --- НОВЕ: КАРТИНКА --- */}
-      {product.image_url ? (
-        <img 
-          src={product.image_url} 
-          alt={product.title} 
-          className="w-full h-48 object-cover mb-4 rounded"
-        />
-      ) : (
-        <div className="w-full h-48 bg-gray-200 mb-4 rounded flex items-center justify-center text-gray-400">
-          Немає фото
-        </div>
-      )}
-      {/* ---------------------- */}
+            <div key={product.id} className="bg-white p-6 rounded-lg shadow border hover:shadow-lg transition flex flex-col justify-between">
+              <div>
+                {/* КАРТИНКА */}
+                {product.image_url ? (
+                  <img 
+                    src={product.image_url} 
+                    alt={product.title} 
+                    className="w-full h-48 object-cover mb-4 rounded"
+                  />
+                ) : (
+                  <div className="w-full h-48 bg-gray-200 mb-4 rounded flex items-center justify-center text-gray-400">
+                    Немає фото
+                  </div>
+                )}
 
-      <h2 className="text-xl font-bold mb-2">{product.title}</h2>
-      <p className="text-gray-600 mb-4">Ціна: <span className="text-green-600 font-bold">{product.price} грн</span></p>
-    </div>
-    <button 
-      onClick={() => addToCart(product)}
-      className="w-full bg-blue-100 text-blue-800 py-2 rounded hover:bg-blue-200 font-medium"
-    >
-      + Додати в кошик
-    </button>
-  </div>
+                <h2 className="text-xl font-bold mb-2">{product.title}</h2>
+                <p className="text-gray-600 mb-4">Ціна: <span className="text-green-600 font-bold">{product.price} грн</span></p>
+              </div>
+              <button 
+                onClick={() => addToCart(product)}
+                className="w-full bg-blue-100 text-blue-800 py-2 rounded hover:bg-blue-200 font-medium"
+              >
+                + Додати в кошик
+              </button>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* ПРАВА ЧАСТИНА - КОШИК (Sidebar) */}
+      {/* ПРАВА ЧАСТИНА - КОШИК */}
       <div className="w-full md:w-96 bg-white border-l shadow-xl p-6 min-h-screen sticky top-0">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">Ваше замовлення</h2>
         
