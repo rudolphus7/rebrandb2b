@@ -5,8 +5,8 @@ import { supabase } from "../lib/supabaseClient";
 import Link from "next/link"; 
 import LoginPage from "./components/LoginPage"; 
 import { 
-  Search, ShoppingBag, LogOut, User, X, ArrowRight, Package, 
-  Phone, Send, MessageCircle, ChevronDown
+  Search, ShoppingBag, LogOut, User, Plus, X, ArrowRight, Package, 
+  Phone, Send, MessageCircle, ChevronDown 
 } from "lucide-react";
 
 export default function Home() {
