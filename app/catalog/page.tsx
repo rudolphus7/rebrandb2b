@@ -5,9 +5,11 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { 
-  Search, ShoppingBag, ArrowLeft, ArrowRight, Filter, ChevronDown, 
-  ChevronUp, Check, LayoutGrid, List, Home as HomeIcon, Package
+  Search, ArrowLeft, ArrowRight, Filter, ChevronDown, 
+  ChevronUp, Check, Home as HomeIcon, Package
 } from "lucide-react";
+// Імпортуємо наш новий компонент картинки
+import ProductImage from "../components/ProductImage";
 
 function FilterGroup({ title, items, isOpenDefault = false }: { title: string, items: string[], isOpenDefault?: boolean }) {
   const [isOpen, setIsOpen] = useState(isOpenDefault);
@@ -51,7 +53,6 @@ function CatalogContent() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Фільтри (Статичні, бо з YML ми їх ще не парсимо окремо)
   const COLORS = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений", "Жовтий", "Оранжевий"];
   const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс"];
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
@@ -66,7 +67,6 @@ function CatalogContent() {
 
     if (query) request = request.ilike("title", `%${query}%`);
 
-    // Вантажимо 500 товарів, щоб згрупувати їх
     const from = (page - 1) * 500; 
     const to = from + 499;
 
@@ -74,28 +74,23 @@ function CatalogContent() {
 
     if (!data) { setLoading(false); return; }
 
-    // --- ГРУПУВАННЯ ---
     const groupedMap = new Map();
 
     data.forEach((item) => {
-        // Очищаємо назву від сміття, щоб знайти однакові моделі
-        // Наприклад "Футболка Polo Red" і "Футболка Polo Blue" -> "Футболка Polo"
-        // Але у Totobi зазвичай назва однакова, відрізняється тільки артикул або параметр
         const groupKey = item.title.trim(); 
 
         if (!groupedMap.has(groupKey)) {
             groupedMap.set(groupKey, {
                 ...item,
-                variants: [item], // Список всіх варіантів (кольорів)
+                variants: [item],
                 variant_images: item.image_url ? [item.image_url] : [],
                 stock_total: item.amount || 0,
                 stock_reserve: item.reserve || 0,
-                active_image: item.image_url // Поточне фото для відображення
+                active_image: item.image_url 
             });
         } else {
             const group = groupedMap.get(groupKey);
             group.variants.push(item);
-            // Додаємо фото, якщо воно унікальне
             if (item.image_url && !group.variant_images.includes(item.image_url)) {
                 group.variant_images.push(item.image_url);
             }
@@ -107,7 +102,7 @@ function CatalogContent() {
     const groupedProducts = Array.from(groupedMap.values()).map(group => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
-        article: group.sku ? group.sku.split('-')[0] : `ART-${group.id}`, // Беремо спільну частину артикулу
+        article: group.sku ? group.sku.split('-')[0] : `ART-${group.id}`,
         brand: "Totobi Partner" 
     }));
 
@@ -115,11 +110,9 @@ function CatalogContent() {
     setLoading(false);
   }
 
-  // Функція зміни картинки при наведенні (тільки візуально)
-  const handleMouseEnter = (productId: number, img: string) => {
-     const imgEl = document.getElementById(`img-${productId}`) as HTMLImageElement;
-     if(imgEl) imgEl.src = img;
-  };
+  // При наведенні мишки ми просто оновлюємо state або DOM, 
+  // але оскільки ProductImage - це React компонент, краще просто дозволити перехід на картку.
+  // (Пряма маніпуляція DOM тут може бути складною через обгортку, тому поки спростимо)
 
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans">
@@ -174,15 +167,16 @@ function CatalogContent() {
                             item.variant_images.slice(0, 6).map((img: string, idx: number) => (
                             <div 
                                 key={idx} 
-                                onMouseEnter={() => handleMouseEnter(item.id, img)}
                                 className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110"
                             >
-                                <img src={img} className="w-full h-full object-cover" />
+                                {/* ВИКОРИСТОВУЄМО ProductImage */}
+                                <ProductImage src={img} alt="Color" fill />
                             </div>
                             ))
                         ) : (
                             <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[8px] text-zinc-500">N/A</div>
                         )}
+                        
                         {item.variant_images.length > 6 && (
                             <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 6}</div>
                         )}
@@ -192,11 +186,14 @@ function CatalogContent() {
                      <div className="flex-1 flex flex-col min-w-0">
                         {/* ФОТО */}
                         <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
-                           <Link href={`/product/${item.id}`}> {/* Посилання веде на картку ПЕРШОГО варіанту */}
-                             {item.active_image 
-                               ? <img id={`img-${item.id}`} src={item.active_image} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                               : <div className="w-full h-full flex items-center justify-center text-zinc-700"><Package size={32}/></div>
-                             }
+                           <Link href={`/product/${item.id}`} className="block w-full h-full">
+                             {/* ВИКОРИСТОВУЄМО ProductImage */}
+                             <ProductImage 
+                                src={item.active_image || item.image_url} 
+                                alt={item.title}
+                                fill
+                                className="group-hover:scale-105 transition duration-500"
+                             />
                            </Link>
                            
                            <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
@@ -217,10 +214,14 @@ function CatalogContent() {
                         </div>
 
                         <div className="text-xl font-bold text-white mb-3">
-                           {item.price} <span className="text-xs font-normal text-gray-400">ГРН</span>
+                           {item.price > 0 ? (
+                               <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></>
+                           ) : (
+                               <span className="text-sm text-blue-400">Ціна за запитом</span>
+                           )}
                         </div>
 
-                        {/* ЗАЛИШКИ (СУМАРНІ) */}
+                        {/* ЗАЛИШКИ */}
                         <div className="mt-auto bg-[#111] rounded p-2 text-[10px] space-y-1 border border-white/5">
                            <div className="flex justify-between">
                               <span className="text-gray-400">На складі:</span>

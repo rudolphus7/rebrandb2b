@@ -1,13 +1,12 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // 👇 ДОДАЙ ЦЕЙ БЛОК
   images: {
     remotePatterns: [
       {
@@ -16,17 +15,17 @@ const nextConfig: NextConfig = {
         pathname: '**',
       },
       {
-        protocol: 'http', // На всяк випадок дозволимо і http, хоча ми його замінили
+        protocol: 'http',
         hostname: 'totobi.com.ua',
         pathname: '**',
       },
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com', // Для банерів
+        hostname: 'images.unsplash.com',
         pathname: '**',
       }
     ],
   },
-};
+} satisfies NextConfig;
 
 export default nextConfig;
