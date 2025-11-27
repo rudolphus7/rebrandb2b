@@ -2,22 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
-import Link from "next/link"; // Імпорт для швидкого переходу
+import Link from "next/link"; 
+import LoginPage from "./components/LoginPage"; 
+import { 
+  Search, ShoppingBag, LogOut, User, Plus, X, ArrowRight, Package, 
+  Phone, Send, MessageCircle, ChevronDown, Menu
+} from "lucide-react";
 
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   
-  // Стан для кошика
+  // Кошик (тепер контролюємо видимість)
   const [cart, setCart] = useState<any[]>([]);
   const [isOrdering, setIsOrdering] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false); // Стан: відкрито чи ні
+  
+  // Скрол
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  // Стан для форми входу
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // Перевірка сесії при запуску
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -29,17 +33,24 @@ export default function Home() {
       if (session) fetchProducts();
     });
 
-    return () => subscription.unsubscribe();
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   async function fetchProducts() {
-    const { data, error } = await supabase.from("products").select("*");
+    const { data, error } = await supabase.from("products").select("*").order('id', { ascending: false });
     if (!error) setProducts(data || []);
   }
 
-  // --- Логіка Кошика ---
+  // --- ЛОГІКА ---
   function addToCart(product: any) {
     setCart([...cart, product]);
+    setIsCartOpen(true); // Автоматично відкрити кошик при додаванні
   }
 
   function removeFromCart(indexToRemove: number) {
@@ -48,27 +59,26 @@ export default function Home() {
 
   const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
 
-  // ВІДПРАВКА ЗАМОВЛЕННЯ
+  const filteredProducts = products.filter(p => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   async function placeOrder() {
     if (cart.length === 0) return alert("Кошик порожній!");
     setIsOrdering(true);
 
-    // 1. Записуємо в Supabase
-    const { error } = await supabase.from('orders').insert([
-      {
+    const { error } = await supabase.from('orders').insert([{
         user_email: session.user.email,
         total_price: totalPrice,
         items: cart 
-      }
-    ]);
+    }]);
 
     if (error) {
-      alert("Помилка бази даних: " + error.message);
+      alert("Error: " + error.message);
       setIsOrdering(false);
       return;
     }
 
-    // 2. ВІДПРАВЛЯЄМО В TELEGRAM
     try {
       await fetch('/api/telegram', {
         method: 'POST',
@@ -79,23 +89,17 @@ export default function Home() {
           items: cart
         })
       });
-    } catch (e) {
-      console.error("Telegram error", e);
-    }
+    } catch (e) { console.error(e); }
 
-    // 3. Успіх
-    alert("Замовлення прийнято! Менеджери вже біжать на склад.");
+    alert("Замовлення прийнято!");
     setCart([]); 
     setIsOrdering(false);
+    setIsCartOpen(false);
   }
 
-  // Логіка входу (Login)
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert("Помилка: " + error.message);
-    setLoading(false);
+  async function handleLogin(emailInput: string, passwordInput: string) {
+    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
+    if (error) alert("Access Denied: " + error.message);
   }
 
   async function handleLogout() {
@@ -104,122 +108,204 @@ export default function Home() {
     setCart([]);
   }
 
-  // --- ВІЗУАЛЬНА ЧАСТИНА ---
-
-  if (!session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded shadow-md w-96">
-          <h1 className="text-2xl font-bold mb-6 text-center">B2B Portal Login</h1>
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mb-4 p-2 border rounded" required />
-          <input type="password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full mb-6 p-2 border rounded" required />
-          <button disabled={loading} className="w-full bg-blue-900 text-white p-2 rounded hover:bg-blue-800">{loading ? "Вхід..." : "Увійти"}</button>
-        </form>
-      </div>
-    );
-  }
+  if (!session) return <LoginPage onLogin={handleLogin} />;
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 flex flex-col">
       
-      {/* ЛІВА ЧАСТИНА - ТОВАРИ */}
-      <div className="flex-1 p-8">
-        
-        {/* === ОНОВЛЕНА ШАПКА З КНОПКОЮ КАБІНЕТУ === */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-900">Товари</h1>
+      {/* === HEADER === */}
+      <header 
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 border-b border-white/10 ${
+          isScrolled ? "bg-black/90 backdrop-blur-md py-3" : "bg-black py-5"
+        }`}
+      >
+        <div className="max-w-[1800px] mx-auto px-6 flex items-center justify-between">
           
+          {/* ЛОГОТИП */}
           <div className="flex items-center gap-4">
-            {/* Кнопка Мій кабінет */}
-            <Link 
-              href="/profile" 
-              className="flex items-center gap-2 text-blue-900 font-medium hover:bg-blue-50 px-3 py-2 rounded transition border border-transparent hover:border-blue-100"
-            >
-              👤 Мій кабінет
-            </Link>
+            <div className="text-2xl font-black tracking-tighter italic select-none cursor-pointer">
+              REBRAND
+            </div>
+          </div>
+
+          {/* НАВІГАЦІЯ (ЦЕНТР) */}
+          <nav className="hidden xl:flex items-center gap-10 text-xs font-bold tracking-widest uppercase text-zinc-400">
+            <a href="#" className="hover:text-white transition">Про нас</a>
+            <a href="#" className="hover:text-white transition">Послуги</a>
+            <a href="#" className="text-white">Каталог</a>
+            <a href="#" className="hover:text-white transition">Контакти</a>
+          </nav>
+
+          {/* ПРАВА ПАНЕЛЬ ІКОНОК */}
+          <div className="flex items-center gap-3">
+            {/* Група контактів */}
+            <div className="hidden md:flex items-center gap-2 mr-4 border-r border-white/10 pr-6">
+               <button className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center hover:bg-white hover:text-black transition group">
+                 <MessageCircle size={16} />
+               </button>
+               <button className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center hover:bg-white hover:text-black transition group">
+                 <Send size={14} className="ml-0.5" /> 
+               </button>
+               <button className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center hover:bg-white hover:text-black transition group">
+                 <Phone size={16} />
+               </button>
+            </div>
+
+            {/* Група користувача (Профіль, Кошик, Вихід) */}
             
-            {/* Кнопка Вийти */}
-            <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">
-              Вийти ({session.user.email})
+            {/* Пошук (маленька іконка) */}
+            <button className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition">
+              <Search size={20} />
+            </button>
+
+            {/* Профіль */}
+            <Link href="/profile" className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition" title="Мій кабінет">
+              <User size={20} />
+            </Link>
+
+            {/* Кошик */}
+            <button 
+              onClick={() => setIsCartOpen(true)}
+              className="w-10 h-10 flex items-center justify-center text-white relative transition hover:scale-110"
+            >
+              <ShoppingBag size={20} />
+              {cart.length > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full text-[10px] flex items-center justify-center font-bold">
+                  {cart.length}
+                </span>
+              )}
+            </button>
+
+             {/* Вихід */}
+            <button onClick={handleLogout} className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-red-500 transition ml-2">
+              <LogOut size={20} />
             </button>
           </div>
         </div>
-        {/* ========================================= */}
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <div key={product.id} className="bg-white p-6 rounded-lg shadow border hover:shadow-lg transition flex flex-col justify-between">
-              <div>
-                {/* КАРТИНКА */}
-                {product.image_url ? (
-                  <img 
-                    src={product.image_url} 
-                    alt={product.title} 
-                    className="w-full h-48 object-cover mb-4 rounded"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-200 mb-4 rounded flex items-center justify-center text-gray-400">
-                    Немає фото
+
+      {/* === ОСНОВНИЙ КОНТЕНТ (FULL WIDTH) === */}
+      <div className="pt-24 min-h-screen">
+        <main className="px-6 lg:px-10 pb-20 max-w-[1800px] mx-auto w-full">
+           
+          {/* Заголовок */}
+          <div className="flex flex-col items-center justify-center text-center mb-16 mt-10">
+             <span className="text-blue-500 text-xs font-bold tracking-[0.2em] uppercase mb-4">Official Store</span>
+             <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4">MERCH DROPS</h1>
+             <p className="text-zinc-500 max-w-xl mx-auto">
+               Ексклюзивний мерч для партнерів REBRAND STUDIO. Замовляйте гуртом, слідкуйте за статусом, отримуйте якість.
+             </p>
+          </div>
+
+          {/* Сітка товарів */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className="group relative">
+                {/* Фото */}
+                <div className="aspect-[3/4] bg-zinc-900 w-full relative overflow-hidden mb-6">
+                  {product.image_url ? (
+                    <img src={product.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition duration-700 ease-in-out" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-800 font-bold">NO IMAGE</div>
+                  )}
+                  
+                  {/* Швидка дія */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300 pointer-events-none">
+                     <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-full text-white font-bold tracking-widest text-xs border border-white/20">
+                        QUICK VIEW
+                     </div>
                   </div>
-                )}
+                </div>
 
-                <h2 className="text-xl font-bold mb-2">{product.title}</h2>
-                <p className="text-gray-600 mb-4">Ціна: <span className="text-green-600 font-bold">{product.price} грн</span></p>
+                {/* Інфо */}
+                <div className="flex justify-between items-start border-t border-white/10 pt-4 group-hover:border-white/30 transition">
+                  <div className="flex flex-col">
+                    <h3 className="font-bold text-lg leading-none mb-2">{product.title}</h3>
+                    <button 
+                       onClick={() => addToCart(product)}
+                       className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest text-left transition"
+                    >
+                      + Add to Cart
+                    </button>
+                  </div>
+                  <span className="font-mono text-lg text-white">{product.price} ₴</span>
+                </div>
               </div>
-              <button 
-                onClick={() => addToCart(product)}
-                className="w-full bg-blue-100 text-blue-800 py-2 rounded hover:bg-blue-200 font-medium"
-              >
-                + Додати в кошик
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </main>
       </div>
 
-      {/* ПРАВА ЧАСТИНА - КОШИК */}
-      <div className="w-full md:w-96 bg-white border-l shadow-xl p-6 min-h-screen sticky top-0">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Ваше замовлення</h2>
-        
-        {cart.length === 0 ? (
-          <p className="text-gray-400">Кошик порожній. Виберіть товари зліва.</p>
-        ) : (
-          <>
-            <div className="space-y-4 mb-8 max-h-[60vh] overflow-auto">
-              {cart.map((item, index) => (
-                <div key={index} className="flex justify-between items-center border-b pb-2">
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-sm text-gray-500">{item.price} грн</p>
-                  </div>
-                  <button 
-                    onClick={() => removeFromCart(index)}
-                    className="text-red-500 hover:text-red-700 text-sm font-bold px-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+      {/* === ВИЇЖДЖАЮЧИЙ КОШИК (DRAWER) === */}
+      {/* Затемнення фону */}
+      {isCartOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
+          onClick={() => setIsCartOpen(false)}
+        ></div>
+      )}
 
-            <div className="border-t pt-4">
-              <div className="flex justify-between text-xl font-bold mb-6">
-                <span>Разом:</span>
-                <span>{totalPrice} грн</span>
+      {/* Панель кошика */}
+      <div className={`fixed top-0 right-0 h-full w-full md:w-[450px] bg-zinc-950 border-l border-white/10 z-50 transform transition-transform duration-500 shadow-2xl ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
+        
+        <div className="h-full flex flex-col">
+          {/* Шапка кошика */}
+          <div className="p-6 border-b border-white/10 flex items-center justify-between">
+            <h2 className="text-xl font-bold uppercase tracking-tight">Ваш кошик <span className="text-zinc-500 ml-2 text-sm normal-case">({cart.length} позицій)</span></h2>
+            <button onClick={() => setIsCartOpen(false)} className="text-zinc-500 hover:text-white transition">
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Список */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {cart.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-4">
+                <ShoppingBag size={48} strokeWidth={1} />
+                <p className="uppercase tracking-widest text-xs">Кошик порожній</p>
+                <button onClick={() => setIsCartOpen(false)} className="text-white border-b border-white pb-0.5 hover:text-blue-400 hover:border-blue-400 transition">Повернутись до покупок</button>
               </div>
-              
+            ) : (
+              cart.map((item, idx) => (
+                <div key={idx} className="flex gap-4">
+                  <div className="w-20 h-24 bg-zinc-900 flex-shrink-0 overflow-hidden">
+                    {item.image_url && <img src={item.image_url} className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="flex-1 flex flex-col justify-between py-1">
+                    <div>
+                      <div className="flex justify-between items-start">
+                         <h4 className="font-bold text-sm uppercase">{item.title}</h4>
+                         <button onClick={() => removeFromCart(idx)} className="text-zinc-600 hover:text-red-500 transition"><X size={16}/></button>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1">Size: M / Black</p>
+                    </div>
+                    <p className="font-mono">{item.price} ₴</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Футер кошика */}
+          {cart.length > 0 && (
+            <div className="p-6 border-t border-white/10 bg-zinc-900">
+              <div className="flex justify-between mb-6 items-end">
+                <span className="text-zinc-400 text-sm uppercase tracking-widest">Разом до сплати</span>
+                <span className="text-3xl font-mono">{totalPrice} <span className="text-lg text-zinc-500">₴</span></span>
+              </div>
               <button 
                 onClick={placeOrder}
                 disabled={isOrdering}
-                className="w-full bg-green-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-green-700 shadow-md disabled:bg-gray-400"
+                className="w-full bg-white text-black hover:bg-blue-600 hover:text-white font-bold py-5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition duration-300 disabled:opacity-50"
               >
-                {isOrdering ? "Відправка..." : "ОФОРМИТИ ЗАМОВЛЕННЯ"}
+                {isOrdering ? "Обробка..." : "Оформити замовлення"}
               </button>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
-    </main>
+    </div>
   );
 }
