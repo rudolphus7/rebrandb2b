@@ -5,69 +5,91 @@ import { supabase } from '@/lib/supabaseClient';
 const SUPPLIER_URL = "https://totobi.com.ua/index.php?dispatch=yml.get&access_key=lg3bjy2gvww";
 const MARGIN_PERCENT = 20; 
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = parseInt(searchParams.get('limit') || '50');
+
+    console.log(`🚀 Sync batch: ${offset} - ${offset + limit}`);
+
     const response = await fetch(SUPPLIER_URL, { cache: 'no-store' });
-    if (!response.ok) throw new Error("Не вдалося завантажити YML");
+    if (!response.ok) throw new Error("YML fetch failed");
     const xmlText = await response.text();
 
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
+    const allOffers = jsonData.yml_catalog?.shop?.offers?.offer;
     
-    // Перевірка структури YML (іноді shop може бути масивом або об'єктом)
-    const offers = jsonData.yml_catalog?.shop?.offers?.offer;
-    
-    if (!offers) {
-        throw new Error("Не знайдено товарів у YML файлі");
-    }
+    if (!allOffers) throw new Error("No offers found");
+    const offersArray = Array.isArray(allOffers) ? allOffers : [allOffers];
+    const totalOffers = offersArray.length;
 
-    // Якщо offers - це не масив (один товар), робимо масивом
-    const offersArray = Array.isArray(offers) ? offers : [offers];
-    
-    let updatedCount = 0;
+    if (offset >= totalOffers) return NextResponse.json({ done: true, total: totalOffers, processed: 0 });
 
-    for (const offer of offersArray) {
+    const chunk = offersArray.slice(offset, offset + limit);
+
+    const productsToUpsert = chunk.map((offer: any) => {
       let basePrice = parseFloat(offer.price);
+      let sizesData = [];
 
-      // Логіка для текстилю (ціна в розмірах)
-      if (basePrice === 0 && offer.textile === 'Y' && offer.sizes && offer.sizes.size) {
-        const sizes = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
-        if (sizes.length > 0 && sizes[0]['@_modifier']) {
-           basePrice = parseFloat(sizes[0]['@_modifier']);
+      // --- 1. ПАРСИНГ РОЗМІРІВ ---
+      if (offer.textile === 'Y' && offer.sizes?.size) {
+        const sizesArr = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
+        
+        if ((basePrice === 0 || isNaN(basePrice)) && sizesArr.length > 0) {
+           basePrice = parseFloat(sizesArr[0]['@_modifier']);
         }
+
+        sizesData = sizesArr.map((s: any) => ({
+            label: s['#text'], 
+            price: parseFloat(s['@_modifier']),
+            stock_total: parseInt(s['@_amount'] || 0),
+            stock_reserve: parseInt(s['@_reserve'] || 0),
+            stock_available: parseInt(s['@_in_stock'] || 0)
+        }));
       }
 
-      // Якщо ціна все ще 0 або NaN, пропускаємо або ставимо заглушку
       if (!basePrice || isNaN(basePrice)) basePrice = 0;
-
       const finalPrice = Math.ceil(basePrice * (1 + MARGIN_PERCENT / 100));
 
       let imageUrl = null;
-      if (offer.picture) {
-        imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
+      if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
+
+      // --- 2. ПАРСИНГ КОЛЬОРУ (НОВЕ!) ---
+      let colorValue = null;
+      if (offer.param) {
+        const params = Array.isArray(offer.param) ? offer.param : [offer.param];
+        // Шукаємо параметр з назвою "Колір" або "Група Кольорів"
+        const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Група Кольорів');
+        if (colorParam) {
+            colorValue = colorParam['#text']; // Наприклад: "Чорний" або "black"
+        }
       }
 
-      const productData = {
+      return {
         external_id: offer['@_id']?.toString(),
         title: offer.name,
         price: finalPrice,
         image_url: imageUrl,
         sku: offer.vendorCode,
-        description: offer.description,
+        description: offer.description ? offer.description.substring(0, 5000) : "",
         in_stock: offer.amount > 0 || offer['@_available'] === 'true',
-        category_external_id: offer.categoryId?.toString()
+        category_external_id: offer.categoryId?.toString(),
+        amount: parseInt(offer.amount) || 0,
+        reserve: parseInt(offer.reserve) || 0,
+        sizes: sizesData,
+        color: colorValue // <--- ЗАПИСУЄМО КОЛІР
       };
+    }).filter((p: any) => p.external_id && p.title);
 
-      if (productData.external_id) {
-          await supabase.from('products').upsert(productData, { onConflict: 'external_id' });
-          updatedCount++;
-      }
+    if (productsToUpsert.length > 0) {
+        await supabase.from('products').upsert(productsToUpsert, { onConflict: 'external_id' });
     }
 
-    return NextResponse.json({ success: true, message: `Оброблено ${offersArray.length} товарів.` });
+    return NextResponse.json({ done: false, total: totalOffers, processed: productsToUpsert.length, nextOffset: offset + limit });
 
   } catch (error: any) {
-    console.error("Sync Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
