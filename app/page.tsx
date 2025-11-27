@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, ShoppingBag, LogOut, User, X, ArrowRight, ArrowLeft,
   Menu, LayoutGrid, Star, ShieldCheck, Zap, Truck, Package, Heart, 
-  Flame, Percent, Sparkles, ChevronRight
+  Shirt, Coffee, Monitor, Briefcase, Sparkles, Flame, Percent, ChevronRight
 } from "lucide-react";
 
 // --- ДАНІ ДЛЯ МЕГА-МЕНЮ (КАТАЛОГ) ---
@@ -39,17 +39,25 @@ const CATALOG_MENU = [
   }
 ];
 
-// --- ДАНІ ДЛЯ БАНЕРІВ ---
+// --- ВІЗУАЛЬНІ КАТЕГОРІЇ (БЛОКИ НА ГОЛОВНІЙ) ---
+const VISUAL_CATEGORIES = [
+  { id: "clothing", title: "Одяг & Текстиль", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
+  { id: "office", title: "Офіс & Канцелярія", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto=format&fit=crop", icon: Briefcase },
+  { id: "dishes", title: "Посуд & Термо", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto=format&fit=crop", icon: Coffee },
+  { id: "gadgets", title: "Електроніка", image: "https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto=format&fit=crop", icon: Monitor },
+];
+
+// --- ДЕФОЛТНІ БАНЕРИ (ЯКЩО В БАЗІ ПУСТО) ---
 const DEFAULT_SLIDES = [
   {
-    id: 999,
+    id: 1,
     title: "НОВА КОЛЕКЦІЯ",
     subtitle: "WINTER 2025",
     description: "Оверсайз худі з преміум бавовни. Ідеально під нанесення.",
     image_url: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=2070&auto=format&fit=crop",
   },
   {
-    id: 1000,
+    id: 2,
     title: "КОРПОРАТИВНИЙ",
     subtitle: "МЕРЧ",
     description: "Одягніть команду в якість. Знижки для B2B до -30%.",
@@ -70,7 +78,7 @@ export default function Home() {
   const [isOrdering, setIsOrdering] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false); // <--- СТАН ДЛЯ МЕГА-МЕНЮ
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false); // <--- Стан для випадаючого меню
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Ініціалізація
@@ -85,22 +93,38 @@ export default function Home() {
       if (session) fetchContent();
     });
 
+    // Автоплей слайдера
     const timer = setInterval(() => { nextSlide(); }, 6000);
     return () => { subscription.unsubscribe(); clearInterval(timer); };
   }, [currentSlide, banners.length]);
 
   async function fetchContent() {
-    const { data: prodData } = await supabase.from("products").select("*").order('id', { ascending: false });
-    if (prodData) setProducts(prodData);
+    // 1. Товари
+    const { data: prodData } = await supabase
+        .from("products")
+        .select("*")
+        .order('id', { ascending: false })
+        .limit(100); 
 
+    if (prodData) {
+        // Фільтрація дублів по SKU
+        const uniqueMap = new Map();
+        prodData.forEach(p => {
+            if (!uniqueMap.has(p.sku)) uniqueMap.set(p.sku, p);
+        });
+        setProducts(Array.from(uniqueMap.values()).slice(0, 8));
+    }
+
+    // 2. Банери
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
-    if (bannerData && bannerData.length > 0) setBanners(bannerData); else setBanners(DEFAULT_SLIDES);
+    if (bannerData && bannerData.length > 0) setBanners(bannerData);
+    else setBanners(DEFAULT_SLIDES);
   }
 
   // --- ЛОГІКА СЛАЙДЕРА ---
   const activeBanners = banners.length > 0 ? banners : DEFAULT_SLIDES;
-  const nextSlide = () => { setCurrentSlide((prev) => (prev === activeBanners.length - 1 ? 0 : prev + 1)); };
-  const prevSlide = () => { setCurrentSlide((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1)); };
+  const nextSlide = () => setCurrentSlide((prev) => (prev === activeBanners.length - 1 ? 0 : prev + 1));
+  const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1));
 
   // --- ЛОГІКА КОШИКА ---
   function addToCart(product: any) { setCart([...cart, product]); setIsCartOpen(true); }
@@ -132,12 +156,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#111111] text-white font-sans flex flex-col">
       
-      {/* === HEADER (Sticky) === */}
+      {/* === HEADER === */}
       <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/10 shadow-xl">
-        <div className="relative z-50 bg-[#111111] py-4"> {/* Верхній шар хедера */}
+        <div className="relative z-50 bg-[#111111] py-4">
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 flex items-center justify-between gap-6">
             
-            {/* ЛОГО + КНОПКА КАТАЛОГУ */}
+            {/* ЛОГО + КНОПКА МЕГА-МЕНЮ */}
             <div className="flex items-center gap-6 flex-shrink-0">
               <div 
                 className="text-2xl font-black italic tracking-tighter cursor-pointer select-none"
@@ -146,7 +170,7 @@ export default function Home() {
                 REBRAND
               </div>
               
-              {/* КНОПКА ВІДКРИТТЯ МЕГА-МЕНЮ */}
+              {/* КНОПКА КАТАЛОГ (ВІДКРИВАЄ МЕНЮ) */}
               <button 
                 onClick={() => setIsCatalogOpen(!isCatalogOpen)}
                 className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border
@@ -203,7 +227,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === MEGA MENU DROPDOWN (Випадаюче меню) === */}
+        {/* === MEGA MENU DROPDOWN (ВИПАДАЮЧЕ МЕНЮ) === */}
         <AnimatePresence>
           {isCatalogOpen && (
             <motion.div 
@@ -215,7 +239,7 @@ export default function Home() {
             >
               <div className="max-w-[1400px] mx-auto flex min-h-[400px]">
                 
-                {/* ЛІВА КОЛОНКА (Спецпропозиції) */}
+                {/* ЛІВА КОЛОНКА (Акції) */}
                 <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-4">
                    <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
                       <Sparkles size={20}/> Новинки
@@ -229,7 +253,7 @@ export default function Home() {
                    
                    <div className="mt-auto p-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
                       <p className="text-xs text-blue-200 font-bold uppercase mb-2">B2B Партнерство</p>
-                      <p className="text-sm text-gray-300 mb-3">Отримайте індивідуальні умови для великих замовлень.</p>
+                      <p className="text-sm text-gray-300 mb-3">Індивідуальні умови для великих замовлень.</p>
                       <button className="text-xs bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-gray-200 transition">Детальніше</button>
                    </div>
                 </div>
@@ -261,7 +285,7 @@ export default function Home() {
           )}
         </AnimatePresence>
         
-        {/* Затемнення фону, коли меню відкрите */}
+        {/* Затемнення фону */}
         {isCatalogOpen && (
           <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30" onClick={() => setIsCatalogOpen(false)}></div>
         )}
@@ -270,7 +294,7 @@ export default function Home() {
       {/* === ГОЛОВНИЙ КОНТЕНТ === */}
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 lg:px-8 py-8 space-y-12">
         
-        {/* === ГЕРОЙ-СЛАЙДЕР === */}
+        {/* === 1. ГЕРОЙ-СЛАЙДЕР === */}
         <div className="relative w-full h-[350px] md:h-[450px] bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl border border-white/5 group">
           <AnimatePresence mode="wait">
             <motion.div
@@ -299,11 +323,21 @@ export default function Home() {
                       <p className="text-gray-300 text-lg mb-8 max-w-md line-clamp-2">{currentBanner.description}</p>
                       <button onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition">Детальніше</button>
                    </div>
+                   
+                   {/* Іконки (статичні) */}
+                   <div className="hidden md:flex justify-end gap-4">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center w-24 h-24 text-center">
+                           <Star size={24} className="text-blue-400 mb-2"/><span className="text-[10px] text-gray-300 font-bold uppercase">Quality</span>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center w-24 h-24 text-center">
+                           <Truck size={24} className="text-purple-400 mb-2"/><span className="text-[10px] text-gray-300 font-bold uppercase">Delivery</span>
+                      </div>
+                   </div>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
-          
+
           <div className="absolute bottom-8 right-8 flex items-center gap-4 z-20">
              <span className="text-2xl font-mono font-bold text-white">{currentSlide + 1}<span className="text-gray-500 text-lg">/{activeBanners.length}</span></span>
              <div className="flex gap-2">
@@ -313,7 +347,24 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === КАТАЛОГ === */}
+        {/* === 2. ВІЗУАЛЬНІ КАТЕГОРІЇ === */}
+        <section>
+           <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><LayoutGrid size={24} className="text-blue-500"/> Популярні категорії</h2>
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {VISUAL_CATEGORIES.map((cat) => (
+                <div key={cat.id} className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group border border-white/5" onClick={() => { setSearchQuery(cat.title.split(' ')[0]); document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'}) }}>
+                   <img src={cat.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-110 transition duration-500" />
+                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                   <div className="absolute bottom-0 left-0 p-4 w-full">
+                      <cat.icon className="text-white mb-2 opacity-0 group-hover:opacity-100 -translate-y-2 group-hover:translate-y-0 transition duration-300" size={24}/>
+                      <h3 className="text-lg font-bold text-white leading-tight">{cat.title}</h3>
+                   </div>
+                </div>
+              ))}
+           </div>
+        </section>
+
+        {/* === 3. ТОВАРИ (НОВИНКИ) === */}
         <section id="catalog">
           <div className="flex items-center justify-between mb-8">
              <h2 className="text-3xl font-bold">Найкращі пропозиції</h2>
@@ -325,11 +376,15 @@ export default function Home() {
               <div key={product.id} className="bg-[#1a1a1a] rounded-2xl p-4 hover:shadow-2xl hover:-translate-y-1 transition duration-300 group border border-white/5 flex flex-col relative overflow-hidden">
                 <div className="absolute top-4 left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-2 py-1 rounded-md uppercase">Хіт</div>
                 <div className="aspect-[4/5] bg-black rounded-xl overflow-hidden mb-4 relative">
-                  {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" /> : <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700"><Package size={32}/></div>}
+                  <Link href={`/product/${product.id}`}>
+                    {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-pointer" /> : <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 cursor-pointer"><Package size={32}/></div>}
+                  </Link>
                   <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition bg-black/50 p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100"><Heart size={18} /></button>
                 </div>
                 <div className="flex-1 flex flex-col">
-                  <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100">{product.title}</h3>
+                  <Link href={`/product/${product.id}`}>
+                    <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100 hover:text-blue-400 transition cursor-pointer">{product.title}</h3>
+                  </Link>
                   <div className="mt-auto pt-4 flex items-center justify-between border-t border-white/5">
                     <div><span className="text-2xl font-bold text-white">{product.price} <span className="text-sm font-normal text-gray-500">грн</span></span></div>
                     <button onClick={() => addToCart(product)} className="bg-white text-black w-10 h-10 flex items-center justify-center rounded-xl hover:bg-blue-500 hover:text-white transition shadow-lg"><ShoppingBag size={20} /></button>
@@ -339,10 +394,17 @@ export default function Home() {
             ))}
           </div>
         </section>
+
       </main>
 
-      <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12"><div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm"><p>&copy; 2024 REBRAND STUDIO. Усі права захищено.</p></div></footer>
+      {/* ФУТЕР */}
+      <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12">
+         <div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm">
+            <p>&copy; 2024 REBRAND STUDIO. Усі права захищено.</p>
+         </div>
+      </footer>
 
+      {/* КОШИК */}
       {isCartOpen && <div className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>}
       <div className={`fixed top-0 right-0 h-full w-full md:w-[450px] bg-[#1a1a1a] border-l border-white/10 z-[70] transform transition-transform duration-300 shadow-2xl flex flex-col ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#151515]"><h2 className="text-xl font-bold">Кошик</h2><button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div>
