@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Link from "next/link"; 
-import loginPage from "./components/loginpage";
+// ВИПРАВЛЕННЯ: Імпорт з Великої літери. Перевір, щоб файл теж називався LoginPage.tsx
+import LoginPage from "./components/LoginPage"; 
 import { 
   Search, ShoppingBag, LogOut, User, Plus, X, ArrowRight, Package, 
   Phone, Send, MessageCircle, ChevronDown 
@@ -14,12 +15,10 @@ export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Кошик (тепер контролюємо видимість)
   const [cart, setCart] = useState<any[]>([]);
   const [isOrdering, setIsOrdering] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false); // Стан: відкрито чи ні
+  const [isCartOpen, setIsCartOpen] = useState(false);
   
-  // Скрол
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -47,10 +46,9 @@ export default function Home() {
     if (!error) setProducts(data || []);
   }
 
-  // --- ЛОГІКА ---
   function addToCart(product: any) {
     setCart([...cart, product]);
-    setIsCartOpen(true); // Автоматично відкрити кошик при додаванні
+    setIsCartOpen(true);
   }
 
   function removeFromCart(indexToRemove: number) {
@@ -108,27 +106,25 @@ export default function Home() {
     setCart([]);
   }
 
-  if (!session) return <loginPage onLogin={handleLogin} />;
+  // ВИПРАВЛЕННЯ: Використовуємо компонент як LoginPage (PascalCase)
+  if (!session) return <LoginPage onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 flex flex-col">
       
-      {/* === HEADER === */}
+      {/* HEADER */}
       <header 
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 border-b border-white/10 ${
           isScrolled ? "bg-black/90 backdrop-blur-md py-3" : "bg-black py-5"
         }`}
       >
         <div className="max-w-[1800px] mx-auto px-6 flex items-center justify-between">
-          
-          {/* ЛОГОТИП */}
           <div className="flex items-center gap-4">
             <div className="text-2xl font-black tracking-tighter italic select-none cursor-pointer">
               REBRAND
             </div>
           </div>
 
-          {/* НАВІГАЦІЯ (ЦЕНТР) */}
           <nav className="hidden xl:flex items-center gap-10 text-xs font-bold tracking-widest uppercase text-zinc-400">
             <a href="#" className="hover:text-white transition">Про нас</a>
             <a href="#" className="hover:text-white transition">Послуги</a>
@@ -136,9 +132,7 @@ export default function Home() {
             <a href="#" className="hover:text-white transition">Контакти</a>
           </nav>
 
-          {/* ПРАВА ПАНЕЛЬ ІКОНОК */}
           <div className="flex items-center gap-3">
-            {/* Група контактів */}
             <div className="hidden md:flex items-center gap-2 mr-4 border-r border-white/10 pr-6">
                <button className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center hover:bg-white hover:text-black transition group">
                  <MessageCircle size={16} />
@@ -151,19 +145,14 @@ export default function Home() {
                </button>
             </div>
 
-            {/* Група користувача (Профіль, Кошик, Вихід) */}
-            
-            {/* Пошук (маленька іконка) */}
             <button className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition">
               <Search size={20} />
             </button>
 
-            {/* Профіль */}
             <Link href="/profile" className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition" title="Мій кабінет">
               <User size={20} />
             </Link>
 
-            {/* Кошик */}
             <button 
               onClick={() => setIsCartOpen(true)}
               className="w-10 h-10 flex items-center justify-center text-white relative transition hover:scale-110"
@@ -176,7 +165,6 @@ export default function Home() {
               )}
             </button>
 
-             {/* Вихід */}
             <button onClick={handleLogout} className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-red-500 transition ml-2">
               <LogOut size={20} />
             </button>
@@ -184,33 +172,26 @@ export default function Home() {
         </div>
       </header>
 
-
-      {/* === ОСНОВНИЙ КОНТЕНТ (FULL WIDTH) === */}
+      {/* CONTENT */}
       <div className="pt-24 min-h-screen">
         <main className="px-6 lg:px-10 pb-20 max-w-[1800px] mx-auto w-full">
-           
-          {/* Заголовок */}
           <div className="flex flex-col items-center justify-center text-center mb-16 mt-10">
              <span className="text-blue-500 text-xs font-bold tracking-[0.2em] uppercase mb-4">Official Store</span>
              <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4">MERCH DROPS</h1>
              <p className="text-zinc-500 max-w-xl mx-auto">
-               Ексклюзивний мерч для партнерів REBRAND STUDIO. Замовляйте гуртом, слідкуйте за статусом, отримуйте якість.
+               Ексклюзивний мерч для партнерів REBRAND STUDIO.
              </p>
           </div>
 
-          {/* Сітка товарів */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
             {filteredProducts.map((product) => (
               <div key={product.id} className="group relative">
-                {/* Фото */}
                 <div className="aspect-[3/4] bg-zinc-900 w-full relative overflow-hidden mb-6">
                   {product.image_url ? (
                     <img src={product.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition duration-700 ease-in-out" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-800 font-bold">NO IMAGE</div>
                   )}
-                  
-                  {/* Швидка дія */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300 pointer-events-none">
                      <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-full text-white font-bold tracking-widest text-xs border border-white/20">
                         QUICK VIEW
@@ -218,14 +199,10 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Інфо */}
                 <div className="flex justify-between items-start border-t border-white/10 pt-4 group-hover:border-white/30 transition">
                   <div className="flex flex-col">
                     <h3 className="font-bold text-lg leading-none mb-2">{product.title}</h3>
-                    <button 
-                       onClick={() => addToCart(product)}
-                       className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest text-left transition"
-                    >
+                    <button onClick={() => addToCart(product)} className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest text-left transition">
                       + Add to Cart
                     </button>
                   </div>
@@ -237,34 +214,24 @@ export default function Home() {
         </main>
       </div>
 
-      {/* === ВИЇЖДЖАЮЧИЙ КОШИК (DRAWER) === */}
-      {/* Затемнення фону */}
+      {/* CART DRAWER */}
       {isCartOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
-          onClick={() => setIsCartOpen(false)}
-        ></div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity" onClick={() => setIsCartOpen(false)}></div>
       )}
 
-      {/* Панель кошика */}
       <div className={`fixed top-0 right-0 h-full w-full md:w-[450px] bg-zinc-950 border-l border-white/10 z-50 transform transition-transform duration-500 shadow-2xl ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
-        
         <div className="h-full flex flex-col">
-          {/* Шапка кошика */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
-            <h2 className="text-xl font-bold uppercase tracking-tight">Ваш кошик <span className="text-zinc-500 ml-2 text-sm normal-case">({cart.length} позицій)</span></h2>
-            <button onClick={() => setIsCartOpen(false)} className="text-zinc-500 hover:text-white transition">
-              <X size={24} />
-            </button>
+            <h2 className="text-xl font-bold uppercase tracking-tight">Ваш кошик <span className="text-zinc-500 ml-2 text-sm normal-case">({cart.length})</span></h2>
+            <button onClick={() => setIsCartOpen(false)} className="text-zinc-500 hover:text-white transition"><X size={24} /></button>
           </div>
 
-          {/* Список */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-4">
                 <ShoppingBag size={48} strokeWidth={1} />
                 <p className="uppercase tracking-widest text-xs">Кошик порожній</p>
-                <button onClick={() => setIsCartOpen(false)} className="text-white border-b border-white pb-0.5 hover:text-blue-400 hover:border-blue-400 transition">Повернутись до покупок</button>
+                <button onClick={() => setIsCartOpen(false)} className="text-white border-b border-white pb-0.5 hover:text-blue-400 hover:border-blue-400 transition">Повернутись</button>
               </div>
             ) : (
               cart.map((item, idx) => (
@@ -287,25 +254,19 @@ export default function Home() {
             )}
           </div>
 
-          {/* Футер кошика */}
           {cart.length > 0 && (
             <div className="p-6 border-t border-white/10 bg-zinc-900">
               <div className="flex justify-between mb-6 items-end">
-                <span className="text-zinc-400 text-sm uppercase tracking-widest">Разом до сплати</span>
+                <span className="text-zinc-400 text-sm uppercase tracking-widest">Разом</span>
                 <span className="text-3xl font-mono">{totalPrice} <span className="text-lg text-zinc-500">₴</span></span>
               </div>
-              <button 
-                onClick={placeOrder}
-                disabled={isOrdering}
-                className="w-full bg-white text-black hover:bg-blue-600 hover:text-white font-bold py-5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition duration-300 disabled:opacity-50"
-              >
+              <button onClick={placeOrder} disabled={isOrdering} className="w-full bg-white text-black hover:bg-blue-600 hover:text-white font-bold py-5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition duration-300 disabled:opacity-50">
                 {isOrdering ? "Обробка..." : "Оформити замовлення"}
               </button>
             </div>
           )}
         </div>
       </div>
-
     </div>
   );
 }
