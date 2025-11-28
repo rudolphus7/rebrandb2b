@@ -1,53 +1,86 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useCart } from "./components/CartContext"; 
+import { supabase } from "@/lib/supabaseClient"; 
 import Link from "next/link"; 
 import LoginPage from "./components/LoginPage"; 
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation"; 
 import { 
-  Search, ShoppingBag, LogOut, User, X, ArrowRight, ArrowLeft,
-  Menu, LayoutGrid, Star, ShieldCheck, Zap, Truck, Package, Heart, 
-  Shirt, Coffee, Monitor, Briefcase, Sparkles, Flame, Percent, ChevronRight
+  Search, ShoppingBag, LogOut, User, X,
+  Menu, LayoutGrid, Sparkles, Flame, Percent, ChevronRight,
+  Shirt, Briefcase, Coffee, Monitor, Heart, Package,
+  ArrowLeft, ArrowRight // Added missing imports
 } from "lucide-react";
 
-// --- ДАНІ ДЛЯ МЕГА-МЕНЮ (КАТАЛОГ) ---
+// --- ОНОВЛЕНЕ МЕНЮ (ТОЧНО ЗА ВАШИМ СПИСКОМ) ---
 const CATALOG_MENU = [
-  {
-    category: "Одяг & Текстиль",
-    items: ["Футболки", "Худі & Світшоти", "Поло", "Кепки & Шапки", "Жилетки & Куртки", "Фліс"]
+  { 
+    category: "Сумки", 
+    items: ["Валізи", "Косметички", "Мішок спортивний", "Рюкзаки", "Сумки для ноутбуків", "Сумки для покупок", "Сумки дорожні та спортивні", "Сумки на пояс", "Термосумки"] 
   },
-  {
-    category: "Офіс & Канцелярія",
-    items: ["Блокноти", "Ручки металеві", "Ручки пластикові", "Щоденники", "Папки", "Ланьярди"]
+  { 
+    category: "Ручки", 
+    items: ["Еко ручки", "Металеві ручки", "Олівці", "Пластикові ручки"] 
   },
-  {
-    category: "Посуд & Напої",
-    items: ["Термочашки", "Пляшки для води", "Керамічні чашки", "Термоси", "Бокали"]
+  { 
+    category: "Подорож та відпочинок", 
+    items: ["Все для пікніка", "Ліхтарики", "Ланч бокси", "Лопати", "Пледи", "Пляшки для пиття", "Подушки", "Термоси та термокружки", "Фляги", "Фрізбі", "Штопори"] 
   },
-  {
-    category: "Сумки & Рюкзаки",
-    items: ["Шопери (Еко-сумки)", "Рюкзаки для ноутбуків", "Спортивні сумки", "Бананки", "Косметички"]
+  { 
+    category: "Парасолі", 
+    items: ["Парасолі складні", "Парасолі-тростини"] 
   },
-  {
-    category: "Гаджети",
-    items: ["Powerbanks", "USB-флешки", "Колонки", "Бездротові зарядки", "Навушники"]
+  { 
+    category: "Одяг", 
+    items: ["Вітровки", "Рукавички", "Спортивний одяг", "Футболки", "Поло", "Дитячий одяг", "Реглани, фліси", "Жилети", "Куртки та софтшели"] 
   },
-  {
-    category: "Дім & Відпочинок",
-    items: ["Пледи", "Парасолі", "Інструменти", "Ланчбокси", "Ігри"]
+  { 
+    category: "Головні убори", 
+    items: ["Дитяча кепка", "Панами", "Шапки", "Кепки"] 
+  },
+  { 
+    category: "Інструменти", 
+    items: ["Викрутки", "Мультитули", "Набір інструментів", "Ножі", "Рулетки"] 
+  },
+  { 
+    category: "Офіс", 
+    items: ["Записні книжки", "Календарі"] 
+  },
+  { 
+    category: "Персональні аксессуари", 
+    items: ["Брелки", "Візитниці", "Дзеркала"] 
+  },
+  { 
+    category: "Для професіоналів", 
+    items: ["Опадоміри"] 
+  },
+  { 
+    category: "Електроніка", 
+    items: ["Аксесуари", "Годинники", "Зарядні пристрої", "Зволожувачі повітря", "Лампи", "Портативна акустика"] 
+  },
+  { 
+    category: "Дім", 
+    items: ["Дошки кухонні", "Кухонне приладдя", "Млини для спецій", "Набори для сиру", "Рушники", "Свічки", "Сковорідки", "Стакани", "Чайники", "Годівнички"] 
+  },
+  { 
+    category: "Посуд", 
+    items: ["Горнятка"] 
+  },
+  { 
+    category: "Упаковка", 
+    items: ["Подарункова коробка", "Подарунковий пакет"] 
   }
 ];
 
-// --- ВІЗУАЛЬНІ КАТЕГОРІЇ (БЛОКИ НА ГОЛОВНІЙ) ---
 const VISUAL_CATEGORIES = [
-  { id: "clothing", title: "Одяг & Текстиль", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
-  { id: "office", title: "Офіс & Канцелярія", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto=format&fit=crop", icon: Briefcase },
-  { id: "dishes", title: "Посуд & Термо", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto=format&fit=crop", icon: Coffee },
-  { id: "gadgets", title: "Електроніка", image: "https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto=format&fit=crop", icon: Monitor },
+  { id: "clothing", title: "Одяг", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
+  { id: "office", title: "Офіс", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto-format&fit=crop", icon: Briefcase },
+  { id: "dishes", title: "Посуд", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto-format&fit=crop", icon: Coffee },
+  { id: "gadgets", title: "Електроніка", image: "https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto-format&fit=crop", icon: Monitor },
 ];
 
-// --- ДЕФОЛТНІ БАНЕРИ (ЯКЩО В БАЗІ ПУСТО) ---
 const DEFAULT_SLIDES = [
   {
     id: 1,
@@ -61,27 +94,27 @@ const DEFAULT_SLIDES = [
     title: "КОРПОРАТИВНИЙ",
     subtitle: "МЕРЧ",
     description: "Одягніть команду в якість. Знижки для B2B до -30%.",
-    image_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=2000&auto=format&fit=crop",
+    image_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=2000&auto-format&fit=crop",
   }
 ];
 
 export default function Home() {
+  const router = useRouter(); 
   const [session, setSession] = useState<any>(null);
   
-  // Дані
+  // Підключили кошик
+  const { cart, addToCart, removeFromCart, totalPrice, clearCart } = useCart();
+
   const [products, setProducts] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // UI Стани
-  const [cart, setCart] = useState<any[]>([]);
-  const [isOrdering, setIsOrdering] = useState(false);
+  const [isOrdering, setIsOrdering] = useState(false); 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false); // <--- Стан для випадаючого меню
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false); 
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Ініціалізація
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -93,13 +126,11 @@ export default function Home() {
       if (session) fetchContent();
     });
 
-    // Автоплей слайдера
     const timer = setInterval(() => { nextSlide(); }, 6000);
     return () => { subscription.unsubscribe(); clearInterval(timer); };
   }, [currentSlide, banners.length]);
-
+  
   async function fetchContent() {
-    // 1. Товари
     const { data: prodData } = await supabase
         .from("products")
         .select("*")
@@ -107,47 +138,55 @@ export default function Home() {
         .limit(100); 
 
     if (prodData) {
-        // Фільтрація дублів по SKU
         const uniqueMap = new Map();
         prodData.forEach(p => {
-            if (!uniqueMap.has(p.sku)) uniqueMap.set(p.sku, p);
+            const title = p.title || p.description || "Product";
+            if (!uniqueMap.has(title)) uniqueMap.set(title, p);
         });
         setProducts(Array.from(uniqueMap.values()).slice(0, 8));
     }
 
-    // 2. Банери
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
     if (bannerData && bannerData.length > 0) setBanners(bannerData);
     else setBanners(DEFAULT_SLIDES);
   }
 
-  // --- ЛОГІКА СЛАЙДЕРА ---
   const activeBanners = banners.length > 0 ? banners : DEFAULT_SLIDES;
   const nextSlide = () => setCurrentSlide((prev) => (prev === activeBanners.length - 1 ? 0 : prev + 1));
   const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1));
 
-  // --- ЛОГІКА КОШИКА ---
-  function addToCart(product: any) { setCart([...cart, product]); setIsCartOpen(true); }
-  function removeFromCart(indexToRemove: number) { setCart(cart.filter((_, index) => index !== indexToRemove)); }
-  const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
-  const filteredProducts = products.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const handleAddToCart = (product: any) => {
+    addToCart({
+        id: product.id,
+        title: product.title || product.description,
+        price: product.price,
+        image_url: product.image_url,
+        quantity: 1,
+    });
+    setIsCartOpen(true);
+  };
 
-  async function placeOrder() {
-    if (cart.length === 0) return alert("Кошик порожній!");
-    setIsOrdering(true);
-    const { error } = await supabase.from('orders').insert([{ user_email: session.user.email, total_price: totalPrice, items: cart }]);
-    if (!error) {
-      try { await fetch('/api/telegram', { method: 'POST', body: JSON.stringify({ email: session.user.email, total: totalPrice, items: cart }) }); } catch (e) {}
-      alert("Замовлення прийнято!"); setCart([]); setIsOrdering(false); setIsCartOpen(false);
-    } else { alert(error.message); setIsOrdering(false); }
-  }
+  const filteredProducts = products.filter(p => (p.title || p.description || "").toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const handleGoToCheckout = () => {
+    if (cart.length === 0) {
+        alert("Кошик порожній! Додайте товари, щоб оформити замовлення.");
+        return;
+    }
+    router.push('/checkout'); 
+    setIsCartOpen(false); 
+  };
 
   async function handleLogin(e: string, p: string) {
     const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
     if (error) alert(error.message);
   }
 
-  async function handleLogout() { await supabase.auth.signOut(); setProducts([]); setCart([]); }
+  async function handleLogout() { 
+    await supabase.auth.signOut(); 
+    clearCart(); 
+    setProducts([]); 
+  }
 
   if (!session) return <LoginPage onLogin={handleLogin} />;
 
@@ -155,50 +194,25 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#111111] text-white font-sans flex flex-col">
-      
-      {/* === HEADER === */}
       <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/10 shadow-xl">
         <div className="relative z-50 bg-[#111111] py-4">
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 flex items-center justify-between gap-6">
-            
-            {/* ЛОГО + КНОПКА МЕГА-МЕНЮ */}
             <div className="flex items-center gap-6 flex-shrink-0">
-              <div 
-                className="text-2xl font-black italic tracking-tighter cursor-pointer select-none"
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              >
+              <div className="text-2xl font-black italic tracking-tighter cursor-pointer select-none" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                 REBRAND
               </div>
-              
-              {/* КНОПКА КАТАЛОГ (ВІДКРИВАЄ МЕНЮ) */}
-              <button 
-                onClick={() => setIsCatalogOpen(!isCatalogOpen)}
-                className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border
-                  ${isCatalogOpen 
-                    ? "bg-white text-black border-white" 
-                    : "bg-[#252525] hover:bg-[#333] text-white border-white/10"
-                  }`}
-              >
-                {isCatalogOpen ? <X size={18} /> : <LayoutGrid size={18} />} 
-                Каталог
+              <button onClick={() => setIsCatalogOpen(!isCatalogOpen)} className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border ${isCatalogOpen ? "bg-white text-black border-white" : "bg-[#252525] hover:bg-[#333] text-white border-white/10"}`}>
+                {isCatalogOpen ? <X size={18} /> : <LayoutGrid size={18} />} Каталог
               </button>
             </div>
 
-            {/* ПОШУК */}
             <div className="flex-1 max-w-2xl relative hidden md:block">
-              <input 
-                type="text" 
-                placeholder="Я шукаю..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white text-black rounded-l-lg py-2.5 pl-4 pr-12 focus:outline-none placeholder-gray-500 font-medium"
-              />
-              <button className="absolute right-0 top-0 bottom-0 bg-[#252525] hover:bg-[#333] px-4 rounded-r-lg border-l border-gray-300 flex items-center justify-center transition">
+              <input type="text" placeholder="Я шукаю..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-black rounded-l-lg py-2.5 pl-4 pr-12 focus:outline-none placeholder-gray-500 font-medium" onKeyDown={(e) => { if (e.key === 'Enter' && searchQuery.trim()) router.push(`/catalog?q=${searchQuery}`); }} />
+              <button onClick={() => { if (searchQuery.trim()) router.push(`/catalog?q=${searchQuery}`); }} className="absolute right-0 top-0 bottom-0 bg-[#252525] hover:bg-[#333] px-4 rounded-r-lg border-l border-gray-300 flex items-center justify-center transition">
                 <Search size={20} className="text-white" />
               </button>
             </div>
 
-            {/* ІКОНКИ */}
             <div className="flex items-center gap-5 flex-shrink-0">
               <button className="md:hidden text-white"><Search size={24} /></button>
               <Link href="/profile" className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group">
@@ -208,46 +222,29 @@ export default function Home() {
               <button onClick={() => setIsCartOpen(true)} className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group relative">
                 <div className="relative">
                   <ShoppingBag size={22} className="group-hover:scale-110 transition" />
-                  {cart.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#111]">
-                      {cart.length}
-                    </span>
-                  )}
+                  {cart.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#111]">{cart.length}</span>}
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-wider hidden lg:block">Кошик</span>
               </button>
-              <button onClick={handleLogout} className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-red-500 transition group">
-                <LogOut size={22} className="group-hover:scale-110 transition"/>
-                <span className="text-[10px] font-bold uppercase tracking-wider">Вихід</span>
-              </button>
-              <button className="lg:hidden text-white" onClick={() => setIsMobileMenuOpen(true)}>
-                <Menu size={28} />
-              </button>
+              <button onClick={handleLogout} className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-red-500 transition group"><LogOut size={22} className="group-hover:scale-110 transition"/><span className="text-[10px] font-bold uppercase tracking-wider">Вихід</span></button>
+              <button className="lg:hidden text-white" onClick={() => setIsMobileMenuOpen(true)}><Menu size={28} /></button>
             </div>
           </div>
         </div>
 
-        {/* === MEGA MENU DROPDOWN (ВИПАДАЮЧЕ МЕНЮ) === */}
         <AnimatePresence>
           {isCatalogOpen && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden"
-            >
-              <div className="max-w-[1400px] mx-auto flex min-h-[400px]">
-                
-                {/* ЛІВА КОЛОНКА (Акції) */}
-                <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-4">
-                   <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden">
+              <div className="max-w-[1400px] mx-auto flex min-h-[400px] max-h-[80vh] overflow-y-auto">
+                {/* ЛІВА КОЛОНКА (СПЕЦІАЛЬНІ) */}
+                <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-4 sticky top-0">
+                   <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition" onClick={() => { router.push('/catalog?category=Новинки'); setIsCatalogOpen(false); }}>
                       <Sparkles size={20}/> Новинки
                    </div>
-                   <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
-                      <Flame size={20}/> Акційні пропозиції
+                   <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition" onClick={() => { router.push('/catalog?category=Акційна пропозиція'); setIsCatalogOpen(false); }}>
+                      <Flame size={20}/> Акційна пропозиція
                    </div>
-                   <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
+                   <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition" onClick={() => { router.push('/catalog?category=Уцінка'); setIsCatalogOpen(false); }}>
                       <Percent size={20}/> Уцінка
                    </div>
                    
@@ -258,20 +255,23 @@ export default function Home() {
                    </div>
                 </div>
 
-                {/* ПРАВА КОЛОНКА (Категорії) */}
+                {/* ПРАВА КОЛОНКА (КАТЕГОРІЇ) */}
                 <div className="flex-1 p-8">
-                   <div className="grid grid-cols-4 gap-x-8 gap-y-10">
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10">
                       {CATALOG_MENU.map((section, idx) => (
                         <div key={idx}>
+                           {/* Батьківська категорія */}
                            <h3 className="font-bold text-white uppercase tracking-wider mb-4 border-b border-white/10 pb-2 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition">
-                             {section.category} <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition"/>
+                             <Link href={`/catalog?category=${section.category}`} onClick={() => setIsCatalogOpen(false)}>{section.category}</Link> 
+                             <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition"/>
                            </h3>
+                           {/* Список підкатегорій */}
                            <ul className="space-y-2.5">
                              {section.items.map((item, i) => (
                                <li key={i}>
-                                 <a href="#catalog" onClick={() => { setIsCatalogOpen(false); setSearchQuery(item); }} className="text-sm text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block">
+                                 <Link href={`/catalog?category=${item}`} onClick={() => setIsCatalogOpen(false)} className="text-sm text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block">
                                    {item}
-                                 </a>
+                                 </Link>
                                </li>
                              ))}
                            </ul>
@@ -279,65 +279,33 @@ export default function Home() {
                       ))}
                    </div>
                 </div>
-
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-        
-        {/* Затемнення фону */}
-        {isCatalogOpen && (
-          <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30" onClick={() => setIsCatalogOpen(false)}></div>
-        )}
+        {isCatalogOpen && <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30" onClick={() => setIsCatalogOpen(false)}></div>}
       </header>
 
-      {/* === ГОЛОВНИЙ КОНТЕНТ === */}
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 lg:px-8 py-8 space-y-12">
-        
-        {/* === 1. ГЕРОЙ-СЛАЙДЕР === */}
+        {/* СЛАЙДЕР */}
         <div className="relative w-full h-[350px] md:h-[450px] bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl border border-white/5 group">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={currentBanner.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="absolute inset-0 w-full h-full"
-            >
+            <motion.div key={currentBanner.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }} className="absolute inset-0 w-full h-full">
               <div className="absolute inset-0">
-                 {currentBanner.image_url ? (
-                    <img src={currentBanner.image_url} alt="Banner" className="w-full h-full object-cover opacity-60" />
-                 ) : (
-                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-600">NO IMAGE</div>
-                 )}
+                 {currentBanner.image_url ? <img src={currentBanner.image_url} alt="Banner" className="w-full h-full object-cover opacity-60" /> : <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-600">NO IMAGE</div>}
                  <div className="absolute inset-0 bg-gradient-to-r from-[#111] via-[#111]/70 to-transparent"></div>
               </div>
-
               <div className="absolute inset-0 flex items-center">
-                <div className="px-8 md:px-16 w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                   <div>
-                      <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="inline-block border border-white/20 text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider bg-black/30 backdrop-blur-md">REBRAND Exclusive</motion.div>
-                      <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-4xl md:text-6xl font-black leading-none mb-2 text-white uppercase">{currentBanner.title}</motion.h2>
-                      <motion.h3 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="text-3xl md:text-5xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 uppercase">{currentBanner.subtitle}</motion.h3>
-                      <p className="text-gray-300 text-lg mb-8 max-w-md line-clamp-2">{currentBanner.description}</p>
-                      <button onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition">Детальніше</button>
-                   </div>
-                   
-                   {/* Іконки (статичні) */}
-                   <div className="hidden md:flex justify-end gap-4">
-                      <div className="bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center w-24 h-24 text-center">
-                           <Star size={24} className="text-blue-400 mb-2"/><span className="text-[10px] text-gray-300 font-bold uppercase">Quality</span>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center w-24 h-24 text-center">
-                           <Truck size={24} className="text-purple-400 mb-2"/><span className="text-[10px] text-gray-300 font-bold uppercase">Delivery</span>
-                      </div>
-                   </div>
+                <div className="px-8 md:px-16 w-full max-w-3xl">
+                   <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="inline-block border border-white/20 text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider bg-black/30 backdrop-blur-md">REBRAND Exclusive</motion.div>
+                   <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-4xl md:text-6xl font-black leading-none mb-2 text-white uppercase">{currentBanner.title}</motion.h2>
+                   <motion.h3 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="text-3xl md:text-5xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 uppercase">{currentBanner.subtitle}</motion.h3>
+                   <p className="text-gray-300 text-lg mb-8 max-w-lg line-clamp-2">{currentBanner.description}</p>
+                   <button className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition">Детальніше</button>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
-
           <div className="absolute bottom-8 right-8 flex items-center gap-4 z-20">
              <span className="text-2xl font-mono font-bold text-white">{currentSlide + 1}<span className="text-gray-500 text-lg">/{activeBanners.length}</span></span>
              <div className="flex gap-2">
@@ -347,12 +315,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === 2. ВІЗУАЛЬНІ КАТЕГОРІЇ === */}
+        {/* ВІЗУАЛЬНІ КАТЕГОРІЇ */}
         <section>
            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><LayoutGrid size={24} className="text-blue-500"/> Популярні категорії</h2>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {VISUAL_CATEGORIES.map((cat) => (
-                <div key={cat.id} className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group border border-white/5" onClick={() => { setSearchQuery(cat.title.split(' ')[0]); document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'}) }}>
+                <div key={cat.id} className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group border border-white/5" onClick={() => { router.push(`/catalog?category=${cat.title}`); }}> 
                    <img src={cat.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-110 transition duration-500" />
                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
                    <div className="absolute bottom-0 left-0 p-4 w-full">
@@ -364,13 +332,12 @@ export default function Home() {
            </div>
         </section>
 
-        {/* === 3. ТОВАРИ (НОВИНКИ) === */}
+        {/* ТОВАРИ */}
         <section id="catalog">
           <div className="flex items-center justify-between mb-8">
              <h2 className="text-3xl font-bold">Найкращі пропозиції</h2>
              <div className="h-[1px] bg-white/10 flex-1 mx-6 hidden md:block"></div>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
               <div key={product.id} className="bg-[#1a1a1a] rounded-2xl p-4 hover:shadow-2xl hover:-translate-y-1 transition duration-300 group border border-white/5 flex flex-col relative overflow-hidden">
@@ -383,28 +350,21 @@ export default function Home() {
                 </div>
                 <div className="flex-1 flex flex-col">
                   <Link href={`/product/${product.id}`}>
-                    <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100 hover:text-blue-400 transition cursor-pointer">{product.title}</h3>
+                    <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100 hover:text-blue-400 transition cursor-pointer">{product.title || product.description}</h3>
                   </Link>
                   <div className="mt-auto pt-4 flex items-center justify-between border-t border-white/5">
-                    <div><span className="text-2xl font-bold text-white">{product.price} <span className="text-sm font-normal text-gray-500">грн</span></span></div>
-                    <button onClick={() => addToCart(product)} className="bg-white text-black w-10 h-10 flex items-center justify-center rounded-xl hover:bg-blue-500 hover:text-white transition shadow-lg"><ShoppingBag size={20} /></button>
+                    <div><span className="text-2xl font-bold text-white">{product.price} <span className="text-xs font-normal text-gray-500">грн</span></span></div>
+                    <button onClick={() => handleAddToCart(product)} className="bg-white text-black w-10 h-10 flex items-center justify-center rounded-xl hover:bg-blue-500 hover:text-white transition shadow-lg"><ShoppingBag size={20} /></button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </section>
-
       </main>
 
-      {/* ФУТЕР */}
-      <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12">
-         <div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm">
-            <p>&copy; 2024 REBRAND STUDIO. Усі права захищено.</p>
-         </div>
-      </footer>
+      <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12"><div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm"><p>&copy; 2024 REBRAND STUDIO.</p></div></footer>
 
-      {/* КОШИК */}
       {isCartOpen && <div className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>}
       <div className={`fixed top-0 right-0 h-full w-full md:w-[450px] bg-[#1a1a1a] border-l border-white/10 z-[70] transform transition-transform duration-300 shadow-2xl flex flex-col ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#151515]"><h2 className="text-xl font-bold">Кошик</h2><button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div>
@@ -413,13 +373,13 @@ export default function Home() {
                <div key={idx} className="flex gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
                   <div className="w-20 h-20 bg-black rounded-lg overflow-hidden flex-shrink-0">{item.image_url && <img src={item.image_url} className="w-full h-full object-cover"/>}</div>
                   <div className="flex-1 flex flex-col justify-between">
-                     <div className="flex justify-between"><h4 className="font-bold text-sm line-clamp-2">{item.title}</h4><button onClick={() => removeFromCart(idx)} className="text-gray-500 hover:text-red-500"><X size={18}/></button></div>
-                     <div className="font-bold text-lg">{item.price} ₴</div>
+                      <div className="flex justify-between"><h4 className="font-bold text-sm line-clamp-2">{item.title}</h4><button onClick={() => removeFromCart(idx)} className="text-gray-500 hover:text-red-500"><X size={18}/></button></div>
+                      <div className="font-bold text-lg">{item.price} ₴</div>
                   </div>
                </div>
             ))}
           </div>
-          {cart.length > 0 && <div className="p-6 bg-[#151515] border-t border-white/10"><div className="flex justify-between items-center mb-6"><span className="text-gray-400">Всього</span><span className="text-2xl font-bold">{totalPrice} ₴</span></div><button onClick={placeOrder} disabled={isOrdering} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition disabled:opacity-50">Оформити</button></div>}
+          {cart.length > 0 && <div className="p-6 bg-[#151515] border-t border-white/10"><div className="flex justify-between items-center mb-6"><span className="text-gray-400">Всього</span><span className="text-2xl font-bold">{totalPrice} ₴</span></div><button onClick={handleGoToCheckout} disabled={isOrdering} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition disabled:opacity-50">Оформити</button></div>}
       </div>
     </div>
   );
