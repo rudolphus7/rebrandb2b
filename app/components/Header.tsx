@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   Search, ShoppingBag, LogOut, User, X,
   Menu, LayoutGrid, Sparkles, Flame, Percent, ChevronRight,
-  Phone, Home
+  ChevronDown, Home
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Повний список категорій для меню
+// --- ДАНІ МЕНЮ ---
 const CATALOG_MENU = [
   { 
     category: "Сумки", 
@@ -74,226 +74,336 @@ interface HeaderProps {
   onCartClick: () => void;
   cartCount: number;
   onLogout: () => void;
-  onMobileMenuClick?: () => void; // Зробили необов'язковим, бо логіка тепер всередині
+  onMobileMenuClick?: () => void; 
 }
 
 export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps) {
+  // Стани
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Внутрішній стан для мобілки
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const router = useRouter();
+  
+  // Стан для акордеонів мобільного меню (яка категорія відкрита)
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  const handleMobileLinkClick = (path: string) => {
+  const router = useRouter();
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+
+  // Навігація
+  const handleLinkClick = (path: string) => {
     setIsMobileMenuOpen(false);
+    setIsCatalogOpen(false);
     router.push(path);
   };
 
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+        router.push(`/catalog?q=${searchQuery}`);
+        setIsCatalogOpen(false);
+        setIsMobileSearchOpen(false);
+        setIsMobileMenuOpen(false);
+    }
+  };
+
+  const toggleCategory = (categoryName: string) => {
+    setExpandedCategory(expandedCategory === categoryName ? null : categoryName);
+  };
+
+  // Автофокус для мобільного пошуку
+  useEffect(() => {
+    if (isMobileSearchOpen && mobileInputRef.current) {
+        mobileInputRef.current.focus();
+    }
+  }, [isMobileSearchOpen]);
+
+  // Блокування скролу сторінки при відкритому мобільному меню
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isMobileMenuOpen]);
+
   return (
-    <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/10 shadow-xl">
-        <div className="relative z-50 bg-[#111111] py-4">
-          <div className="max-w-[1600px] mx-auto px-4 lg:px-8 flex items-center justify-between gap-6">
-            
-            {/* Лого + Каталог (Десктоп) */}
-            <div className="flex items-center gap-6 flex-shrink-0">
-              <div 
-                className="text-2xl font-black italic tracking-tighter cursor-pointer select-none" 
-                onClick={() => router.push('/')}
-              >
-                REBRAND
+    <>
+      <header className="sticky top-0 z-50 bg-[#111111] border-b border-white/10 shadow-xl w-full">
+          <div className="max-w-[1600px] mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              
+              {/* --- ЛІВА ЧАСТИНА: БУРГЕР + ЛОГО --- */}
+              <div className="flex items-center gap-3 lg:gap-6 flex-shrink-0">
+                {/* Бургер (Тільки моб) */}
+                <button 
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="lg:hidden p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition"
+                  aria-label="Menu"
+                >
+                  <Menu size={24} />
+                </button>
+
+                {/* Логотип */}
+                <div 
+                  className="text-xl lg:text-2xl font-black italic tracking-tighter cursor-pointer select-none text-white" 
+                  onClick={() => router.push('/')}
+                >
+                  REBRAND
+                </div>
+
+                {/* Кнопка Каталог (Тільки десктоп) */}
+                <button 
+                  onClick={() => setIsCatalogOpen(!isCatalogOpen)} 
+                  className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border ${isCatalogOpen ? "bg-white text-black border-white" : "bg-[#252525] hover:bg-[#333] text-white border-white/10"}`}
+                >
+                  {isCatalogOpen ? <X size={18} /> : <LayoutGrid size={18} />} Каталог
+                </button>
               </div>
-              <button 
-                onClick={() => setIsCatalogOpen(!isCatalogOpen)} 
-                className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border ${isCatalogOpen ? "bg-white text-black border-white" : "bg-[#252525] hover:bg-[#333] text-white border-white/10"}`}
-              >
-                {isCatalogOpen ? <X size={18} /> : <LayoutGrid size={18} />} Каталог
-              </button>
-            </div>
 
-            {/* Пошук */}
-            <div className="flex-1 max-w-2xl relative hidden md:block">
-              <input 
-                type="text" 
-                placeholder="Я шукаю..." 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full bg-white text-black rounded-l-lg py-2.5 pl-4 pr-12 focus:outline-none placeholder-gray-500 font-medium" 
-                onKeyDown={(e) => { 
-                    if (e.key === 'Enter' && searchQuery.trim()) {
-                        router.push(`/catalog?q=${searchQuery}`);
-                        setIsCatalogOpen(false);
-                    }
-                }} 
-              />
-              <button 
-                onClick={() => { 
-                    if (searchQuery.trim()) {
-                        router.push(`/catalog?q=${searchQuery}`);
-                        setIsCatalogOpen(false);
-                    }
-                }} 
-                className="absolute right-0 top-0 bottom-0 bg-[#252525] hover:bg-[#333] px-4 rounded-r-lg border-l border-gray-300 flex items-center justify-center transition"
-              >
-                <Search size={20} className="text-white" />
-              </button>
-            </div>
-
-            {/* Іконки */}
-            <div className="flex items-center gap-5 flex-shrink-0">
-              <button className="md:hidden text-white"><Search size={24} /></button>
-              <Link href="/profile" className="hidden lg:flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group">
-                <User size={22} className="group-hover:scale-110 transition"/>
-                <span className="text-[10px] font-bold uppercase tracking-wider">Кабінет</span>
-              </Link>
-              <button onClick={onCartClick} className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition group relative">
+              {/* --- ЦЕНТР: ПОШУК (Тільки десктоп) --- */}
+              <div className="hidden lg:block flex-1 max-w-xl mx-auto px-4">
                 <div className="relative">
-                  <ShoppingBag size={22} className="group-hover:scale-110 transition" />
-                  {cartCount > 0 && <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#111]">{cartCount}</span>}
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider hidden lg:block">Кошик</span>
-              </button>
-              
-              {/* Бургер меню для мобілки */}
-              <button className="lg:hidden text-white" onClick={() => setIsMobileMenuOpen(true)}>
-                <Menu size={28} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* DESKTOP MEGA MENU DROPDOWN */}
-        <AnimatePresence>
-          {isCatalogOpen && (
-            <motion.div 
-                initial={{ opacity: 0, y: -20 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0, y: -20 }} 
-                transition={{ duration: 0.2 }} 
-                className="hidden lg:block absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden"
-            >
-              <div className="max-w-[1600px] mx-auto flex max-h-[80vh]">
-                
-                {/* ЛІВА КОЛОНКА */}
-                <div className="w-64 bg-[#1a1a1a] p-4 border-r border-white/5 flex flex-col gap-2 sticky top-0 overflow-y-auto custom-scrollbar">
-                   <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-sm" onClick={() => { router.push('/catalog?category=Новинки'); setIsCatalogOpen(false); }}>
-                      <Sparkles size={18}/> Новинки
-                   </div>
-                   <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-sm" onClick={() => { router.push('/catalog?category=Акційна пропозиція'); setIsCatalogOpen(false); }}>
-                      <Flame size={18}/> Акційна пропозиція
-                   </div>
-                   <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-sm" onClick={() => { router.push('/catalog?category=Уцінка'); setIsCatalogOpen(false); }}>
-                      <Percent size={18}/> Уцінка
-                   </div>
-                   
-                   <div className="mt-auto p-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
-                      <p className="text-[10px] text-blue-200 font-bold uppercase mb-1">B2B Партнерство</p>
-                      <p className="text-xs text-gray-300 mb-2 leading-tight">Індивідуальні умови для великих замовлень.</p>
-                      <button className="text-[10px] bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-gray-200 transition uppercase">Детальніше</button>
-                   </div>
-                </div>
-
-                {/* ПРАВА КОЛОНКА */}
-                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar overscroll-contain">
-                   <div className="grid grid-cols-5 gap-x-6 gap-y-8">
-                      {CATALOG_MENU.map((section, idx) => (
-                        <div key={idx} className="break-inside-avoid">
-                           <h3 className="font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition text-xs">
-                             <Link href={`/catalog?category=${section.category}`} onClick={() => setIsCatalogOpen(false)}>{section.category}</Link> 
-                             <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition"/>
-                           </h3>
-                           <ul className="space-y-1">
-                             {section.items.map((item, i) => (
-                               <li key={i}>
-                                 <Link 
-                                    href={`/catalog?category=${item}`} 
-                                    onClick={() => setIsCatalogOpen(false)} 
-                                    className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5"
-                                 >
-                                   {item}
-                                 </Link>
-                               </li>
-                             ))}
-                           </ul>
-                        </div>
-                      ))}
-                   </div>
+                  <input 
+                    type="text" 
+                    placeholder="Я шукаю..." 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    className="w-full bg-white text-black rounded-lg py-2.5 pl-4 pr-12 focus:outline-none placeholder-gray-500 font-medium" 
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }} 
+                  />
+                  <button 
+                    onClick={handleSearch} 
+                    className="absolute right-0 top-0 bottom-0 bg-[#252525] hover:bg-[#333] px-4 rounded-r-lg border-l border-gray-300 flex items-center justify-center transition"
+                  >
+                    <Search size={20} className="text-white" />
+                  </button>
                 </div>
               </div>
+
+              {/* --- ПРАВА ЧАСТИНА: ІКОНКИ --- */}
+              <div className="flex items-center gap-1 sm:gap-3">
+                
+                {/* 1. Пошук (Тільки моб) */}
+                <button 
+                  className={`lg:hidden p-2 rounded-full transition ${isMobileSearchOpen ? "bg-white text-black" : "text-white hover:bg-white/10"}`}
+                  onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+                >
+                  <Search size={22} />
+                </button>
+
+                {/* 2. Профіль */}
+                <Link href="/profile" className="p-2 text-white hover:bg-white/10 rounded-full transition">
+                  <User size={22} />
+                </Link>
+
+                {/* 3. Кошик */}
+                <button onClick={onCartClick} className="p-2 text-white hover:bg-white/10 rounded-full transition relative">
+                  <ShoppingBag size={22} />
+                  {cartCount > 0 && (
+                    <span className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#111]">
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* 4. Вихід (Тільки десктоп) */}
+                <button onClick={onLogout} className="hidden lg:flex items-center gap-1 p-2 text-gray-400 hover:text-red-500 transition">
+                  <LogOut size={22} />
+                </button>
+              </div>
+            </div>
+
+            {/* --- МОБІЛЬНИЙ РЯДОК ПОШУКУ --- */}
+            <AnimatePresence>
+              {isMobileSearchOpen && (
+                  <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="lg:hidden overflow-hidden mt-2"
+                  >
+                      <div className="relative py-2">
+                          <input 
+                              ref={mobileInputRef}
+                              type="text" 
+                              placeholder="Що шукаємо?" 
+                              value={searchQuery} 
+                              onChange={(e) => setSearchQuery(e.target.value)} 
+                              className="w-full bg-white text-black rounded-lg py-3 pl-4 pr-12 focus:outline-none font-bold shadow-lg"
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }} 
+                          />
+                          <button 
+                              onClick={handleSearch}
+                              className="absolute right-1 top-3 p-2 bg-[#252525] rounded-md text-white"
+                          >
+                              <Search size={18}/>
+                          </button>
+                      </div>
+                  </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* --- DESKTOP MEGA MENU --- */}
+          <AnimatePresence>
+            {isCatalogOpen && (
+              <>
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    transition={{ duration: 0.2 }} 
+                    className="hidden lg:block absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden"
+                >
+                  <div className="max-w-[1600px] mx-auto flex max-h-[80vh]">
+                    {/* ЛІВА КОЛОНКА */}
+                    <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-6 sticky top-0 overflow-y-auto custom-scrollbar">
+                      <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-xs" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
+                          <Sparkles size={18}/> Новинки
+                      </div>
+                      <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-xs" onClick={() => handleLinkClick('/catalog?category=Акційна пропозиція')}>
+                          <Flame size={18}/> Акційна пропозиція
+                      </div>
+                      <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-xs" onClick={() => handleLinkClick('/catalog?category=Уцінка')}>
+                          <Percent size={18}/> Уцінка
+                      </div>
+                    </div>
+                    {/* ПРАВА КОЛОНКА */}
+                    <div className="flex-1 p-6 overflow-y-auto custom-scrollbar overscroll-contain">
+                      <div className="grid grid-cols-5 gap-x-6 gap-y-8">
+                          {CATALOG_MENU.map((section, idx) => (
+                            <div key={idx} className="break-inside-avoid">
+                              <h3 className="font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition text-xs">
+                                <Link href={`/catalog?category=${section.category}`} onClick={() => setIsCatalogOpen(false)}>{section.category}</Link> 
+                                <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition"/>
+                              </h3>
+                              <ul className="space-y-1">
+                                {section.items.map((item, i) => (
+                                  <li key={i}>
+                                    <Link href={`/catalog?category=${item}`} onClick={() => setIsCatalogOpen(false)} className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5">{item}</Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+                <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30 hidden lg:block" onClick={() => setIsCatalogOpen(false)}></div>
+              </>
+            )}
+          </AnimatePresence>
+      </header>
+
+      {/* --- MOBILE MENU DRAWER (ОНОВЛЕНИЙ) --- */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-[100] lg:hidden font-sans">
+            {/* Затемнення */}
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            {/* Меню */}
+            <motion.div 
+              initial={{ x: "-100%" }} 
+              animate={{ x: 0 }} 
+              exit={{ x: "-100%" }} 
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="absolute top-0 left-0 h-full w-[85%] max-w-[320px] bg-white text-black shadow-2xl overflow-y-auto flex flex-col"
+            >
+                {/* Шапка меню */}
+                <div className="p-4 flex items-center justify-between border-b border-gray-200 sticky top-0 bg-white z-10">
+                  <span className="text-lg font-bold">Каталог</span>
+                  <button 
+                    onClick={() => setIsMobileMenuOpen(false)} 
+                    className="p-2 -mr-2 rounded-full hover:bg-gray-100"
+                  >
+                    <X size={24}/>
+                  </button>
+                </div>
+
+                <div className="flex-1 py-2">
+                  
+                  {/* Спец пропозиції */}
+                  <div className="px-4 py-2 space-y-1">
+                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
+                          <span>Новинки</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Акційна пропозиція')}>
+                          <span>Акційна пропозиція</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Уцінка')}>
+                          <span>Уцінка</span>
+                      </div>
+                  </div>
+
+                  <div className="h-[1px] bg-gray-200 mx-4 my-2"></div>
+
+                  {/* Список категорій (Акордеон) */}
+                  <div className="px-4">
+                      {CATALOG_MENU.map((section, idx) => {
+                          const isExpanded = expandedCategory === section.category;
+                          return (
+                              <div key={idx} className="border-b border-gray-100 last:border-0">
+                                  <button 
+                                    onClick={() => toggleCategory(section.category)}
+                                    className="w-full flex items-center justify-between py-3 text-left font-medium text-lg"
+                                  >
+                                      {section.category}
+                                      <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
+                                  </button>
+                                  
+                                  {/* Підкатегорії */}
+                                  <AnimatePresence>
+                                      {isExpanded && (
+                                          <motion.div 
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden"
+                                          >
+                                              <div className="pl-4 pb-4 space-y-3">
+                                                  <div 
+                                                    onClick={() => handleLinkClick(`/catalog?category=${section.category}`)} 
+                                                    className="block text-blue-600 font-bold text-sm cursor-pointer"
+                                                  >
+                                                      Всі товари категорії
+                                                  </div>
+                                                  {section.items.map((item, i) => (
+                                                      <div 
+                                                        key={i} 
+                                                        onClick={() => handleLinkClick(`/catalog?category=${item}`)} 
+                                                        className="block text-gray-600 text-sm cursor-pointer hover:text-black"
+                                                      >
+                                                          {item}
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          </motion.div>
+                                      )}
+                                  </AnimatePresence>
+                              </div>
+                          );
+                      })}
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-200 bg-gray-50 sticky bottom-0 z-10">
+                  <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 text-red-500 font-bold text-sm p-3 rounded-xl hover:bg-red-50 transition border border-red-200">
+                    <LogOut size={18}/> Вийти з акаунту
+                  </button>
+                </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* MOBILE MENU DRAWER (ОНОВЛЕНО) */}
-        <AnimatePresence>
-          {isMobileMenuOpen && (
-            <>
-              {/* Затемнення */}
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0 }} 
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm lg:hidden"
-              />
-              
-              {/* Сама шторка меню */}
-              <motion.div 
-                initial={{ x: "-100%" }} 
-                animate={{ x: 0 }} 
-                exit={{ x: "-100%" }} 
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed top-0 left-0 h-full w-[85%] max-w-[320px] bg-[#1a1a1a] z-[70] lg:hidden overflow-y-auto border-r border-white/10 flex flex-col"
-              >
-                 <div className="p-5 border-b border-white/10 flex items-center justify-between">
-                    <span className="text-xl font-black italic">MENU</span>
-                    <button onClick={() => setIsMobileMenuOpen(false)}><X size={24}/></button>
-                 </div>
-
-                 <div className="flex-1 py-4">
-                    {/* Основні посилання */}
-                    <nav className="space-y-1 px-4 mb-6">
-                        <button onClick={() => handleMobileLinkClick('/')} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-left font-bold text-lg"><Home size={20}/> Головна</button>
-                        <button onClick={() => handleMobileLinkClick('/catalog')} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-left font-bold text-lg"><LayoutGrid size={20}/> Каталог</button>
-                        <button onClick={() => handleMobileLinkClick('/profile')} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-left font-bold text-lg"><User size={20}/> Кабінет</button>
-                    </nav>
-
-                    <div className="h-[1px] bg-white/10 mx-4 mb-6"></div>
-
-                    {/* Спеціальні пропозиції */}
-                    <div className="px-4 space-y-2 mb-6">
-                        <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg" onClick={() => handleMobileLinkClick('/catalog?category=Новинки')}>
-                            <Sparkles size={18}/> Новинки
-                        </div>
-                        <div className="flex items-center gap-3 text-red-400 font-bold p-2 hover:bg-white/5 rounded-lg" onClick={() => handleMobileLinkClick('/catalog?category=Акційна пропозиція')}>
-                            <Flame size={18}/> Акції
-                        </div>
-                    </div>
-
-                    <div className="h-[1px] bg-white/10 mx-4 mb-6"></div>
-
-                    {/* Категорії (спрощений список) */}
-                    <div className="px-6">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Розділи</h4>
-                        <div className="space-y-3">
-                            {CATALOG_MENU.map((section, idx) => (
-                                <div key={idx} onClick={() => handleMobileLinkClick(`/catalog?category=${section.category}`)} className="text-gray-300 hover:text-white py-1">
-                                    {section.category}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                 </div>
-
-                 {/* Футер меню */}
-                 <div className="p-5 border-t border-white/10 bg-[#151515]">
-                    <button onClick={onLogout} className="flex items-center gap-2 text-red-400 font-bold text-sm"><LogOut size={18}/> Вийти з акаунту</button>
-                 </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-        
-        {/* Затемнення фону для десктопу */}
-        {isCatalogOpen && <div className="fixed inset-0 top-[80px] bg-black/70 backdrop-blur-sm z-30 hidden lg:block" onClick={() => setIsCatalogOpen(false)}></div>}
-    </header>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
