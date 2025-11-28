@@ -6,69 +6,10 @@ import { useRouter } from "next/navigation";
 import { 
   Search, ShoppingBag, LogOut, User, X,
   Menu, LayoutGrid, Sparkles, Flame, Percent, ChevronRight,
-  ChevronDown, Home
+  Home
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-// --- ДАНІ МЕНЮ ---
-const CATALOG_MENU = [
-  { 
-    category: "Сумки", 
-    items: ["Валізи", "Косметички", "Мішок спортивний", "Рюкзаки", "Сумки для ноутбуків", "Сумки для покупок", "Сумки дорожні та спортивні", "Сумки на пояс", "Термосумки"] 
-  },
-  { 
-    category: "Ручки", 
-    items: ["Еко ручки", "Металеві ручки", "Олівці", "Пластикові ручки"] 
-  },
-  { 
-    category: "Подорож та відпочинок", 
-    items: ["Все для пікніка", "Ліхтарики", "Ланч бокси", "Лопати", "Пледи", "Пляшки для пиття", "Подушки", "Термоси та термокружки", "Фляги", "Фрізбі", "Штопори"] 
-  },
-  { 
-    category: "Парасолі", 
-    items: ["Парасолі складні", "Парасолі-тростини"] 
-  },
-  { 
-    category: "Одяг", 
-    items: ["Вітровки", "Рукавички", "Спортивний одяг", "Футболки", "Поло", "Дитячий одяг", "Реглани, фліси", "Жилети", "Куртки та софтшели"] 
-  },
-  { 
-    category: "Головні убори", 
-    items: ["Дитяча кепка", "Панами", "Шапки", "Кепки"] 
-  },
-  { 
-    category: "Інструменти", 
-    items: ["Викрутки", "Мультитули", "Набір інструментів", "Ножі", "Рулетки"] 
-  },
-  { 
-    category: "Офіс", 
-    items: ["Записні книжки", "Календарі"] 
-  },
-  { 
-    category: "Персональні аксессуари", 
-    items: ["Брелки", "Візитниці", "Дзеркала"] 
-  },
-  { 
-    category: "Для професіоналів", 
-    items: ["Опадоміри"] 
-  },
-  { 
-    category: "Електроніка", 
-    items: ["Аксесуари", "Годинники", "Зарядні пристрої", "Зволожувачі повітря", "Лампи", "Портативна акустика"] 
-  },
-  { 
-    category: "Дім", 
-    items: ["Дошки кухонні", "Кухонне приладдя", "Млини для спецій", "Набори для сиру", "Рушники", "Свічки", "Сковорідки", "Стакани", "Чайники", "Годівнички"] 
-  },
-  { 
-    category: "Посуд", 
-    items: ["Горнятка"] 
-  },
-  { 
-    category: "Упаковка", 
-    items: ["Подарункова коробка", "Подарунковий пакет"] 
-  }
-];
+import { supabase } from "@/lib/supabaseClient";
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -78,19 +19,39 @@ interface HeaderProps {
 }
 
 export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps) {
-  // Стани
+  // --- STATE ---
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Стан для акордеонів мобільного меню (яка категорія відкрита)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  
+  // Categories from DB
+  const [categories, setCategories] = useState<any[]>([]);
 
   const router = useRouter();
   const mobileInputRef = useRef<HTMLInputElement>(null);
 
-  // Навігація
+  // --- FETCH CATEGORIES ---
+  useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase
+        .from('categories')
+        .select('*')
+        .order('order', { ascending: true });
+      
+      if (data) {
+        setCategories(data);
+      }
+    }
+    fetchCategories();
+  }, []);
+
+  // Filter categories for menu tree
+  const rootCategories = categories.filter(c => !c.parent_id && !['270', '213', 'discount'].includes(c.id));
+  const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
+
+  // --- HANDLERS ---
   const handleLinkClick = (path: string) => {
     setIsMobileMenuOpen(false);
     setIsCatalogOpen(false);
@@ -110,14 +71,14 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
     setExpandedCategory(expandedCategory === categoryName ? null : categoryName);
   };
 
-  // Автофокус для мобільного пошуку
+  // Focus mobile search input when opened
   useEffect(() => {
     if (isMobileSearchOpen && mobileInputRef.current) {
         mobileInputRef.current.focus();
     }
   }, [isMobileSearchOpen]);
 
-  // Блокування скролу сторінки при відкритому мобільному меню
+  // Lock body scroll when mobile menu is open
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -133,9 +94,8 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
           <div className="max-w-[1600px] mx-auto px-4 py-3">
             <div className="flex items-center justify-between gap-4">
               
-              {/* --- ЛІВА ЧАСТИНА: БУРГЕР + ЛОГО --- */}
+              {/* --- LEFT: BURGER (Mobile) + LOGO + CATALOG (Desktop) --- */}
               <div className="flex items-center gap-3 lg:gap-6 flex-shrink-0">
-                {/* Бургер (Тільки моб) */}
                 <button 
                   onClick={() => setIsMobileMenuOpen(true)}
                   className="lg:hidden p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition"
@@ -144,7 +104,6 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   <Menu size={24} />
                 </button>
 
-                {/* Логотип */}
                 <div 
                   className="text-xl lg:text-2xl font-black italic tracking-tighter cursor-pointer select-none text-white" 
                   onClick={() => router.push('/')}
@@ -152,7 +111,6 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   REBRAND
                 </div>
 
-                {/* Кнопка Каталог (Тільки десктоп) */}
                 <button 
                   onClick={() => setIsCatalogOpen(!isCatalogOpen)} 
                   className={`hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition duration-200 border ${isCatalogOpen ? "bg-white text-black border-white" : "bg-[#252525] hover:bg-[#333] text-white border-white/10"}`}
@@ -161,7 +119,7 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                 </button>
               </div>
 
-              {/* --- ЦЕНТР: ПОШУК (Тільки десктоп) --- */}
+              {/* --- CENTER: SEARCH (Desktop) --- */}
               <div className="hidden lg:block flex-1 max-w-xl mx-auto px-4">
                 <div className="relative">
                   <input 
@@ -181,10 +139,9 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                 </div>
               </div>
 
-              {/* --- ПРАВА ЧАСТИНА: ІКОНКИ --- */}
+              {/* --- RIGHT: ICONS --- */}
               <div className="flex items-center gap-1 sm:gap-3">
-                
-                {/* 1. Пошук (Тільки моб) */}
+                {/* Search Toggle (Mobile) */}
                 <button 
                   className={`lg:hidden p-2 rounded-full transition ${isMobileSearchOpen ? "bg-white text-black" : "text-white hover:bg-white/10"}`}
                   onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
@@ -192,12 +149,10 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   <Search size={22} />
                 </button>
 
-                {/* 2. Профіль */}
                 <Link href="/profile" className="p-2 text-white hover:bg-white/10 rounded-full transition">
                   <User size={22} />
                 </Link>
 
-                {/* 3. Кошик */}
                 <button onClick={onCartClick} className="p-2 text-white hover:bg-white/10 rounded-full transition relative">
                   <ShoppingBag size={22} />
                   {cartCount > 0 && (
@@ -207,14 +162,13 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   )}
                 </button>
                 
-                {/* 4. Вихід (Тільки десктоп) */}
                 <button onClick={onLogout} className="hidden lg:flex items-center gap-1 p-2 text-gray-400 hover:text-red-500 transition">
                   <LogOut size={22} />
                 </button>
               </div>
             </div>
 
-            {/* --- МОБІЛЬНИЙ РЯДОК ПОШУКУ --- */}
+            {/* --- MOBILE SEARCH BAR --- */}
             <AnimatePresence>
               {isMobileSearchOpen && (
                   <motion.div 
@@ -257,7 +211,8 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                     className="hidden lg:block absolute top-full left-0 w-full bg-[#151515] border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 overflow-hidden"
                 >
                   <div className="max-w-[1600px] mx-auto flex max-h-[80vh]">
-                    {/* ЛІВА КОЛОНКА */}
+                    
+                    {/* Left Column (Specials) */}
                     <div className="w-64 bg-[#1a1a1a] p-6 border-r border-white/5 flex flex-col gap-6 sticky top-0 overflow-y-auto custom-scrollbar">
                       <div className="flex items-center gap-3 text-green-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-xs" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
                           <Sparkles size={18}/> Новинки
@@ -268,20 +223,25 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                       <div className="flex items-center gap-3 text-blue-400 font-bold p-2 hover:bg-white/5 rounded-lg cursor-pointer transition text-xs" onClick={() => handleLinkClick('/catalog?category=Уцінка')}>
                           <Percent size={18}/> Уцінка
                       </div>
+                      <div className="mt-auto p-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
+                          <p className="text-[10px] text-blue-200 font-bold uppercase mb-1">B2B Партнерство</p>
+                          <button className="text-[10px] bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-gray-200 transition uppercase">Детальніше</button>
+                      </div>
                     </div>
-                    {/* ПРАВА КОЛОНКА */}
+
+                    {/* Right Column (Categories from DB) */}
                     <div className="flex-1 p-6 overflow-y-auto custom-scrollbar overscroll-contain">
                       <div className="grid grid-cols-5 gap-x-6 gap-y-8">
-                          {CATALOG_MENU.map((section, idx) => (
-                            <div key={idx} className="break-inside-avoid">
+                          {rootCategories.map((root) => (
+                            <div key={root.id} className="break-inside-avoid">
                               <h3 className="font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition text-xs">
-                                <Link href={`/catalog?category=${section.category}`} onClick={() => setIsCatalogOpen(false)}>{section.category}</Link> 
+                                <Link href={`/catalog?category=${root.name}`} onClick={() => setIsCatalogOpen(false)}>{root.name}</Link> 
                                 <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition"/>
                               </h3>
                               <ul className="space-y-1">
-                                {section.items.map((item, i) => (
-                                  <li key={i}>
-                                    <Link href={`/catalog?category=${item}`} onClick={() => setIsCatalogOpen(false)} className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5">{item}</Link>
+                                {getChildren(root.id).map((child) => (
+                                  <li key={child.id}>
+                                    <Link href={`/catalog?category=${child.name}`} onClick={() => setIsCatalogOpen(false)} className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5">{child.name}</Link>
                                   </li>
                                 ))}
                               </ul>
@@ -297,11 +257,11 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
           </AnimatePresence>
       </header>
 
-      {/* --- MOBILE MENU DRAWER (ОНОВЛЕНИЙ) --- */}
+      {/* --- MOBILE MENU DRAWER (SLIDE-OUT) --- */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-[100] lg:hidden font-sans">
-            {/* Затемнення */}
+            {/* Backdrop */}
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
@@ -310,7 +270,7 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             />
             
-            {/* Меню */}
+            {/* Drawer */}
             <motion.div 
               initial={{ x: "-100%" }} 
               animate={{ x: 0 }} 
@@ -318,7 +278,7 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="absolute top-0 left-0 h-full w-[85%] max-w-[320px] bg-white text-black shadow-2xl overflow-y-auto flex flex-col"
             >
-                {/* Шапка меню */}
+                {/* Drawer Header */}
                 <div className="p-4 flex items-center justify-between border-b border-gray-200 sticky top-0 bg-white z-10">
                   <span className="text-lg font-bold">Каталог</span>
                   <button 
@@ -329,9 +289,8 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   </button>
                 </div>
 
+                {/* Drawer Content */}
                 <div className="flex-1 py-2">
-                  
-                  {/* Спец пропозиції */}
                   <div className="px-4 py-2 space-y-1">
                       <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
                           <span>Новинки</span>
@@ -346,21 +305,19 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
 
                   <div className="h-[1px] bg-gray-200 mx-4 my-2"></div>
 
-                  {/* Список категорій (Акордеон) */}
                   <div className="px-4">
-                      {CATALOG_MENU.map((section, idx) => {
-                          const isExpanded = expandedCategory === section.category;
+                      {rootCategories.map((root) => {
+                          const isExpanded = expandedCategory === root.name;
                           return (
-                              <div key={idx} className="border-b border-gray-100 last:border-0">
+                              <div key={root.id} className="border-b border-gray-100 last:border-0">
                                   <button 
-                                    onClick={() => toggleCategory(section.category)}
+                                    onClick={() => toggleCategory(root.name)}
                                     className="w-full flex items-center justify-between py-3 text-left font-medium text-lg"
                                   >
-                                      {section.category}
+                                      {root.name}
                                       <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
                                   </button>
                                   
-                                  {/* Підкатегорії */}
                                   <AnimatePresence>
                                       {isExpanded && (
                                           <motion.div 
@@ -371,18 +328,18 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                                           >
                                               <div className="pl-4 pb-4 space-y-3">
                                                   <div 
-                                                    onClick={() => handleLinkClick(`/catalog?category=${section.category}`)} 
+                                                    onClick={() => handleLinkClick(`/catalog?category=${root.name}`)} 
                                                     className="block text-blue-600 font-bold text-sm cursor-pointer"
                                                   >
                                                       Всі товари категорії
                                                   </div>
-                                                  {section.items.map((item, i) => (
+                                                  {getChildren(root.id).map((child) => (
                                                       <div 
-                                                        key={i} 
-                                                        onClick={() => handleLinkClick(`/catalog?category=${item}`)} 
+                                                        key={child.id} 
+                                                        onClick={() => handleLinkClick(`/catalog?category=${child.name}`)} 
                                                         className="block text-gray-600 text-sm cursor-pointer hover:text-black"
                                                       >
-                                                          {item}
+                                                          {child.name}
                                                       </div>
                                                   ))}
                                               </div>

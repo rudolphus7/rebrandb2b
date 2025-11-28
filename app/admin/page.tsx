@@ -1,309 +1,168 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // Додаємо роутер
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import { 
-  LayoutDashboard, ShoppingBag, Package, LogOut, Plus, Trash2, 
-  Image as ImageIcon, Search, Pencil, X, CheckCircle, Clock, Truck, Megaphone, RefreshCw 
-} from "lucide-react";
-import { format } from "date-fns";
-import { uk } from "date-fns/locale";
+import { Trash2, Plus, Image as ImageIcon, Save, AlertCircle, LogIn } from "lucide-react";
 
-export default function AdminDashboard() {
-  const [session, setSession] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("dashboard");
+export default function AdminBanners() {
   const router = useRouter();
-
-  const [products, setProducts] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
-  const [stats, setStats] = useState({ totalMoney: 0, totalOrders: 0 });
-
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ 
-    title: "", price: "", subtitle: "", description: "",
-    brand: "", sku: "" // <--- НОВІ ПОЛЯ
+  const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Форма для нового банера
+  const [newBanner, setNewBanner] = useState({
+    title: "",
+    subtitle: "",
+    description: "",
+    image_url: ""
   });
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState("Синхронізувати з Totobi");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push("/");
-      setSession(session);
-      fetchData();
-    });
+    checkAuth();
+    fetchBanners();
   }, []);
 
-  async function fetchData() {
-    const { data: productsData } = await supabase.from("products").select("*").order('id', { ascending: false });
-    setProducts(productsData || []);
-
-    const { data: ordersData } = await supabase.from("orders").select("*").order('created_at', { ascending: false });
-    setOrders(ordersData || []);
-
-    const { data: bannersData } = await supabase.from("banners").select("*").order('id', { ascending: false });
-    setBanners(bannersData || []);
-
-    if (ordersData) {
-      const total = ordersData.reduce((sum, order) => sum + (order.total_price || 0), 0);
-      setStats({ totalMoney: total, totalOrders: ordersData.length });
-    }
-  }
-
-  async function handleSync() {
-    if(!confirm("Почати повну синхронізацію?")) return;
-    setIsSyncing(true);
-    let offset = 0; let limit = 50; let isFinished = false; let totalProcessed = 0;
-    try {
-      while (!isFinished) {
-        setSyncStatus(`⏳ Оброблено ${offset}...`);
-        const res = await fetch(`/api/sync?offset=${offset}&limit=${limit}`);
-        if (!res.ok) throw new Error("Помилка сервера");
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        if (data.done) isFinished = true;
-        else { totalProcessed += (data.processed || 0); offset = data.nextOffset; }
-      }
-      alert(`Успішно! Оброблено товарів: ${totalProcessed}`);
-      fetchData();
-    } catch (e: any) { alert("Помилка: " + e.message); } 
-    finally { setIsSyncing(false); setSyncStatus("Синхронізувати з Totobi"); }
-  }
-
-  async function uploadImage(bucket: string) {
-    if (!file) return null;
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const { error } = await supabase.storage.from(bucket).upload(fileName, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-    return data.publicUrl;
-  }
-
-  async function handleProductSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setUploading(true);
-    try {
-      let imageUrl = null;
-      if (file) imageUrl = await uploadImage('products');
-      const data: any = { 
-        title: formData.title, 
-        price: parseFloat(formData.price),
-        brand: formData.brand, // <--- Зберігаємо бренд
-        sku: formData.sku // <--- Зберігаємо артикул
-      };
-      if (imageUrl) data.image_url = imageUrl;
-
-      if (editingId) await supabase.from('products').update(data).eq('id', editingId);
-      else {
-         if(!imageUrl) return alert("Фото обов'язкове");
-         data.image_url = imageUrl;
-         await supabase.from('products').insert([data]);
-      }
-      resetForm(); fetchData();
-    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
-  }
-
-  async function handleBannerSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setUploading(true);
-    try {
-      let imageUrl = null;
-      if (file) imageUrl = await uploadImage('banners');
-      const data: any = { title: formData.title, subtitle: formData.subtitle, description: formData.description };
-      if (imageUrl) data.image_url = imageUrl;
-
-      if (editingId) await supabase.from('banners').update(data).eq('id', editingId);
-      else {
-         if(!imageUrl) return alert("Фото обов'язкове");
-         data.image_url = imageUrl;
-         await supabase.from('banners').insert([data]);
-      }
-      resetForm(); fetchData();
-    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
-  }
-
-  async function deleteItem(table: string, id: number) {
-    if (!confirm("Видалити?")) return;
-    await supabase.from(table).delete().eq("id", id);
-    fetchData();
-  }
-
-  function startEditing(item: any, type: 'product' | 'banner') {
-    setEditingId(item.id);
-    if (type === 'product') {
-        setFormData({ 
-            title: item.title || "", price: item.price || "", 
-            subtitle: "", description: "",
-            brand: item.brand || "", sku: item.sku || "" // <--- Заповнюємо
-        });
+  // Перевірка авторизації
+  async function checkAuth() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        // Якщо не залогінені - показуємо попередження або редірект
+        console.warn("No active session found");
+        setIsAdmin(false);
     } else {
-        setFormData({ 
-            title: item.title || "", price: "", 
-            subtitle: item.subtitle || "", description: item.description || "",
-            brand: "", sku: "" 
-        });
+        setIsAdmin(true);
     }
-    setFile(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function resetForm() {
-    setEditingId(null);
-    setFormData({ title: "", price: "", subtitle: "", description: "", brand: "", sku: "" });
-    setFile(null);
+  async function fetchBanners() {
+    setLoading(true);
+    const { data, error } = await supabase.from("banners").select("*").order("id", { ascending: true });
+    if (error) console.error("Error fetching banners:", error);
+    setBanners(data || []);
+    setLoading(false);
   }
 
-  if (!session) return <div className="p-10 text-center">Завантаження...</div>;
+  async function handleDelete(id: number) {
+    if (!isAdmin) return alert("Будь ласка, увійдіть в систему!");
+    
+    const confirm = window.confirm("Видалити цей банер?");
+    if (!confirm) return;
+
+    const { error } = await supabase.from("banners").delete().eq("id", id);
+    
+    if (error) {
+        alert("Помилка видалення (403): Перевірте SQL Policies або перелогіньтесь.");
+        console.error(error);
+    } else {
+        fetchBanners();
+    }
+  }
+
+  async function handleAdd() {
+    if (!isAdmin) return alert("Будь ласка, увійдіть в систему!");
+    if (!newBanner.image_url) return alert("Додайте посилання на зображення!");
+    
+    const { error } = await supabase.from("banners").insert([newBanner]);
+
+    if (error) {
+        alert("Помилка додавання (403): Перевірте SQL Policies або перелогіньтесь.");
+        console.error(error);
+    } else {
+        setNewBanner({ title: "", subtitle: "", description: "", image_url: "" }); 
+        fetchBanners();
+    }
+  }
+
+  // Якщо користувач не адмін, показуємо кнопку входу
+  if (!loading && !isAdmin) {
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+              <AlertCircle size={48} className="text-red-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Доступ заборонено</h2>
+              <p className="text-gray-400 mb-6">Ви повинні бути авторизовані, щоб керувати контентом.</p>
+              <button 
+                onClick={() => router.push("/login?redirect=/admin/banners")} // Передбачаємо редірект
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2"
+              >
+                  <LogIn size={20} /> Увійти в систему
+              </button>
+          </div>
+      )
+  }
 
   return (
-    <div className="flex min-h-screen bg-gray-100 font-sans text-gray-800">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full z-10">
-        <div className="p-6 border-b border-slate-700">
-          <h2 className="text-2xl font-bold tracking-wider italic">REBRAND</h2>
-          <p className="text-xs text-slate-400 mt-1">Admin Panel</p>
+    <div>
+      <h1 className="text-3xl font-bold mb-8">Керування Банерами</h1>
+
+      {/* ФОРМА ДОДАВАННЯ */}
+      <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/5 mb-8">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Plus size={20}/> Додати новий слайд</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <input 
+                type="text" placeholder="Заголовок (напр. НОВА КОЛЕКЦІЯ)" 
+                className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
+                value={newBanner.title}
+                onChange={e => setNewBanner({...newBanner, title: e.target.value})}
+            />
+            <input 
+                type="text" placeholder="Підзаголовок (напр. WINTER 2025)" 
+                className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
+                value={newBanner.subtitle}
+                onChange={e => setNewBanner({...newBanner, subtitle: e.target.value})}
+            />
+            <input 
+                type="text" placeholder="Посилання на картинку (URL)" 
+                className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none md:col-span-2"
+                value={newBanner.image_url}
+                onChange={e => setNewBanner({...newBanner, image_url: e.target.value})}
+            />
+            <textarea 
+                placeholder="Короткий опис" 
+                className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none md:col-span-2"
+                rows={2}
+                value={newBanner.description}
+                onChange={e => setNewBanner({...newBanner, description: e.target.value})}
+            />
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setActiveTab("dashboard")} className={`flex items-center gap-3 w-full p-3 rounded transition ${activeTab === "dashboard" ? "bg-blue-600" : "hover:bg-slate-800"}`}> <LayoutDashboard size={20} /> Головна </button>
-          <button onClick={() => setActiveTab("orders")} className={`flex items-center gap-3 w-full p-3 rounded transition ${activeTab === "orders" ? "bg-blue-600" : "hover:bg-slate-800"}`}> <ShoppingBag size={20} /> Замовлення </button>
-          <button onClick={() => setActiveTab("products")} className={`flex items-center gap-3 w-full p-3 rounded transition ${activeTab === "products" ? "bg-blue-600" : "hover:bg-slate-800"}`}> <Package size={20} /> Товари </button>
-          <button onClick={() => setActiveTab("banners")} className={`flex items-center gap-3 w-full p-3 rounded transition ${activeTab === "banners" ? "bg-blue-600" : "hover:bg-slate-800"}`}> <Megaphone size={20} /> Банери </button>
-        </nav>
-        <div className="p-4 border-t border-slate-700">
-          <button onClick={() => router.push("/")} className="flex items-center gap-2 text-gray-400 hover:text-white transition"> <LogOut size={16} /> На сайт </button>
-        </div>
-      </aside>
+        <button onClick={handleAdd} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition flex items-center gap-2">
+            <Save size={18}/> Зберегти банер
+        </button>
+      </div>
 
-      <main className="ml-64 flex-1 p-8">
-        
-        {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-bold mb-6">Огляд бізнесу</h1>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <p className="text-gray-500 mb-1">Дохід</p>
-                <h3 className="text-3xl font-bold text-green-600">{stats.totalMoney} ₴</h3>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <p className="text-gray-500 mb-1">Замовлень</p>
-                <h3 className="text-3xl font-bold text-blue-600">{stats.totalOrders}</h3>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <p className="text-gray-500 mb-1">Товарів</p>
-                <h3 className="text-3xl font-bold text-purple-600">{products.length}</h3>
-              </div>
+      {/* СПИСОК БАНЕРІВ */}
+      <div className="space-y-4">
+        {loading ? <p>Завантаження...</p> : banners.length === 0 ? (
+            <div className="text-center py-10 bg-[#1a1a1a] rounded-xl border border-white/5">
+                <ImageIcon className="mx-auto mb-2 text-gray-600" size={48} />
+                <p className="text-gray-500">Банерів поки немає. Додайте перший!</p>
             </div>
-          </div>
+        ) : (
+            banners.map((banner) => (
+                <div key={banner.id} className="bg-[#1a1a1a] border border-white/5 rounded-xl overflow-hidden flex flex-col md:flex-row">
+                    <div className="w-full md:w-64 h-48 md:h-auto relative bg-black">
+                        {banner.image_url ? (
+                            <img src={banner.image_url} className="w-full h-full object-cover" alt="Banner preview" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500"><ImageIcon/></div>
+                        )}
+                    </div>
+                    <div className="p-6 flex-1 flex flex-col justify-center">
+                        <h4 className="text-xl font-bold text-white">{banner.title || "Без заголовка"}</h4>
+                        <p className="text-blue-400 font-bold mb-2">{banner.subtitle}</p>
+                        <p className="text-gray-400 text-sm mb-4">{banner.description}</p>
+                        <div className="text-xs text-gray-600 font-mono truncate max-w-md bg-black/30 p-1 rounded">{banner.image_url}</div>
+                    </div>
+                    <div className="p-6 flex items-center border-l border-white/5">
+                        <button onClick={() => handleDelete(banner.id)} className="p-3 bg-red-900/20 text-red-500 rounded-lg hover:bg-red-900/40 transition" title="Видалити">
+                            <Trash2 size={20}/>
+                        </button>
+                    </div>
+                </div>
+            ))
         )}
-
-        {activeTab === "banners" && (
-          <div>
-            <h1 className="text-3xl font-bold mb-6">Банери</h1>
-            <div className="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
-              <h2 className="text-lg font-bold mb-4">{editingId ? "Редагувати" : "Додати банер"}</h2>
-              <form onSubmit={handleBannerSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="border p-2 rounded" placeholder="Заголовок" required />
-                  <input type="text" value={formData.subtitle} onChange={e => setFormData({...formData, subtitle: e.target.value})} className="border p-2 rounded" placeholder="Підзаголовок" required />
-                </div>
-                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border p-2 rounded" placeholder="Опис" required />
-                <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm" />
-                <button disabled={uploading} className="bg-slate-900 text-white px-6 py-2 rounded">{uploading ? "..." : "Зберегти"}</button>
-              </form>
-            </div>
-            <div className="space-y-4">
-              {banners.map((item) => (
-                <div key={item.id} className="bg-white p-4 rounded-xl flex gap-4 items-center shadow-sm">
-                   <div className="w-24 h-16 bg-gray-200 rounded overflow-hidden">{item.image_url && <img src={item.image_url} className="w-full h-full object-cover"/>}</div>
-                   <div className="flex-1"><h3 className="font-bold">{item.title}</h3><p className="text-xs text-gray-500">{item.subtitle}</p></div>
-                   <button onClick={() => deleteItem('banners', item.id)} className="text-red-500"><Trash2 size={18}/></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "orders" && (
-          <div>
-             <h1 className="text-3xl font-bold mb-6">Замовлення</h1>
-             <div className="bg-white rounded-xl shadow overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b"><tr><th className="p-4">ID</th><th className="p-4">Клієнт</th><th className="p-4">Сума</th><th className="p-4">Статус</th></tr></thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id} className="hover:bg-gray-50 border-b last:border-0">
-                        <td className="p-4">#{order.id}</td>
-                        <td className="p-4">{order.user_email}</td>
-                        <td className="p-4 font-bold">{order.total_price} ₴</td>
-                        <td className="p-4">
-                           <select 
-                              className="border rounded p-1 text-sm bg-white"
-                              value={order.status || 'new'}
-                              onChange={async (e) => { await supabase.from('orders').update({ status: e.target.value }).eq('id', order.id); fetchData(); }}
-                            >
-                              <option value="new">Нове</option>
-                              <option value="processing">В роботі</option>
-                              <option value="shipped">Відправлено</option>
-                              <option value="canceled">Скасовано</option>
-                            </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
-          </div>
-        )}
-
-        {activeTab === "products" && (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-               <h1 className="text-3xl font-bold">Товари</h1>
-               <button onClick={handleSync} disabled={isSyncing} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-lg disabled:opacity-50 disabled:cursor-wait">
-                 <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} /> {syncStatus}
-               </button>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
-              <form onSubmit={handleProductSubmit} className="space-y-4">
-                <div className="flex gap-4 items-end">
-                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Назва</label><input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full border p-2 rounded" required /></div>
-                  <div className="w-32"><label className="text-xs font-bold text-gray-500">Ціна</label><input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full border p-2 rounded" required /></div>
-                </div>
-                <div className="flex gap-4 items-end">
-                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Бренд</label><input type="text" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full border p-2 rounded" placeholder="Gildan" /></div>
-                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Артикул (SKU)</label><input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full border p-2 rounded" placeholder="123-456" /></div>
-                  <div className="flex-1"><label className="text-xs font-bold text-gray-500">Фото</label><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm" /></div>
-                </div>
-                <button disabled={uploading} className="bg-slate-900 text-white px-6 py-2 rounded">{uploading ? "..." : "Зберегти"}</button>
-              </form>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {products.map((item) => (
-                <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 items-start">
-                  <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                    {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover" /> : <ImageIcon className="w-full h-full p-4 text-gray-300" />}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-sm">{item.title}</h3>
-                    <p className="text-sm text-gray-500">{item.price} ₴</p>
-                    <p className="text-xs text-gray-400 mt-1">{item.brand} | {item.sku}</p>
-                  </div>
-                  <button onClick={() => deleteItem('products', item.id)} className="text-red-500"><Trash2 size={18}/></button>
-                  <button onClick={() => startEditing(item, 'product')} className="text-blue-500"><Pencil size={18}/></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-      </main>
+      </div>
     </div>
   );
 }

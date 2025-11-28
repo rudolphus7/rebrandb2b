@@ -13,173 +13,47 @@ import { useCart } from "../components/CartContext";
 import Header from "../components/Header";
 import CartDrawer from "../components/CartDrawer";
 
-// --- 1. ПОВНА КАРТА КАТЕГОРІЙ ---
-const CATEGORIES_MAP = [
-  // СПЕЦІАЛЬНІ
-  { id: "270", name: "Новинки" },
-  { id: "213", name: "Акційна пропозиція", aliases: ["Акційні пропозиції"] },
-  { id: "discount", name: "Уцінка" },
-
-  // СУМКИ
-  { id: "189", name: "Сумки", aliases: ["Сумки & Рюкзаки"] },
-  { id: "196", parentId: "189", name: "Валізи" },
-  { id: "284", parentId: "189", name: "Косметички" },
-  { id: "217", parentId: "189", name: "Мішок спортивний" },
-  { id: "304", parentId: "189", name: "Рюкзаки" },
-  { id: "192", parentId: "189", name: "Сумки для ноутбуків" },
-  { id: "264", parentId: "189", name: "Сумки для покупок", aliases: ["Шопери"] },
-  { id: "193", parentId: "189", name: "Сумки дорожні та спортивні" },
-  { id: "271", parentId: "189", name: "Сумки на пояс", aliases: ["Бананки"] },
-  { id: "280", parentId: "189", name: "Термосумки" },
-
-  // РУЧКИ
-  { id: "186", name: "Ручки" },
-  { id: "269", parentId: "186", name: "Еко ручки" },
-  { id: "187", parentId: "186", name: "Металеві ручки" },
-  { id: "314", parentId: "186", name: "Олівці" },
-  { id: "188", parentId: "186", name: "Пластикові ручки" },
-
-  // ПОДОРОЖ ТА ВІДПОЧИНОК
-  { id: "183", name: "Подорож та відпочинок", aliases: ["Дім & Відпочинок"] },
-  { id: "259", parentId: "183", name: "Все для пікніка" },
-  { id: "287", parentId: "183", name: "Ліхтарики" },
-  { id: "273", parentId: "183", name: "Ланч бокси", aliases: ["Ланчбокси"] },
-  { id: "288", parentId: "183", name: "Лопати" },
-  { id: "195", parentId: "183", name: "Пледи" },
-  { id: "184", parentId: "183", name: "Пляшки для пиття", aliases: ["Пляшки"] },
-  { id: "303", parentId: "183", name: "Подушки" },
-  { id: "185", parentId: "183", name: "Термоси та термокружки", aliases: ["Термочашки", "Термоси"] },
-  { id: "216", parentId: "183", name: "Фляги" },
-  { id: "305", parentId: "183", name: "Фрізбі" },
-  { id: "276", parentId: "183", name: "Штопори" },
-
-  // ПАРАСОЛІ
-  { id: "227", name: "Парасолі" },
-  { id: "249", parentId: "227", name: "Парасолі складні" },
-  { id: "236", parentId: "227", name: "Парасолі-тростини" },
-
-  // ОДЯГ
-  { id: "181", name: "Одяг", aliases: ["Одяг & Текстиль"] },
-  { id: "307", parentId: "181", name: "Вітровки" },
-  { id: "312", parentId: "181", name: "Рукавички" },
-  { id: "255", parentId: "181", name: "Спортивний одяг" },
-  { id: "182", parentId: "181", name: "Футболки" },
-  { id: "238", parentId: "181", name: "Поло" },
-  { id: "239", parentId: "181", name: "Дитячий одяг" },
-  { id: "246", parentId: "181", name: "Реглани, фліси", aliases: ["Худі & Світшоти", "Фліс"] },
-  { id: "215", parentId: "181", name: "Жилети", aliases: ["Жилетки"] },
-  { id: "243", parentId: "181", name: "Куртки та софтшели" },
-
-  // ГОЛОВНІ УБОРИ
-  { id: "241", name: "Головні убори", aliases: ["Кепки & Шапки"] },
-  { id: "263", parentId: "241", name: "Дитяча кепка" },
-  { id: "289", parentId: "241", name: "Панами" },
-  { id: "302", parentId: "241", name: "Шапки" },
-  { id: "226", parentId: "241", name: "Кепки" },
-
-  // ІНСТРУМЕНТИ
-  { id: "179", name: "Інструменти" },
-  { id: "286", parentId: "179", name: "Викрутки" },
-  { id: "250", parentId: "179", name: "Мультитули" },
-  { id: "299", parentId: "179", name: "Набір інструментів" },
-  { id: "267", parentId: "179", name: "Ножі" },
-  { id: "180", parentId: "179", name: "Рулетки" },
-
-  // ОФІС
-  { id: "204", name: "Офіс", aliases: ["Офіс & Канцелярія"] },
-  { id: "205", parentId: "204", name: "Записні книжки", aliases: ["Блокноти", "Щоденники"] },
-  { id: "308", parentId: "204", name: "Календарі" },
-
-  // ПЕРСОНАЛЬНІ АКСЕСУАРИ
-  { id: "201", name: "Персональні аксессуари" },
-  { id: "203", parentId: "201", name: "Брелки" },
-  { id: "202", parentId: "201", name: "Візитниці" },
-  { id: "306", parentId: "201", name: "Дзеркала" },
-
-  // ДЛЯ ПРОФЕСІОНАЛІВ
-  { id: "234", name: "Для професіоналів" },
-  { id: "235", parentId: "234", name: "Опадоміри" },
-
-  // ЕЛЕКТРОНІКА
-  { id: "224", name: "Електроніка", aliases: ["Гаджети"] },
-  { id: "281", parentId: "224", name: "Аксесуари" },
-  { id: "298", parentId: "224", name: "Годинники" },
-  { id: "251", parentId: "224", name: "Зарядні пристрої", aliases: ["Powerbanks", "Зарядки"] },
-  { id: "279", parentId: "224", name: "Зволожувачі повітря" },
-  { id: "297", parentId: "224", name: "Лампи" },
-  { id: "258", parentId: "224", name: "Портативна акустика", aliases: ["Колонки", "Навушники"] },
-
-  // ДІМ
-  { id: "194", name: "Дім" },
-  { id: "295", parentId: "194", name: "Дошки кухонні" },
-  { id: "296", parentId: "194", name: "Кухонне приладдя" },
-  { id: "309", parentId: "194", name: "Млини для спецій" },
-  { id: "313", parentId: "194", name: "Набори для сиру" },
-  { id: "257", parentId: "194", name: "Рушники" },
-  { id: "311", parentId: "194", name: "Свічки" },
-  { id: "301", parentId: "194", name: "Сковорідки" },
-  { id: "310", parentId: "194", name: "Стакани" },
-  { id: "294", parentId: "194", name: "Чайники" },
-  { id: "237", parentId: "194", name: "Годівнички" },
-
-  // ПОСУД
-  { id: "230", name: "Посуд", aliases: ["Посуд & Напої"] },
-  { id: "256", parentId: "230", name: "Горнятка", aliases: ["Чашки", "Бокали"] },
-
-  // УПАКОВКА
-  { id: "272", name: "Упаковка" },
-  { id: "282", parentId: "272", name: "Подарункова коробка" },
-  { id: "300", parentId: "272", name: "Подарунковий пакет" },
-];
-
-const ROOT_CATEGORIES = CATEGORIES_MAP.filter(c => !c.parentId && c.id !== 'discount' && c.id !== '270' && c.id !== '213');
-
-function getCategoryIds(categoryName: string): string[] {
-  const normalizedQuery = categoryName.toLowerCase().trim();
-  const targetCategories = CATEGORIES_MAP.filter(c => 
-    c.name.toLowerCase() === normalizedQuery || 
-    c.aliases?.some(alias => alias.toLowerCase() === normalizedQuery)
-  );
-  if (targetCategories.length === 0) return [];
-  let ids: string[] = [];
-  targetCategories.forEach(target => {
-      ids.push(target.id);
-      const children = CATEGORIES_MAP.filter(c => c.parentId === target.id);
-      children.forEach(child => ids.push(child.id));
-  });
-  return Array.from(new Set(ids));
-}
-
-// Компонент Sidebar
+// --- КОМПОНЕНТ ДЕРЕВА КАТЕГОРІЙ ---
 function CategorySidebar({ activeCategory }: { activeCategory: string | null }) {
+    const [categories, setCategories] = useState<any[]>([]);
     const [openCategories, setOpenCategories] = useState<string[]>([]);
 
     useEffect(() => {
-        if (activeCategory) {
-            const activeItem = CATEGORIES_MAP.find(c => c.name === activeCategory || c.aliases?.includes(activeCategory));
-            if (activeItem && activeItem.parentId) {
-                const parent = CATEGORIES_MAP.find(p => p.id === activeItem.parentId);
+        // Завантажуємо категорії з бази
+        supabase.from('categories').select('*').order('order').then(({ data }) => {
+            if (data) setCategories(data);
+        });
+    }, []);
+
+    // Логіка відкриття категорій
+    const rootCategories = categories.filter(c => !c.parent_id && !['270', '213', 'discount'].includes(c.id));
+    const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
+
+    // Авто-розкриття
+    useEffect(() => {
+        if (activeCategory && categories.length > 0) {
+            const activeItem = categories.find(c => c.name === activeCategory);
+            if (activeItem && activeItem.parent_id) {
+                const parent = categories.find(p => p.id === activeItem.parent_id);
                 if (parent) setOpenCategories(prev => [...prev, parent.name]);
             } else if (activeItem) {
                 setOpenCategories(prev => [...prev, activeItem.name]);
             }
         }
-    }, [activeCategory]);
+    }, [activeCategory, categories]);
 
     const toggleCategory = (name: string) => {
-        setOpenCategories(prev => 
-            prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]
-        );
+        setOpenCategories(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]);
     };
 
     return (
         <div className="mb-8">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Menu size={18}/> Категорії</h3>
             <div className="space-y-1">
-                {ROOT_CATEGORIES.map(rootCat => {
-                    const children = CATEGORIES_MAP.filter(c => c.parentId === rootCat.id);
+                {rootCategories.map(rootCat => {
+                    const children = getChildren(rootCat.id);
                     const isOpen = openCategories.includes(rootCat.name);
-                    const isActive = activeCategory === rootCat.name || (activeCategory && children.some(c => c.name === activeCategory));
+                    const isActive = activeCategory === rootCat.name;
 
                     return (
                         <div key={rootCat.id} className="border-b border-white/5 last:border-0">
@@ -217,7 +91,6 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
     );
 }
 
-// === ОНОВЛЕНИЙ КОМПОНЕНТ ФІЛЬТРІВ ===
 function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title: string, items: string[], paramName: string, isOpenDefault?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -225,27 +98,22 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
   const [search, setSearch] = useState("");
   
   const selectedItems = searchParams.get(paramName)?.split(",") || [];
-
   const filteredItems = items.filter(i => i.toLowerCase().includes(search.toLowerCase()));
 
   const handleToggle = (item: string) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     let newSelected = [...selectedItems];
-
     if (newSelected.includes(item)) {
       newSelected = newSelected.filter(i => i !== item);
     } else {
       newSelected.push(item);
     }
-
     if (newSelected.length > 0) {
       current.set(paramName, newSelected.join(","));
     } else {
       current.delete(paramName);
     }
-
     current.set("page", "1");
-
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -266,12 +134,7 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
             {filteredItems.map((item, idx) => (
               <label key={idx} className="flex items-center gap-2 cursor-pointer group">
                 <div className={`relative w-4 h-4 border rounded flex items-center justify-center transition ${selectedItems.includes(item) ? 'border-blue-500 bg-blue-500' : 'border-white/20 group-hover:border-blue-500'}`}>
-                  <input 
-                    type="checkbox" 
-                    className="peer appearance-none w-full h-full absolute inset-0 cursor-pointer"
-                    checked={selectedItems.includes(item)}
-                    onChange={() => handleToggle(item)}
-                  />
+                  <input type="checkbox" className="peer appearance-none w-full h-full absolute inset-0 cursor-pointer" checked={selectedItems.includes(item)} onChange={() => handleToggle(item)}/>
                   <Check size={10} className={`text-white transition ${selectedItems.includes(item) ? 'opacity-100' : 'opacity-0'}`}/>
                 </div>
                 <span className={`text-sm transition ${selectedItems.includes(item) ? 'text-white font-bold' : 'text-gray-400 group-hover:text-white'}`}>{item}</span>
@@ -291,24 +154,21 @@ function CatalogContent() {
   const page = parseInt(searchParams.get("page") || "1");
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
-  
   const colorParam = searchParams.get("color");
   const materialParam = searchParams.get("material");
   const genderParam = searchParams.get("gender");
 
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Додаємо state для кошика та авторизації
   const { addToCart, totalItems } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
 
+  // Статичні фільтри (можна теж винести в базу, але поки так)
   const COLORS = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений", "Жовтий", "Оранжевий", "Коричневий", "Фіолетовий", "Бежевий", "Рожевий"];
   const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс", "Метал", "Пластик", "Кераміка", "Скло", "Дерево", "Шкіра"];
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
 
-  // Перевірка сесії
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
@@ -328,55 +188,45 @@ function CatalogContent() {
     setLoading(true);
     let request = supabase.from("products").select("*");
 
-    if (query) {
-        request = request.ilike("title", `%${query}%`);
-    }
+    if (query) request = request.ilike("title", `%${query}%`);
 
     if (categoryParam) {
-        const categoryIds = getCategoryIds(categoryParam);
-        if (categoryIds.length > 0) {
-            request = request.in("category_external_id", categoryIds);
+        // Спочатку знаходимо категорію в базі, щоб отримати її ID
+        // Потім знаходимо всіх дітей цієї категорії
+        // І фільтруємо товари, у яких external_id входить в цей список
+        
+        const { data: catData } = await supabase.from('categories').select('*').ilike('name', categoryParam).single();
+        
+        if (catData) {
+            // Знаходимо дітей
+            const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
+            const ids = [catData.id, ...(children?.map(c => c.id) || [])];
+            request = request.in("category_external_id", ids);
         } else {
-            console.warn("Категорія не знайдена, показуємо все");
+            console.warn("Категорія не знайдена в БД");
         }
     }
 
-    if (colorParam) {
-        const colors = colorParam.split(",");
-        request = request.in('color', colors);
-    }
-
+    if (colorParam) request = request.in('color', colorParam.split(","));
     if (materialParam) {
-        const materials = materialParam.split(",");
-        const orQuery = materials.map(m => `description.ilike.%${m}%`).join(",");
+        const orQuery = materialParam.split(",").map(m => `description.ilike.%${m}%`).join(",");
         request = request.or(orQuery);
     }
-
     if (genderParam) {
-        const genders = genderParam.split(",");
-        const orQuery = genders.map(g => `description.ilike.%${g}%`).join(",");
+        const orQuery = genderParam.split(",").map(g => `description.ilike.%${g}%`).join(",");
         request = request.or(orQuery);
     }
 
     const from = (page - 1) * 500; 
     const to = from + 499;
-
     const { data, error } = await request.range(from, to).order("id", { ascending: false });
-
-    if (error) {
-        console.error("Error:", error);
-        setLoading(false);
-        return;
-    }
 
     if (!data) { setLoading(false); return; }
 
     const groupedMap = new Map();
-
     data.forEach((item) => {
         const rawTitle = item.title || item.description || "Товар без назви";
         const groupKey = rawTitle.trim(); 
-
         if (!groupedMap.has(groupKey)) {
             groupedMap.set(groupKey, {
                 ...item,
@@ -390,26 +240,20 @@ function CatalogContent() {
         } else {
             const group = groupedMap.get(groupKey);
             group.variants.push(item);
-            if (item.image_url && !group.variant_images.includes(item.image_url)) {
-                group.variant_images.push(item.image_url);
-            }
+            if (item.image_url && !group.variant_images.includes(item.image_url)) group.variant_images.push(item.image_url);
             group.stock_total += (item.amount || 0);
             group.stock_reserve += (item.reserve || 0);
         }
     });
 
-    const groupedProducts = Array.from(groupedMap.values()).map(group => ({
+    setProducts(Array.from(groupedMap.values()).map(group => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
         article: group.sku ? group.sku.split('-')[0] : `ART-${group.id}`,
         brand: "Totobi Partner" 
-    }));
-
-    setProducts(groupedProducts);
+    })));
     setLoading(false);
   }
-
-  const pageTitle = categoryParam || (query ? `Пошук: "${query}"` : "Всі товари");
 
   const handleAddToCart = (product: any) => {
     addToCart({
@@ -424,27 +268,17 @@ function CatalogContent() {
 
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans">
-      
-      {/* HEADER (Замінили на компонент) */}
-      <Header 
-        onCartClick={() => setIsCartOpen(true)} 
-        cartCount={totalItems} 
-        onLogout={handleLogout}
-        onMobileMenuClick={() => {}}
-      />
+      <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} onLogout={handleLogout} />
 
-      {/* BREADCRUMBS & TITLE */}
       <div className="max-w-[1600px] mx-auto px-4 lg:px-8 py-6">
          <div className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-4">
              <Link href="/" className="hover:text-white">Головна</Link> / <span className="text-white">Каталог</span>
              {categoryParam && <> / <span className="text-blue-400">{categoryParam}</span></>}
          </div>
-         <h1 className="text-3xl font-black uppercase text-white">{pageTitle}</h1>
+         <h1 className="text-3xl font-black uppercase text-white">{categoryParam || (query ? `Пошук: "${query}"` : "Всі товари")}</h1>
       </div>
 
       <main className="max-w-[1600px] mx-auto px-4 lg:px-8 pb-20 flex gap-8 items-start">
-        
-        {/* SIDEBAR */}
         <aside className="w-64 flex-shrink-0 hidden lg:block bg-[#1a1a1a] rounded-xl border border-white/5 p-4 sticky top-24 h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
            {(categoryParam || query || colorParam || materialParam || genderParam) && (
               <Link href="/catalog" className="text-xs text-red-400 flex items-center gap-1 hover:underline mb-4 block"><X size={12}/> Скинути все</Link>
@@ -452,13 +286,11 @@ function CatalogContent() {
            <CategorySidebar activeCategory={categoryParam} />
            <div className="w-full h-[1px] bg-white/10 my-6"></div>
            <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Filter size={18}/> Фільтри</h3>
-           
            <FilterGroup title="Колір" items={COLORS} paramName="color" isOpenDefault={true} />
            <FilterGroup title="Матеріал" items={MATERIALS} paramName="material" />
            <FilterGroup title="Стать" items={GENDER} paramName="gender" />
         </aside>
 
-        {/* PRODUCTS GRID */}
         <div className="flex-1">
            <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-[#1a1a1a] p-3 rounded-xl border border-white/5">
               <div className="flex gap-1 text-sm font-bold overflow-x-auto w-full md:w-auto">
@@ -479,7 +311,6 @@ function CatalogContent() {
                  {loading ? [...Array(8)].map((_, i) => <div key={i} className="h-96 bg-[#1a1a1a] rounded-xl animate-pulse"></div>) : 
                    products.map((item) => (
                      <div key={item.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 hover:border-blue-500/30 hover:shadow-2xl transition group flex gap-3 h-full relative">
-                       
                        <div className="flex flex-col gap-2 w-10 flex-shrink-0 pt-2 z-10">
                           {item.variant_images.length > 0 ? (
                              item.variant_images.slice(0, 6).map((img: string, idx: number) => (
@@ -492,56 +323,24 @@ function CatalogContent() {
                           )}
                           {item.variant_images.length > 6 && <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 6}</div>}
                        </div>
-
                        <div className="flex-1 flex flex-col min-w-0">
                           <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
                              <Link href={`/product/${item.id}`} className="block w-full h-full">
-                               <ProductImage 
-                                 src={item.active_image || item.image_url} 
-                                 alt={item.title}
-                                 fill
-                                 className="group-hover:scale-105 transition duration-500"
-                               />
+                               <ProductImage src={item.active_image || item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
                              </Link>
                              <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                  {item.stock_free > 0 && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
                              </div>
                           </div>
-
                           <div className="mb-2">
                              <Link href={`/product/${item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>{item.title}</Link>
                              <div className="flex justify-between text-[10px] text-gray-500 mt-1"><span>Арт: {item.article}</span><span className="text-zinc-400">{item.brand}</span></div>
                           </div>
-
-                          <div className="text-xl font-bold text-white mb-3">
-                             {item.price > 0 ? (
-                                 <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></>
-                             ) : (
-                                 <span className="text-sm text-blue-400">Ціна за запитом</span>
-                             )}
-                          </div>
-
-                          {/* === ДОДАНО: Відображення залишку === */}
+                          <div className="text-xl font-bold text-white mb-3">{item.price > 0 ? <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></> : <span className="text-sm text-blue-400">Ціна за запитом</span>}</div>
                           <div className="mb-2 text-xs">
-                            {item.stock_free > 0 ? (
-                                <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Вільний залишок: {item.stock_free} шт.</span>
-                            ) : (
-                                <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Немає в наявності</span>
-                            )}
+                            {item.stock_free > 0 ? <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Вільний залишок: {item.stock_free} шт.</span> : <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Немає в наявності</span>}
                           </div>
-                          {/* === КІНЕЦЬ ЗМІН === */}
-
-                          <div className="mt-auto bg-[#111] rounded p-2 text-[10px] space-y-1 border border-white/5">
-                             <div className="flex justify-between">
-                                <span className="text-gray-400">На складі:</span>
-                                <span className="font-bold text-white">{item.stock_total || 0}</span>
-                             </div>
-                          </div>
-
-                          <button onClick={() => handleAddToCart(item)} className="mt-2 w-full bg-white text-black font-bold py-2 rounded hover:bg-blue-600 hover:text-white transition text-sm flex items-center justify-center gap-2">
-                             В кошик
-                          </button>
-
+                          <button onClick={() => handleAddToCart(item)} className="mt-2 w-full bg-white text-black font-bold py-2 rounded hover:bg-blue-600 hover:text-white transition text-sm flex items-center justify-center gap-2">В кошик</button>
                        </div>
                      </div>
                    ))
@@ -550,10 +349,7 @@ function CatalogContent() {
            )}
         </div>
       </main>
-
-      {/* CART DRAWER */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-
     </div>
   );
 }
