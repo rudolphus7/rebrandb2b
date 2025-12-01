@@ -33,6 +33,7 @@ function WishlistContent() {
 
       if (data) {
         // Витягуємо самі продукти з вкладеної структури
+        // item.products може бути null, якщо товар видалено, тому фільтруємо
         const items = data.map((item: any) => item.products).filter(Boolean);
         setProducts(items);
       }

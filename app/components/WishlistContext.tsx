@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { WishlistProvider } from "../components/WishlistContext";
+
+// Типізація даних контексту
 interface WishlistContextType {
   wishlistIds: number[];
   toggleWishlist: (productId: number) => Promise<void>;
@@ -10,22 +11,10 @@ interface WishlistContextType {
   count: number;
 }
 
+// Створення контексту
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
-export default function RootLayout({ children }: ... ) {
-  return (
-    <html>
-      <body>
-        <CartProvider>
-           <WishlistProvider>  {/* <--- Обгортаємо тут */}
-              {children}
-           </WishlistProvider>
-        </CartProvider>
-      </body>
-    </html>
-  );
-}
-
+// Провайдер (Обгортка)
 export const WishlistProvider = ({ children }: { children: React.ReactNode }) => {
   const [wishlistIds, setWishlistIds] = useState<number[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -36,13 +25,14 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUserId(session.user.id);
+        
         const { data } = await supabase
           .from('wishlist')
           .select('product_id')
           .eq('user_id', session.user.id);
         
         if (data) {
-          setWishlistIds(data.map(item => item.product_id));
+          setWishlistIds(data.map((item: any) => item.product_id));
         }
       }
     };
@@ -64,21 +54,27 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
     
     setWishlistIds(newIds);
 
-    if (isLiked) {
-      // Видаляємо з бази
-      await supabase
-        .from('wishlist')
-        .delete()
-        .eq('user_id', userId)
-        .eq('product_id', productId);
-    } else {
-      // Додаємо в базу
-      await supabase
-        .from('wishlist')
-        .insert({ user_id: userId, product_id: productId });
+    try {
+      if (isLiked) {
+        // Видаляємо з бази
+        await supabase
+          .from('wishlist')
+          .delete()
+          .eq('user_id', userId)
+          .eq('product_id', productId);
+      } else {
+        // Додаємо в базу
+        await supabase
+          .from('wishlist')
+          .insert({ user_id: userId, product_id: productId });
+      }
+    } catch (error) {
+      console.error("Error toggling wishlist:", error);
+      // Можна додати відкат змін (rollback) тут, якщо запит впав
     }
   };
 
+  // Допоміжна функція перевірки
   const isInWishlist = (productId: number) => wishlistIds.includes(productId);
 
   return (
@@ -88,6 +84,7 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
   );
 };
 
+// Хук для використання контексту в компонентах
 export const useWishlist = () => {
   const context = useContext(WishlistContext);
   if (context === undefined) {

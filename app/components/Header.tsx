@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { 
   Search, ShoppingBag, LogOut, User, X,
   Menu, LayoutGrid, Sparkles, Flame, Percent, ChevronRight,
-  Home
+  Home, Heart // <--- 1. ДОДАЛИ ІМПОРТ Heart
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
@@ -149,12 +149,10 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   <Search size={22} />
                 </button>
 
+                {/* <--- 2. ВСТАВИЛИ ПОСИЛАННЯ НА WISHLIST ТУТ */}
                 <Link href="/wishlist" className="p-2 text-white hover:bg-white/10 rounded-full transition relative">
-  <Heart size={22} />
-  {/* Можна додати лічильник, якщо підключите useWishlist() в Header */}
-</Link>
-
-
+                  <Heart size={22} />
+                </Link>
 
                 <Link href="/profile" className="p-2 text-white hover:bg-white/10 rounded-full transition">
                   <User size={22} />
@@ -262,112 +260,111 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
               </>
             )}
           </AnimatePresence>
-      </header>
 
-      {/* --- MOBILE MENU DRAWER (SLIDE-OUT) --- */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-[100] lg:hidden font-sans">
-            {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            
-            {/* Drawer */}
-            <motion.div 
-              initial={{ x: "-100%" }} 
-              animate={{ x: 0 }} 
-              exit={{ x: "-100%" }} 
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="absolute top-0 left-0 h-full w-[85%] max-w-[320px] bg-white text-black shadow-2xl overflow-y-auto flex flex-col"
-            >
-                {/* Drawer Header */}
-                <div className="p-4 flex items-center justify-between border-b border-gray-200 sticky top-0 bg-white z-10">
-                  <span className="text-lg font-bold">Каталог</span>
-                  <button 
-                    onClick={() => setIsMobileMenuOpen(false)} 
-                    className="p-2 -mr-2 rounded-full hover:bg-gray-100"
-                  >
-                    <X size={24}/>
-                  </button>
-                </div>
+          {/* --- MOBILE MENU DRAWER (SLIDE-OUT) --- */}
+          <AnimatePresence>
+            {isMobileMenuOpen && (
+              <div className="fixed inset-0 z-[100] lg:hidden font-sans">
+                {/* Backdrop */}
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }} 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                />
+                
+                {/* Drawer */}
+                <motion.div 
+                  initial={{ x: "-100%" }} 
+                  animate={{ x: 0 }} 
+                  exit={{ x: "-100%" }} 
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="absolute top-0 left-0 h-full w-[85%] max-w-[320px] bg-white text-black shadow-2xl overflow-y-auto flex flex-col"
+                >
+                    {/* Drawer Header */}
+                    <div className="p-4 flex items-center justify-between border-b border-gray-200 sticky top-0 bg-white z-10">
+                      <span className="text-lg font-bold">Каталог</span>
+                      <button 
+                        onClick={() => setIsMobileMenuOpen(false)} 
+                        className="p-2 -mr-2 rounded-full hover:bg-gray-100"
+                      >
+                        <X size={24}/>
+                      </button>
+                    </div>
 
-                {/* Drawer Content */}
-                <div className="flex-1 py-2">
-                  <div className="px-4 py-2 space-y-1">
-                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
-                          <span>Новинки</span>
+                    {/* Drawer Content */}
+                    <div className="flex-1 py-2">
+                      <div className="px-4 py-2 space-y-1">
+                          <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Новинки')}>
+                              <span>Новинки</span>
+                          </div>
+                          <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Акційна пропозиція')}>
+                              <span>Акційна пропозиція</span>
+                          </div>
+                          <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Уцінка')}>
+                              <span>Уцінка</span>
+                          </div>
                       </div>
-                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Акційна пропозиція')}>
-                          <span>Акційна пропозиція</span>
-                      </div>
-                      <div className="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 -mx-4 px-4" onClick={() => handleLinkClick('/catalog?category=Уцінка')}>
-                          <span>Уцінка</span>
-                      </div>
-                  </div>
 
-                  <div className="h-[1px] bg-gray-200 mx-4 my-2"></div>
+                      <div className="h-[1px] bg-gray-200 mx-4 my-2"></div>
 
-                  <div className="px-4">
-                      {rootCategories.map((root) => {
-                          const isExpanded = expandedCategory === root.name;
-                          return (
-                              <div key={root.id} className="border-b border-gray-100 last:border-0">
-                                  <button 
-                                    onClick={() => toggleCategory(root.name)}
-                                    className="w-full flex items-center justify-between py-3 text-left font-medium text-lg"
-                                  >
-                                      {root.name}
-                                      <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
-                                  </button>
-                                  
-                                  <AnimatePresence>
-                                      {isExpanded && (
-                                          <motion.div 
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: "auto", opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            className="overflow-hidden"
-                                          >
-                                              <div className="pl-4 pb-4 space-y-3">
-                                                  <div 
-                                                    onClick={() => handleLinkClick(`/catalog?category=${root.name}`)} 
-                                                    className="block text-blue-600 font-bold text-sm cursor-pointer"
-                                                  >
-                                                      Всі товари категорії
-                                                  </div>
-                                                  {getChildren(root.id).map((child) => (
+                      <div className="px-4">
+                          {rootCategories.map((root) => {
+                              const isExpanded = expandedCategory === root.name;
+                              return (
+                                  <div key={root.id} className="border-b border-gray-100 last:border-0">
+                                      <button 
+                                        onClick={() => toggleCategory(root.name)}
+                                        className="w-full flex items-center justify-between py-3 text-left font-medium text-lg"
+                                      >
+                                          {root.name}
+                                          <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
+                                      </button>
+                                      
+                                      <AnimatePresence>
+                                          {isExpanded && (
+                                              <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: "auto", opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                              >
+                                                  <div className="pl-4 pb-4 space-y-3">
                                                       <div 
-                                                        key={child.id} 
-                                                        onClick={() => handleLinkClick(`/catalog?category=${child.name}`)} 
-                                                        className="block text-gray-600 text-sm cursor-pointer hover:text-black"
+                                                        onClick={() => handleLinkClick(`/catalog?category=${root.name}`)} 
+                                                        className="block text-blue-600 font-bold text-sm cursor-pointer"
                                                       >
-                                                          {child.name}
+                                                          Всі товари категорії
                                                       </div>
-                                                  ))}
-                                              </div>
-                                          </motion.div>
-                                      )}
-                                  </AnimatePresence>
-                              </div>
-                          );
-                      })}
-                  </div>
-                </div>
+                                                      {getChildren(root.id).map((child) => (
+                                                          <div 
+                                                            key={child.id} 
+                                                            onClick={() => handleLinkClick(`/catalog?category=${child.name}`)} 
+                                                            className="block text-gray-600 text-sm cursor-pointer hover:text-black"
+                                                          >
+                                                              {child.name}
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              </motion.div>
+                                          )}
+                                      </AnimatePresence>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                    </div>
 
-                <div className="p-4 border-t border-gray-200 bg-gray-50 sticky bottom-0 z-10">
-                  <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 text-red-500 font-bold text-sm p-3 rounded-xl hover:bg-red-50 transition border border-red-200">
-                    <LogOut size={18}/> Вийти з акаунту
-                  </button>
-                </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                    <div className="p-4 border-t border-gray-200 bg-gray-50 sticky bottom-0 z-10">
+                      <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 text-red-500 font-bold text-sm p-3 rounded-xl hover:bg-red-50 transition border border-red-200">
+                        <LogOut size={18}/> Вийти з акаунту
+                      </button>
+                    </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
     </>
   );
 }
