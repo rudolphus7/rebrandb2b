@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 
 // --- ВАЖЛИВО: Впишіть сюди свій email ---
-const ADMIN_EMAIL = "vlad@gmail.com"; // Замініть на вашу пошту!
+const ADMIN_EMAIL = "rebrand.com.ua@gmail.com"; // Замініть на вашу пошту!
 
 export default function AdminCustomers() {
   const [users, setUsers] = useState<any[]>([]);

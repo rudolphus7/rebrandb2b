@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, ShoppingBag, Layers, Image as ImageIcon, 
-  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle
+  Settings, LogOut, RefreshCw, Package, Gift, Users // Додано Users
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -13,7 +12,7 @@ import { useRouter } from "next/navigation";
 const MENU_ITEMS = [
   { name: "Головна", href: "/admin", icon: LayoutDashboard },
   { name: "Замовлення", href: "/admin/orders", icon: Package },
-  { name: "Клієнти", href: "/admin/customers", icon: Users },
+  { name: "Клієнти", href: "/admin/customers", icon: Users }, // Новий пункт меню
   { name: "Товари", href: "/admin/products", icon: ShoppingBag },
   { name: "Категорії", href: "/admin/categories", icon: Layers },
   { name: "Лояльність", href: "/admin/loyalty", icon: Gift },
@@ -25,18 +24,6 @@ const MENU_ITEMS = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string>("");
-
-  useEffect(() => {
-    // Отримуємо поточного користувача
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.email) {
-        setUserEmail(session.user.email);
-      }
-    };
-    getUser();
-  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -73,20 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
-          {/* Інформація про адміна */}
-          {userEmail && (
-            <div className="flex items-center gap-3 px-4 py-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center text-blue-400">
-                    <UserCircle size={20} />
-                </div>
-                <div className="overflow-hidden">
-                    <p className="text-xs text-gray-400">Ви увійшли як:</p>
-                    <p className="text-xs font-bold text-white truncate w-32" title={userEmail}>{userEmail}</p>
-                </div>
-            </div>
-          )}
-
+        <div className="p-4 border-t border-white/10">
           <button 
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-900/10 w-full transition"
