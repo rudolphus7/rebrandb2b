@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { 
-  Search, CheckCircle, XCircle, User, Building2, 
-  FileText, Phone, Mail, Calendar, ShieldAlert, Lock 
+  Search, CheckCircle, User, Building2, 
+  FileText, Phone, Calendar, ShieldAlert, Lock, Mail
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 
 // --- ВАЖЛИВО: Впишіть сюди свій email ---
-const ADMIN_EMAIL = "rebrand.com.ua@gmail.com"; // Замініть на вашу пошту!
+const ADMIN_EMAIL = "rebrand.com.ua@gmail.com"; 
 
 export default function AdminCustomers() {
   const [users, setUsers] = useState<any[]>([]);
@@ -19,7 +19,7 @@ export default function AdminCustomers() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
 
   useEffect(() => {
-    // 1. Дізнаємося, хто зараз залогінений
+    // 1. Перевіряємо, хто зайшов
     supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.email) {
             setCurrentUserEmail(session.user.email);
@@ -31,6 +31,7 @@ export default function AdminCustomers() {
 
   async function fetchUsers() {
     setLoading(true);
+    // Тепер email прийде разом з профілем, бо ми додали його в базу
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -42,9 +43,9 @@ export default function AdminCustomers() {
   }
 
   const toggleVerification = async (id: string, currentStatus: boolean) => {
-    // Додаткова перевірка на фронтенді
+    // Перевірка прав на рівні UI
     if (currentUserEmail !== ADMIN_EMAIL) {
-        alert("У вас немає прав для виконання цієї дії.");
+        alert("У вас немає прав для виконання цієї дії. Зверніться до головного адміністратора.");
         return;
     }
 
@@ -54,8 +55,9 @@ export default function AdminCustomers() {
       .eq("id", id);
 
     if (error) {
-      alert("Помилка (перевірте права доступу): " + error.message);
+      alert("Помилка бази даних: " + error.message);
     } else {
+      // Оновлюємо локальний стан
       setUsers(users.map(u => u.id === id ? { ...u, is_verified: !currentStatus } : u));
     }
   };
@@ -63,10 +65,11 @@ export default function AdminCustomers() {
   const filteredUsers = users.filter(u => 
     (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
     (u.company_name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (u.edrpou || "").includes(search)
+    (u.edrpou || "").includes(search) ||
+    (u.email || "").toLowerCase().includes(search.toLowerCase()) || // Пошук по пошті
+    (u.phone || "").includes(search)
   );
 
-  // Перевірка прав для UI
   const isSuperAdmin = currentUserEmail === ADMIN_EMAIL;
 
   return (
@@ -74,7 +77,7 @@ export default function AdminCustomers() {
       <div className="flex justify-between items-center mb-8">
         <div>
             <h1 className="text-3xl font-bold">Клієнти (B2B)</h1>
-            <p className="text-gray-400 text-sm mt-1">Перевірка та активація партнерських акаунтів</p>
+            <p className="text-gray-400 text-sm mt-1">Перевірка документів та активація партнерів</p>
         </div>
         <div className="flex items-center gap-4">
             {!isSuperAdmin && (
@@ -94,7 +97,7 @@ export default function AdminCustomers() {
          <div className="relative max-w-md">
             <input 
                 type="text" 
-                placeholder="Пошук за Компанією, ЄДРПОУ або Ім'ям..." 
+                placeholder="Пошук за Компанією, Email, ЄДРПОУ..." 
                 className="w-full bg-black border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-blue-500 outline-none"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -110,8 +113,8 @@ export default function AdminCustomers() {
                 <thead className="bg-[#222] text-gray-400 uppercase text-xs">
                     <tr>
                         <th className="p-4">Компанія / ЄДРПОУ</th>
-                        <th className="p-4">Представник</th>
-                        <th className="p-4">Контакти</th>
+                        <th className="p-4">Представник / Email</th>
+                        <th className="p-4">Телефон</th>
                         <th className="p-4">Дата реєстрації</th>
                         <th className="p-4 text-center">Статус</th>
                         <th className="p-4 text-right">Дія</th>
@@ -127,38 +130,45 @@ export default function AdminCustomers() {
                             <tr key={user.id} className="hover:bg-white/5 transition group">
                                 <td className="p-4">
                                     <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-blue-900/20 text-blue-400 rounded-lg">
-                                            <Building2 size={20}/>
+                                        <div className="p-2 bg-blue-900/20 text-blue-400 rounded-lg mt-1">
+                                            <Building2 size={18}/>
                                         </div>
                                         <div>
                                             <div className="font-bold text-white text-base">{user.company_name || "Приватна особа"}</div>
                                             <div className="text-xs text-gray-500 font-mono flex items-center gap-1 mt-1">
-                                                <FileText size={10}/> {user.edrpou || "Не вказано"}
+                                                <FileText size={10}/> {user.edrpou || "ЄДРПОУ не вказано"}
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="p-4">
-                                    <div className="flex items-center gap-2 text-white">
-                                        <User size={16} className="text-gray-500"/> {user.full_name || "Без імені"}
+                                    <div>
+                                        <div className="flex items-center gap-2 text-white font-medium mb-1">
+                                            <User size={16} className="text-gray-500"/> {user.full_name || "Без імені"}
+                                        </div>
+                                        {user.email && (
+                                            <div className="flex items-center gap-2 text-xs text-blue-400 font-mono bg-blue-900/10 px-2 py-0.5 rounded w-fit">
+                                                <Mail size={12}/> {user.email}
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
-                                <td className="p-4 text-gray-300 space-y-1">
-                                    <div className="flex items-center gap-2 text-xs"><Phone size={12}/> {user.phone || "-"}</div>
+                                <td className="p-4 text-gray-300">
+                                    <div className="flex items-center gap-2 text-sm"><Phone size={14} className="text-gray-500"/> {user.phone || "-"}</div>
                                 </td>
                                 <td className="p-4 text-gray-500 text-xs">
                                     <div className="flex items-center gap-2">
-                                        <Calendar size={12}/>
+                                        <Calendar size={14}/>
                                         {user.created_at ? format(new Date(user.created_at), 'd MMM yyyy', { locale: uk }) : '-'}
                                     </div>
                                 </td>
                                 <td className="p-4 text-center">
                                     {user.is_verified ? (
-                                        <span className="inline-flex items-center gap-1 text-green-400 bg-green-900/20 px-2 py-1 rounded text-xs font-bold border border-green-900/50">
+                                        <span className="inline-flex items-center gap-1.5 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-bold border border-green-900/50">
                                             <CheckCircle size={12}/> Активний
                                         </span>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1 text-yellow-400 bg-yellow-900/20 px-2 py-1 rounded text-xs font-bold border border-yellow-900/50">
+                                        <span className="inline-flex items-center gap-1.5 text-yellow-400 bg-yellow-900/20 px-3 py-1 rounded-full text-xs font-bold border border-yellow-900/50 animate-pulse">
                                             <ShieldAlert size={12}/> Очікує
                                         </span>
                                     )}
@@ -166,13 +176,13 @@ export default function AdminCustomers() {
                                 <td className="p-4 text-right">
                                     <button 
                                         onClick={() => toggleVerification(user.id, user.is_verified)}
-                                        disabled={!isSuperAdmin} // Блокуємо кнопку, якщо не адмін
+                                        disabled={!isSuperAdmin}
                                         className={`px-4 py-2 rounded-lg text-xs font-bold transition border ${
                                             !isSuperAdmin
                                             ? "bg-gray-800 text-gray-500 cursor-not-allowed border-transparent"
                                             : user.is_verified 
                                                 ? "bg-red-900/10 text-red-400 border-red-900/30 hover:bg-red-900/30" 
-                                                : "bg-green-600 text-white border-transparent hover:bg-green-500"
+                                                : "bg-green-600 text-white border-transparent hover:bg-green-500 shadow-lg shadow-green-900/20"
                                         }`}
                                         title={!isSuperAdmin ? "Тільки головний адміністратор може це робити" : ""}
                                     >
