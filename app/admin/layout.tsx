@@ -5,12 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, ShoppingBag, Layers, Image as ImageIcon, 
-  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2
+  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2, ShieldAlert
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-
-// --- КОНФІГУРАЦІЯ БЕЗПЕКИ ---
-const ADMIN_EMAIL = "rebrand.com.ua@gmail.com"; // Тільки цей email має доступ
 
 const MENU_ITEMS = [
   { name: "Головна", href: "/admin", icon: LayoutDashboard },
@@ -28,7 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   
-  // Стани для захисту
+  // Стани
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string>("");
@@ -36,19 +33,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const checkAccess = async () => {
       try {
+        // 1. Перевіряємо сесію
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (session?.user?.email === ADMIN_EMAIL) {
-          // Якщо це адмін - дозволяємо доступ
-          setUserEmail(session.user.email);
-          setIsAuthorized(true);
-        } else {
-          // Якщо ні - викидаємо на головну
-          console.warn("Access denied: Redirecting to home");
-          router.replace("/"); 
+        if (!session) {
+            throw new Error("No session");
         }
+
+        // 2. ПЕРЕВІРЯЄМО РОЛЬ У БАЗІ ДАНИХ (Замість хардкоду email)
+        // Ми робимо запит до профілю поточного юзера
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
+
+        if (error || !profile || profile.role !== 'admin') {
+            console.warn("Access denied: User is not an admin");
+            throw new Error("Not admin");
+        }
+
+        // Якщо дійшли сюди - це адмін
+        setUserEmail(session.user.email || "Admin");
+        setIsAuthorized(true);
+
       } catch (e) {
-        router.replace("/");
+        // Якщо не адмін - редірект на головну
+        router.replace("/"); 
       } finally {
         setIsLoading(false);
       }
@@ -62,21 +73,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/");
   };
 
-  // 1. Поки перевіряємо - показуємо чорний екран з лоадером (щоб не блимав контент)
+  // 1. Екран завантаження (перевірка прав)
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        <Loader2 size={40} className="animate-spin text-blue-600" />
+      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white gap-4">
+        <Loader2 size={48} className="animate-spin text-blue-600" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest">Перевірка доступу...</p>
       </div>
     );
   }
 
-  // 2. Якщо не авторизований - нічого не рендеримо (бо вже йде редірект)
+  // 2. Якщо доступу немає (хоча useEffect вже мав зробити редірект)
   if (!isAuthorized) {
     return null; 
   }
 
-  // 3. Якщо Адмін - показуємо інтерфейс
+  // 3. Інтерфейс Адмінки
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex font-sans">
       {/* SIDEBAR */}
@@ -111,10 +123,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Інформація про адміна */}
           <div className="flex items-center gap-3 px-4 py-2 mb-2">
               <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center text-blue-400">
-                  <UserCircle size={20} />
+                  <ShieldAlert size={18} />
               </div>
               <div className="overflow-hidden">
-                  <p className="text-xs text-gray-400">Адміністратор:</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Administrator</p>
                   <p className="text-xs font-bold text-white truncate w-32" title={userEmail}>{userEmail}</p>
               </div>
           </div>
