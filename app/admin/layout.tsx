@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, ShoppingBag, Layers, Image as ImageIcon, 
-  Settings, LogOut, RefreshCw, Package, Gift // Додали іконку Gift
+  Settings, LogOut, RefreshCw, Package, Gift, Users // Додано Users
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -12,9 +12,10 @@ import { useRouter } from "next/navigation";
 const MENU_ITEMS = [
   { name: "Головна", href: "/admin", icon: LayoutDashboard },
   { name: "Замовлення", href: "/admin/orders", icon: Package },
+  { name: "Клієнти", href: "/admin/customers", icon: Users }, // Новий пункт меню
   { name: "Товари", href: "/admin/products", icon: ShoppingBag },
   { name: "Категорії", href: "/admin/categories", icon: Layers },
-  { name: "Лояльність", href: "/admin/loyalty", icon: Gift }, // Новий пункт
+  { name: "Лояльність", href: "/admin/loyalty", icon: Gift },
   { name: "Банери & Слайдер", href: "/admin/banners", icon: ImageIcon },
   { name: "Синхронізація (1C/XML)", href: "/admin/sync", icon: RefreshCw },
   { name: "Налаштування", href: "/admin/settings", icon: Settings },
