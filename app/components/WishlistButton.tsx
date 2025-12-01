@@ -1,10 +1,15 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import { useWishlist } from "./WishlistContext";
+import { useWishlist } from "./WishlistContext"; // Переконайтесь, що цей файл теж існує
 import { motion } from "framer-motion";
 
-export default function WishlistButton({ productId, className }: { productId: number, className?: string }) {
+interface WishlistButtonProps {
+    productId: number;
+    className?: string;
+}
+
+export default function WishlistButton({ productId, className }: WishlistButtonProps) {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const isLiked = isInWishlist(productId);
 
@@ -16,11 +21,11 @@ export default function WishlistButton({ productId, className }: { productId: nu
         e.stopPropagation();
         toggleWishlist(productId);
       }}
-      className={`p-2 rounded-full backdrop-blur-sm transition z-20 ${
+      className={`p-2 rounded-full backdrop-blur-sm transition z-20 flex items-center justify-center ${
         isLiked 
           ? "bg-red-500/20 text-red-500 border border-red-500/50" 
           : "bg-black/50 text-white hover:bg-white/20"
-      } ${className}`}
+      } ${className || ""}`}
     >
       <Heart 
         size={18} 
