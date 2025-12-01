@@ -12,12 +12,12 @@ import {
   Shirt, Briefcase, Coffee, Monitor, Heart, Package, ShoppingBag
 } from "lucide-react";
 
-// Імпортуємо наші готові компоненти
+// Імпортуємо компоненти
 import Header from "./components/Header"; 
 import CartDrawer from "./components/CartDrawer";
-import ProductImage from "./components/ProductImage"; // Переконайтесь, що цей компонент існує
+import ProductImage from "./components/ProductImage"; 
 
-// --- ВІЗУАЛЬНІ КАТЕГОРІЇ (Для блоків на головній) ---
+// --- ВІЗУАЛЬНІ КАТЕГОРІЇ ---
 const VISUAL_CATEGORIES = [
   { id: "clothing", title: "Одяг", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
   { id: "office", title: "Офіс", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto-format&fit=crop", icon: Briefcase },
@@ -46,13 +46,11 @@ export default function Home() {
   const router = useRouter(); 
   const [session, setSession] = useState<any>(null);
   
-  // Підключили кошик
   const { cart, addToCart, removeFromCart, totalPrice, clearCart, totalItems } = useCart();
 
   const [products, setProducts] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   
-  // Стани
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -72,7 +70,6 @@ export default function Home() {
   }, [currentSlide, banners.length]);
   
   async function fetchContent() {
-    // Завантажуємо товари
     const { data: prodData } = await supabase
         .from("products")
         .select("*")
@@ -80,16 +77,14 @@ export default function Home() {
         .limit(100); 
 
     if (prodData) {
-        // Унікальні товари (якщо є дублі за назвою, беремо один)
         const uniqueMap = new Map();
         prodData.forEach(p => {
             const title = p.title || p.description || "Product";
             if (!uniqueMap.has(title)) uniqueMap.set(title, p);
         });
-        setProducts(Array.from(uniqueMap.values()).slice(0, 8)); // Показуємо тільки 8
+        setProducts(Array.from(uniqueMap.values()).slice(0, 8));
     }
 
-    // Завантажуємо банери
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
     if (bannerData && bannerData.length > 0) setBanners(bannerData);
     else setBanners(DEFAULT_SLIDES);
@@ -128,8 +123,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#111111] text-white font-sans flex flex-col">
       
-      {/* --- ЄДИНА ШАПКА (HEADER) --- */}
-      {/* Ми просто вставляємо компонент і передаємо йому необхідні функції */}
       <Header 
         onCartClick={() => setIsCartOpen(true)} 
         cartCount={totalItems} 
@@ -141,7 +134,14 @@ export default function Home() {
         {/* СЛАЙДЕР */}
         <div className="relative w-full h-[350px] md:h-[450px] bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl border border-white/5 group">
           <AnimatePresence mode="wait">
-            <motion.div key={currentBanner.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }} className="absolute inset-0 w-full h-full">
+            <motion.div 
+                key={currentBanner.id} 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }} 
+                transition={{ duration: 0.5 }} 
+                className="absolute inset-0 w-full h-full"
+            >
               <div className="absolute inset-0">
                  {currentBanner.image_url ? (
                     <img src={currentBanner.image_url} alt="Banner" className="w-full h-full object-cover opacity-60" />
@@ -150,6 +150,7 @@ export default function Home() {
                  )}
                  <div className="absolute inset-0 bg-gradient-to-r from-[#111] via-[#111]/70 to-transparent"></div>
               </div>
+              
               <div className="absolute inset-0 flex items-center">
                 <div className="px-8 md:px-16 w-full max-w-3xl">
                    <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="inline-block border border-white/20 text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider bg-black/30 backdrop-blur-md">REBRAND Exclusive</motion.div>
@@ -161,6 +162,7 @@ export default function Home() {
               </div>
             </motion.div>
           </AnimatePresence>
+          
           <div className="absolute bottom-8 right-8 flex items-center gap-4 z-20">
              <span className="text-2xl font-mono font-bold text-white">{currentSlide + 1}<span className="text-gray-500 text-lg">/{activeBanners.length}</span></span>
              <div className="flex gap-2">
@@ -199,7 +201,6 @@ export default function Home() {
                 <div className="absolute top-4 left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-2 py-1 rounded-md uppercase">Хіт</div>
                 <div className="aspect-[4/5] bg-black rounded-xl overflow-hidden mb-4 relative">
                   <Link href={`/product/${product.id}`} className="block w-full h-full">
-                    {/* Використовуємо ProductImage для коректного відображення */}
                     <ProductImage 
                         src={product.image_url} 
                         alt={product.title} 
@@ -226,7 +227,6 @@ export default function Home() {
 
       <footer className="bg-[#0a0a0a] border-t border-white/10 py-12 mt-12"><div className="max-w-[1400px] mx-auto px-8 text-center text-gray-500 text-sm"><p>&copy; 2024 REBRAND STUDIO.</p></div></footer>
 
-      {/* Підключення висувного кошика (Drawer) */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </div>
   );
