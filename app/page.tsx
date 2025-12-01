@@ -9,15 +9,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation"; 
 import { 
   LayoutGrid, ArrowLeft, ArrowRight,
-  Shirt, Briefcase, Coffee, Monitor, Heart, Package, ShoppingBag
+  Shirt, Briefcase, Coffee, Monitor, Heart, Package, ShoppingBag, ShieldAlert, LogOut
 } from "lucide-react";
 
-// Імпортуємо компоненти
 import Header from "./components/Header"; 
 import CartDrawer from "./components/CartDrawer";
 import ProductImage from "./components/ProductImage"; 
 
-// --- ВІЗУАЛЬНІ КАТЕГОРІЇ ---
 const VISUAL_CATEGORIES = [
   { id: "clothing", title: "Одяг", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
   { id: "office", title: "Офіс", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto-format&fit=crop", icon: Briefcase },
@@ -46,6 +44,9 @@ export default function Home() {
   const router = useRouter(); 
   const [session, setSession] = useState<any>(null);
   
+  // Стан перевірки
+  const [isVerified, setIsVerified] = useState<boolean | null>(null); // null = ще не перевірили, false = заблоковано, true = ок
+  
   const { cart, addToCart, removeFromCart, totalPrice, clearCart, totalItems } = useCart();
 
   const [products, setProducts] = useState<any[]>([]);
@@ -54,15 +55,36 @@ export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Перевірка сесії та статусу
   useEffect(() => {
+    const checkUserStatus = async (currentSession: any) => {
+        if (!currentSession) return;
+
+        // Отримуємо статус верифікації з профілю
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_verified')
+            .eq('id', currentSession.user.id)
+            .single();
+        
+        // Якщо профіль є, беремо статус. Якщо нема (глюк) - вважаємо false.
+        setIsVerified(profile ? profile.is_verified : false);
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchContent();
+      if (session) {
+          checkUserStatus(session);
+          fetchContent();
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) fetchContent();
+      if (session) {
+          checkUserStatus(session);
+          fetchContent();
+      }
     });
 
     const timer = setInterval(() => { nextSlide(); }, 6000);
@@ -108,16 +130,50 @@ export default function Home() {
   async function handleLogin(e: string, p: string) {
     const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
     if (error) alert(error.message);
+    // Після входу useEffect сам перевірить is_verified
   }
 
   async function handleLogout() { 
     await supabase.auth.signOut(); 
     clearCart(); 
     setProducts([]); 
+    setIsVerified(null); // Скидаємо статус
   }
 
+  // 1. Якщо немає сесії - показуємо Логін
   if (!session) return <LoginPage onLogin={handleLogin} />;
 
+  // 2. Якщо сесія є, але статус ще вантажиться - показуємо лоадер (або порожній екран)
+  if (isVerified === null) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500">Перевірка доступу...</div>;
+
+  // 3. Якщо статус FALSE - показуємо екран "Очікування"
+  if (isVerified === false) {
+      return (
+          <div className="min-h-screen bg-black flex items-center justify-center p-6">
+              <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 text-center shadow-2xl">
+                  <div className="w-20 h-20 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-yellow-500/30">
+                      <ShieldAlert size={40} className="text-yellow-500"/>
+                  </div>
+                  <h1 className="text-2xl font-bold text-white mb-3">Акаунт на перевірці</h1>
+                  <p className="text-zinc-400 mb-8 text-sm leading-relaxed">
+                      Дякуємо за реєстрацію! Ваша заявка зараз обробляється менеджером. 
+                      Ми перевіримо дані вашої компанії та відкриємо доступ до B2B цін найближчим часом.
+                  </p>
+                  <div className="p-4 bg-black/40 rounded-xl mb-8 text-xs text-zinc-500 border border-white/5">
+                      Зазвичай це займає до 15 хвилин у робочий час.
+                  </div>
+                  <button 
+                    onClick={handleLogout} 
+                    className="w-full flex items-center justify-center gap-2 text-white bg-zinc-800 hover:bg-zinc-700 font-bold py-3 rounded-xl transition"
+                  >
+                      <LogOut size={18}/> Вийти
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  // 4. Якщо все ок (isVerified === true) - показуємо сайт
   const currentBanner = activeBanners[currentSlide];
 
   return (
