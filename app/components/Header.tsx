@@ -149,6 +149,13 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   <Search size={22} />
                 </button>
 
+                <Link href="/wishlist" className="p-2 text-white hover:bg-white/10 rounded-full transition relative">
+  <Heart size={22} />
+  {/* Можна додати лічильник, якщо підключите useWishlist() в Header */}
+</Link>
+
+
+
                 <Link href="/profile" className="p-2 text-white hover:bg-white/10 rounded-full transition">
                   <User size={22} />
                 </Link>
