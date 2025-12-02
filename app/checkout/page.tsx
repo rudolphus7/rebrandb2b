@@ -7,11 +7,9 @@ import {
     ArrowLeft, ShoppingBag, Truck, CreditCard, FileText, CheckCircle, Info, User, Phone, Mail, MapPin, Home as HomeIcon, Wallet
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient"; 
-import { useCart } from "../components/CartContext"; 
-// Імпорт логіки
+import { useCart } from "../../components/CartContext"; 
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
 
-// --- ДАНІ НОВОЇ ПОШТИ ---
 const CITIES = ["Київ", "Львів", "Одеса", "Дніпро", "Харків", "Івано-Франківськ", "Калуш"];
 const WAREHOUSES = (city: string) => [
     `Відділення №1 (вул. Центральна, 10)`,
@@ -25,12 +23,13 @@ export default function CheckoutPage() {
     const { cart, totalPrice, clearCart, totalItems } = useCart(); 
     const [loading, setLoading] = useState(true);
 
-    // User Data
     const [userBalance, setUserBalance] = useState(0);
-    const [totalSpent, setTotalSpent] = useState(0); // Для визначення % кешбеку
+    const [totalSpent, setTotalSpent] = useState(0);
     const [userId, setUserId] = useState<string | null>(null);
+    
+    // --- НОВЕ: Зберігаємо ЄДРПОУ для CRM ---
+    const [userEdrpou, setUserEdrpou] = useState(""); 
 
-    // Bonuses Form
     const [bonusesToUse, setBonusesToUse] = useState(0);
 
     const [formData, setFormData] = useState({
@@ -55,7 +54,6 @@ export default function CheckoutPage() {
                 setUserId(session.user.id);
                 setFormData(prev => ({ ...prev, email: session.user.email || '' }));
 
-                // 1. Профіль
                 const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
                 if (profile) {
                     setFormData(prev => ({
@@ -64,9 +62,10 @@ export default function CheckoutPage() {
                         phone: profile.phone || '',
                         companyName: profile.company_name || ''
                     }));
+                    // Зберігаємо ЄДРПОУ, якщо є
+                    if (profile.edrpou) setUserEdrpou(profile.edrpou);
                 }
 
-                // 2. Баланс та Витрати (рахуємо з логів та ордерів для точності)
                 const { data: logs } = await supabase.from('loyalty_logs').select('*').eq('user_id', session.user.id);
                 const balance = logs ? logs.reduce((acc, log) => acc + (log.type === 'earn' ? log.amount : -log.amount), 0) : 0;
                 setUserBalance(balance);
@@ -80,13 +79,10 @@ export default function CheckoutPage() {
         loadUserData();
     }, []);
 
-    // Розрахунки лояльності
     const maxBonusWriteOff = calculateMaxWriteOff(totalPrice, totalItems, userBalance);
     const userTier = getCurrentTier(totalSpent);
     
-    // Фінальна сума до сплати грошима
     const payAmount = totalPrice - bonusesToUse;
-    // Кешбек, який буде нараховано (тільки на сплачену грошима суму)
     const earnedCashback = calculateCashback(payAmount, userTier.percent);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -112,12 +108,11 @@ export default function CheckoutPage() {
             return;
         }
 
-        // 1. Створюємо замовлення
         const orderData = {
             user_email: formData.email,
-            total_price: totalPrice, // Повна вартість товарів
-            discount_bonuses: bonusesToUse, // Скільки покрили бонусами
-            final_price: payAmount, // Скільки грошей реально платять
+            total_price: totalPrice,
+            discount_bonuses: bonusesToUse,
+            final_price: payAmount,
             items: cart,
             delivery_data: {
                 city: formData.deliveryCity,
@@ -126,22 +121,22 @@ export default function CheckoutPage() {
                 comment: formData.comment,
                 fullName: formData.fullName,
                 phone: formData.phone,
-                company: formData.companyName
+                company: formData.companyName,
+                edrpou: userEdrpou // Додаємо в метадані замовлення про всяк випадок
             },
             status: 'new',
         };
 
+        // 1. Зберігаємо в Supabase
         const { data: newOrder, error } = await supabase.from('orders').insert([orderData]).select().single();
 
         if (error) {
-            console.error('Помилка Supabase:', error);
-            alert(`Не вдалося оформити замовлення: ${error.message}`);
+            alert(`Помилка: ${error.message}`);
             return;
         }
         
-        // 2. Логіка бонусів (Якщо юзер авторизований)
+        // 2. Бонуси
         if (userId) {
-            // Списання (якщо використовували)
             if (bonusesToUse > 0) {
                 await supabase.from('loyalty_logs').insert({
                     user_id: userId,
@@ -150,7 +145,6 @@ export default function CheckoutPage() {
                     type: 'spend'
                 });
             }
-            // Нарахування (за суму, сплачену грошима)
             if (earnedCashback > 0) {
                 await supabase.from('loyalty_logs').insert({
                     user_id: userId,
@@ -161,7 +155,42 @@ export default function CheckoutPage() {
             }
         }
 
-        // 3. Telegram (Optional)
+        // 3. --- СИНХРОНІЗАЦІЯ З CRM (НОВЕ!) ---
+        try {
+            const crmPayload = {
+                externalId: `ORD-${newOrder.id}`, // Формуємо ID як у прикладі
+                client: {
+                    name: formData.companyName || formData.fullName, // Якщо є компанія - пишемо її, інакше ім'я
+                    phone: formData.phone,
+                    email: formData.email,
+                    edrpou: userEdrpou || "" // Передаємо ЄДРПОУ з профілю
+                },
+                items: cart.map(item => ({
+                    name: item.title + (item.selectedSize ? ` (${item.selectedSize})` : ""),
+                    qty: item.quantity,
+                    price: item.price
+                })),
+                totalSum: payAmount, // Сума до сплати (вже з вирахуванням бонусів?) Або totalPrice. Залежить від бізнес логіки. Передаю до сплати.
+                delivery: {
+                    city: formData.deliveryCity,
+                    warehouse: formData.deliveryWarehouse
+                },
+                isPaid: false
+            };
+
+            // Відправляємо на наш внутрішній API
+            await fetch('/api/crm/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(crmPayload)
+            });
+
+        } catch (crmError) {
+            console.error("CRM Sync Error (Background):", crmError);
+            // Не блокуємо успіх замовлення, якщо CRM лежить
+        }
+
+        // 4. Telegram Notification
         try {
             await fetch('/api/telegram', {
                 method: 'POST',
@@ -172,7 +201,7 @@ export default function CheckoutPage() {
                     phone: formData.phone,
                     name: formData.fullName, 
                     total: totalPrice,
-                    pay_amount: payAmount, // Важливо: показуємо менеджеру скільки брати грошей
+                    pay_amount: payAmount,
                     bonuses_used: bonusesToUse,      
                     items: cart,
                     delivery: `${formData.deliveryCity}, ${formData.deliveryWarehouse}`,
@@ -208,7 +237,6 @@ export default function CheckoutPage() {
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* ЛІВА КОЛОНКА */}
                     <div className="lg:col-span-2 space-y-8">
-                        {/* Контакти */}
                         <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
                             <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><User size={24} className="text-blue-400"/> Контактна інформація</h2>
                             <div className="grid md:grid-cols-2 gap-4">
@@ -219,9 +247,8 @@ export default function CheckoutPage() {
                             </div>
                         </div>
 
-                        {/* Доставка */}
                         <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
-                            <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><MapPin size={24} className="text-blue-400"/> Доставка (Нова Пошта)</h2>
+                            <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><MapPin size={24} className="text-blue-400"/> Доставка</h2>
                             <div className="space-y-2 relative">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Місто</label>
                                 <input type="text" placeholder="Почніть вводити місто..." value={citySearch} onChange={(e) => { setCitySearch(e.target.value); setIsCityDropdownOpen(true); setFormData(prev => ({ ...prev, deliveryCity: '' })); }} onFocus={() => setIsCityDropdownOpen(true)} onBlur={() => setTimeout(() => setIsCityDropdownOpen(false), 200)} className="w-full bg-black/50 border border-white/10 rounded-lg py-3 px-4 text-white focus:border-blue-500 outline-none" required />
@@ -232,7 +259,7 @@ export default function CheckoutPage() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-400 uppercase">Відділення / Поштомат</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase">Відділення</label>
                                 <select name="deliveryWarehouse" value={formData.deliveryWarehouse} onChange={handleInputChange} className={`w-full border rounded-lg py-3 px-4 focus:border-blue-500 outline-none ${formData.deliveryCity ? 'bg-black/50 text-white border-white/10' : 'bg-gray-800 text-gray-500 border-gray-700'}`} disabled={!formData.deliveryCity} required>
                                     <option value="" disabled>{formData.deliveryCity ? 'Виберіть відділення' : 'Спочатку виберіть місто'}</option>
                                     {formData.deliveryCity && WAREHOUSES(formData.deliveryCity).map(warehouse => (<option key={warehouse} value={warehouse}>{warehouse}</option>))}
@@ -240,21 +267,19 @@ export default function CheckoutPage() {
                             </div>
                         </div>
 
-                        {/* Оплата */}
                         <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
                             <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><CreditCard size={24} className="text-blue-400"/> Спосіб оплати</h2>
                             <PaymentOption id="invoice" name="paymentMethod" value="invoice" label="Оплата по рахунку (ФОП/ТОВ)" checked={formData.paymentMethod === 'invoice'} onChange={handleInputChange} icon={FileText} />
-                            <PaymentOption id="card" name="paymentMethod" value="card" label="Оплата картою (Visa/Mastercard)" checked={formData.paymentMethod === 'card'} onChange={handleInputChange} icon={CreditCard} />
+                            <PaymentOption id="card" name="paymentMethod" value="card" label="Оплата картою" checked={formData.paymentMethod === 'card'} onChange={handleInputChange} icon={CreditCard} />
                         </div>
 
-                        {/* Коментар */}
-                        <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
+                         <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
                             <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><Info size={24} className="text-blue-400"/> Коментар</h2>
-                            <textarea name="comment" placeholder="Додаткова інформація для менеджера" value={formData.comment} onChange={handleInputChange} rows={4} className="w-full bg-black/50 border border-white/10 rounded-lg p-4 text-white focus:border-blue-500 outline-none" />
+                            <textarea name="comment" placeholder="Додаткова інформація..." value={formData.comment} onChange={handleInputChange} rows={4} className="w-full bg-black/50 border border-white/10 rounded-lg p-4 text-white focus:border-blue-500 outline-none" />
                         </div>
                     </div>
                     
-                    {/* ПРАВА КОЛОНКА (СУМИ І БОНУСИ) */}
+                    {/* ПРАВА КОЛОНКА */}
                     <div className="lg:col-span-1 space-y-8">
                         <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5 sticky top-24">
                             <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3"><ShoppingBag size={24} className="text-blue-400"/> Ваше замовлення</h2>
@@ -270,68 +295,38 @@ export default function CheckoutPage() {
                                 ))}
                             </div>
 
-                            {/* --- БЛОК БОНУСІВ --- */}
                             {userId && (
                                 <div className="bg-black/40 p-4 rounded-xl border border-white/10">
                                     <div className="flex justify-between items-center mb-2">
-                                        <div className="flex items-center gap-2 text-yellow-400 font-bold">
-                                            <Wallet size={18}/> Бонуси
-                                        </div>
+                                        <div className="flex items-center gap-2 text-yellow-400 font-bold"><Wallet size={18}/> Бонуси</div>
                                         <div className="text-xs text-gray-400">Баланс: {userBalance}</div>
                                     </div>
-                                    
                                     {maxBonusWriteOff > 0 ? (
                                         <>
                                             <div className="flex items-center justify-between text-sm mb-2">
                                                 <span>Списати:</span>
                                                 <span className="font-bold text-white">{bonusesToUse} грн</span>
                                             </div>
-                                            <input 
-                                                type="range" 
-                                                min="0" 
-                                                max={maxBonusWriteOff} 
-                                                step="1" 
-                                                value={bonusesToUse}
-                                                onChange={(e) => setBonusesToUse(parseInt(e.target.value))}
-                                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
-                                            />
+                                            <input type="range" min="0" max={maxBonusWriteOff} step="1" value={bonusesToUse} onChange={(e) => setBonusesToUse(parseInt(e.target.value))} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"/>
                                             <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                                                 <span>0</span>
-                                                <span>Макс: {maxBonusWriteOff}</span>
+                                                <span>Макс: {maxBonusWriteOff} (ліміт: 3 грн/од.)</span>
                                             </div>
                                         </>
                                     ) : (
-                                        <p className="text-xs text-gray-500">Неможливо списати бонуси (мін. оплата 3 грн/шт або 0 баланс)</p>
+                                        <p className="text-xs text-gray-500">Бонуси недоступні (мін. оплата 3 грн/шт)</p>
                                     )}
                                 </div>
                             )}
 
-                            {/* РОЗРАХУНОК */}
                             <div className="space-y-2 pt-2">
-                                <div className="flex justify-between items-center text-sm text-gray-400">
-                                    <span>Сума товарів:</span>
-                                    <span>{totalPrice} ₴</span>
-                                </div>
-                                {bonusesToUse > 0 && (
-                                    <div className="flex justify-between items-center text-sm text-yellow-400">
-                                        <span>Бонусами:</span>
-                                        <span>- {bonusesToUse} ₴</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                                    <span className="text-xl font-bold uppercase tracking-wider">До сплати</span>
-                                    <span className="text-3xl font-black text-blue-400">{payAmount} ₴</span>
-                                </div>
-                                {userId && (
-                                    <div className="text-right text-xs text-green-500 font-bold mt-1">
-                                        + {earnedCashback} бонусів буде нараховано
-                                    </div>
-                                )}
+                                <div className="flex justify-between items-center text-sm text-gray-400"><span>Сума товарів:</span><span>{totalPrice} ₴</span></div>
+                                {bonusesToUse > 0 && <div className="flex justify-between items-center text-sm text-yellow-400"><span>Бонусами:</span><span>- {bonusesToUse} ₴</span></div>}
+                                <div className="flex justify-between items-center pt-2 border-t border-white/10"><span className="text-xl font-bold uppercase tracking-wider">До сплати</span><span className="text-3xl font-black text-blue-400">{payAmount} ₴</span></div>
+                                {userId && <div className="text-right text-xs text-green-500 font-bold mt-1">+ {earnedCashback} бонусів буде нараховано</div>}
                             </div>
 
-                            <button type="submit" className="w-full bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-600 hover:text-white transition duration-300 shadow-lg mt-6">
-                                <CheckCircle size={20}/> <span className="uppercase tracking-widest">Підтвердити</span>
-                            </button>
+                            <button type="submit" className="w-full bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-600 hover:text-white transition duration-300 shadow-lg mt-6"><CheckCircle size={20}/> <span className="uppercase tracking-widest">Підтвердити</span></button>
                             <div className="text-xs text-gray-500 text-center pt-4 border-t border-white/10"><p>Натискаючи "Підтвердити", ви погоджуєтесь з умовами оферти.</p></div>
                         </div>
                     </div>
