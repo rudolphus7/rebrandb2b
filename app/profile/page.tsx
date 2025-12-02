@@ -7,12 +7,65 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, Package, Star, MapPin, LogOut, ArrowLeft, 
   Settings, CreditCard, Gift, ShieldCheck, Camera, 
-  ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer
+  ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
+  Crown, Gem, Shield
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 import ProductImage from "../components/ProductImage";
 import { LOYALTY_TIERS, getCurrentTier, getNextTier } from "@/lib/loyaltyUtils";
+
+// --- КАСТОМІЗАЦІЯ РІВНІВ ---
+const TIER_STYLES: Record<string, { bg: string, border: string, shadow: string, text: string, icon: any, iconColor: string }> = {
+  "Start": { 
+    bg: "from-zinc-800 to-zinc-900", 
+    border: "border-zinc-700", 
+    shadow: "shadow-zinc-900/0",
+    text: "text-zinc-400",
+    icon: User,
+    iconColor: "text-zinc-600"
+  },
+  "Bronze": { 
+    bg: "from-orange-900/40 to-zinc-900", 
+    border: "border-orange-700/50", 
+    shadow: "shadow-orange-900/20",
+    text: "text-orange-400",
+    icon: Shield,
+    iconColor: "text-orange-600"
+  },
+  "Silver": { 
+    bg: "from-slate-700/40 to-zinc-900", 
+    border: "border-slate-400/50", 
+    shadow: "shadow-slate-900/20",
+    text: "text-slate-300",
+    icon: ShieldCheck,
+    iconColor: "text-slate-400"
+  },
+  "Gold": { 
+    bg: "from-yellow-600/40 to-amber-900/40", 
+    border: "border-yellow-500/50", 
+    shadow: "shadow-yellow-500/20",
+    text: "text-yellow-400",
+    icon: Star,
+    iconColor: "text-yellow-500"
+  },
+  "Platinum": { 
+    bg: "from-cyan-600/40 to-blue-900/40", 
+    border: "border-cyan-400/50", 
+    shadow: "shadow-cyan-500/20",
+    text: "text-cyan-400",
+    icon: Gem,
+    iconColor: "text-cyan-400"
+  },
+  "Elite": { 
+    bg: "from-fuchsia-600/40 to-purple-900/40", 
+    border: "border-fuchsia-500/50", 
+    shadow: "shadow-fuchsia-500/30",
+    text: "text-fuchsia-400",
+    icon: Crown,
+    iconColor: "text-fuchsia-500"
+  }
+};
 
 export default function UserProfile() {
   const [session, setSession] = useState<any>(null);
@@ -23,12 +76,11 @@ export default function UserProfile() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loyaltyLogs, setLoyaltyLogs] = useState<any[]>([]);
   
-  // --- ДОДАНО: Поле edrpou ---
   const [profile, setProfile] = useState<any>({
     full_name: "",
     company_name: "",
     phone: "",
-    edrpou: "", // Нове поле
+    edrpou: "", 
     birthday: "",
     bonus_points: 0,
     total_spent: 0
@@ -61,7 +113,7 @@ export default function UserProfile() {
 
     setProfile({ 
         ...profileData, 
-        edrpou: profileData?.edrpou || "", // Підтягуємо ЄДРПОУ
+        edrpou: profileData?.edrpou || "", 
         bonus_points: calculatedPoints,
         total_spent: totalSpentMoney
     });
@@ -78,7 +130,7 @@ export default function UserProfile() {
       full_name: profile.full_name,
       company_name: profile.company_name,
       phone: profile.phone,
-      edrpou: profile.edrpou, // Зберігаємо ЄДРПОУ
+      edrpou: profile.edrpou, 
       birthday: profile.birthday || null,
     }).eq('id', session.user.id);
 
@@ -92,14 +144,11 @@ export default function UserProfile() {
     router.push("/");
   }
 
-  // --- ФУНКЦІЯ ДРУКУ РАХУНКУ ---
   const printInvoice = (order: any) => {
       const buyerName = profile.company_name || profile.full_name || "Покупець";
       const buyerEdrpou = profile.edrpou ? `(${profile.edrpou})` : "";
-      
       const dateStr = new Date(order.created_at).toLocaleDateString('uk-UA');
 
-      // HTML шаблон рахунку
       const invoiceHTML = `
         <html>
         <head>
@@ -124,18 +173,15 @@ export default function UserProfile() {
                 <h1>Рахунок-фактура № ${order.id}</h1>
                 <div class="date">від ${dateStr}</div>
             </div>
-
             <div class="seller-info">
                 <div style="margin-bottom: 5px;"><span class="label">Постачальник:</span> ФОП ШЕВЧУК ЯРОСЛАВ ВОЛОДИМИРОВИЧ</div>
                 <div style="margin-bottom: 5px;"><span class="label">Код отримувача:</span> 3605107010</div>
                 <div style="margin-bottom: 5px;"><span class="label">IBAN:</span> UA473052990000026006025512967</div>
                 <div><span class="label">Банк:</span> АТ КБ "ПРИВАТБАНК"</div>
             </div>
-
             <div class="buyer-info">
                 <span class="label">Покупець:</span> ${buyerName} ${buyerEdrpou}
             </div>
-
             <table>
                 <thead>
                     <tr>
@@ -150,10 +196,7 @@ export default function UserProfile() {
                     ${order.items.map((item: any, i: number) => `
                         <tr>
                             <td style="text-align: center;">${i + 1}</td>
-                            <td>
-                                ${item.title}
-                                ${item.selectedSize ? `<div style="font-size: 11px; color: #666;">Розмір: ${item.selectedSize}</div>` : ''}
-                            </td>
+                            <td>${item.title} ${item.selectedSize ? `<div style="font-size: 11px; color: #666;">Розмір: ${item.selectedSize}</div>` : ''}</td>
                             <td style="text-align: center;">${item.quantity}</td>
                             <td style="text-align: right;">${item.price.toFixed(2)}</td>
                             <td style="text-align: right;">${(item.price * item.quantity).toFixed(2)}</td>
@@ -161,16 +204,9 @@ export default function UserProfile() {
                     `).join('')}
                 </tbody>
             </table>
-
-            <div class="total">
-                Всього до сплати: ${order.final_price ? order.final_price.toFixed(2) : order.total_price.toFixed(2)} грн
-            </div>
-            
+            <div class="total">Всього до сплати: ${order.final_price ? order.final_price.toFixed(2) : order.total_price.toFixed(2)} грн</div>
             ${order.discount_bonuses > 0 ? `<div style="text-align: right; font-size: 14px; color: #666; margin-top: 5px;">(Оплачено бонусами: ${order.discount_bonuses} грн)</div>` : ''}
-
-            <div class="footer">
-                Рахунок дійсний до сплати протягом 3-х банківських днів.
-            </div>
+            <div class="footer">Рахунок дійсний до сплати протягом 3-х банківських днів.</div>
         </body>
         </html>
       `;
@@ -183,9 +219,10 @@ export default function UserProfile() {
       }
   };
 
-  // --- Визначаємо рівень ---
   const currentTier = getCurrentTier(profile.total_spent);
   const nextTier = getNextTier(profile.total_spent);
+  const tierStyle = TIER_STYLES[currentTier.name] || TIER_STYLES["Start"];
+  const TierIcon = tierStyle.icon;
   
   let progressPercent = 100;
   if (nextTier) {
@@ -203,12 +240,13 @@ export default function UserProfile() {
       {/* SIDEBAR */}
       <aside className="w-20 lg:w-72 border-r border-white/10 bg-zinc-950/50 backdrop-blur fixed h-full flex flex-col z-20">
         <div className="p-6 h-24 flex items-center border-b border-white/10">
-           <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg bg-gradient-to-br ${currentTier.bg}`}>
+           {/* АВАТАРКА В САЙДБАРІ З КАСТОМІЗАЦІЄЮ */}
+           <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg bg-gradient-to-br ${tierStyle.bg} border ${tierStyle.border}`}>
              {profile.full_name ? profile.full_name[0] : "U"}
            </div>
            <div className="ml-4 hidden lg:block">
              <div className="font-bold text-sm truncate w-40">{profile.full_name || "Гість"}</div>
-             <div className="text-xs text-zinc-500 truncate w-40">{session.user.email}</div>
+             <div className={`text-xs truncate w-40 font-bold ${tierStyle.text}`}>{currentTier.name} Member</div>
            </div>
         </div>
         <nav className="flex-1 p-4 space-y-2">
@@ -222,7 +260,9 @@ export default function UserProfile() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition duration-300 text-sm font-bold uppercase tracking-wide
-                ${activeTab === item.id ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-zinc-500 hover:bg-white/5 hover:text-white"}`}
+                ${activeTab === item.id 
+                  ? `bg-gradient-to-r ${tierStyle.bg} text-white shadow-lg ${tierStyle.shadow}` 
+                  : "text-zinc-500 hover:bg-white/5 hover:text-white"}`}
             >
               <item.icon size={18} />
               <span className="hidden lg:block">{item.label}</span>
@@ -246,21 +286,25 @@ export default function UserProfile() {
                <p className="text-zinc-500 mb-8">Ця інформація буде автоматично підставлятися при оформленні замовлень.</p>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Картка статусу */}
+                {/* Картка статусу (З ОНОВЛЕНИМ ДИЗАЙНОМ) */}
                 <div className="lg:col-span-1">
-                  <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 text-center relative overflow-hidden">
-                    <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${currentTier.bg}`}></div>
-                    <div className="w-24 h-24 mx-auto bg-zinc-800 rounded-full flex items-center justify-center mb-4 relative group cursor-pointer overflow-hidden border-2 border-zinc-700">
+                  <div className={`bg-zinc-900 border rounded-2xl p-6 text-center relative overflow-hidden ${tierStyle.border} shadow-2xl`}>
+                    <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${tierStyle.bg}`}></div>
+                    
+                    {/* Фонова іконка */}
+                    <TierIcon className={`absolute -right-4 -bottom-4 w-32 h-32 opacity-10 ${tierStyle.iconColor}`}/>
+
+                    <div className={`w-24 h-24 mx-auto bg-zinc-800 rounded-full flex items-center justify-center mb-4 relative group cursor-pointer overflow-hidden border-2 ${tierStyle.border}`}>
                         {profile.image_url ? (
                             <img src={profile.image_url} className="w-full h-full object-cover" alt="Avatar"/>
                         ) : (
-                            <User size={40} className="text-zinc-500"/>
+                            <User size={40} className={tierStyle.text}/>
                         )}
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                           <Camera size={20}/>
                         </div>
                     </div>
-                    <h3 className={`font-black text-2xl uppercase ${currentTier.color}`}>{currentTier.name}</h3>
+                    <h3 className={`font-black text-2xl uppercase ${tierStyle.text}`}>{currentTier.name}</h3>
                     <p className="text-zinc-500 text-xs mt-1 uppercase tracking-widest">Рівень клієнта</p>
                   </div>
                 </div>
@@ -295,19 +339,6 @@ export default function UserProfile() {
                   </form>
                 </div>
               </div>
-
-                <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 mt-8">
-                  <h3 className="font-bold text-lg mb-4">Ваш статус</h3>
-                  <div className="flex items-center gap-6">
-                     <div className={`w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br ${currentTier.bg} text-3xl font-black text-white shadow-lg`}>
-                        {currentTier.percent}%
-                     </div>
-                     <div>
-                        <div className={`text-2xl font-bold uppercase ${currentTier.color}`}>{currentTier.name}</div>
-                        <div className="text-zinc-500">Кешбек на всі неакційні товари</div>
-                     </div>
-                  </div>
-                </div>
              </motion.div>
           )}
 
@@ -360,8 +391,6 @@ export default function UserProfile() {
                                   className="border-t border-white/10 bg-black/30"
                               >
                                   <div className="p-6">
-                                      
-                                      {/* КНОПКА ДРУКУ РАХУНКУ */}
                                       <div className="flex justify-end mb-6">
                                           <button 
                                             onClick={() => printInvoice(order)}
@@ -372,7 +401,6 @@ export default function UserProfile() {
                                       </div>
 
                                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                          {/* Товари */}
                                           <div>
                                               <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Товари в замовленні</h4>
                                               <div className="space-y-3">
@@ -396,7 +424,6 @@ export default function UserProfile() {
                                               </div>
                                           </div>
                                           
-                                          {/* Інфо про доставку */}
                                           <div>
                                               <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Деталі доставки</h4>
                                               <div className="bg-zinc-800/30 p-4 rounded-xl space-y-2 text-sm">
@@ -423,17 +450,19 @@ export default function UserProfile() {
               <h1 className="text-3xl font-bold mb-2">Програма лояльності</h1>
               <p className="text-zinc-500 mb-8">Ваша активність та привілеї.</p>
 
-              <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTier.bg} p-8 md:p-12 text-center md:text-left mb-8 border border-white/10 shadow-2xl`}>
-                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl"></div>
+              {/* Картка Рівня (ОНОВЛЕНА СТИЛІЗАЦІЯ) */}
+              <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${tierStyle.bg} border ${tierStyle.border} p-8 md:p-12 text-center md:text-left mb-8 shadow-2xl group`}>
+                <TierIcon className={`absolute -right-10 -bottom-10 w-64 h-64 opacity-10 group-hover:opacity-20 transition duration-500 ${tierStyle.iconColor}`}/>
+                
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                        <span className="bg-black/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">Ваш рівень</span>
-                        <span className="font-black text-xl uppercase">{currentTier.name}</span>
+                        <span className={`bg-black/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10 ${tierStyle.text}`}>Ваш рівень</span>
+                        <span className="font-black text-xl uppercase text-white">{currentTier.name}</span>
                     </div>
                     
                     <div className="text-6xl font-black tracking-tighter text-white mb-2">
-                      {currentTier.percent}% <span className="text-lg font-medium text-white/70">кешбек</span>
+                      {currentTier.percent}% <span className={`text-lg font-medium ${tierStyle.text}`}>кешбек</span>
                     </div>
                     
                     <div className="text-sm text-white/80 mb-6">
@@ -443,14 +472,14 @@ export default function UserProfile() {
                     {nextTier ? (
                         <div>
                             <div className="w-full bg-black/30 h-3 rounded-full overflow-hidden mb-2 backdrop-blur-sm border border-white/10">
-                                <div className="bg-white h-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ width: `${progressPercent}%` }}></div>
+                                <div className={`h-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.5)] ${tierStyle.text.replace('text', 'bg')}`} style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }}></div>
                             </div>
                             <p className="text-xs text-white/70">
                                 Купіть ще на <span className="font-bold text-white">{nextTier.threshold - profile.total_spent} грн</span>, щоб отримати <span className="font-bold text-white">{nextTier.percent}%</span> (Рівень {nextTier.name})
                             </p>
                         </div>
                     ) : (
-                        <p className="text-sm font-bold text-white/90">Ви досягли максимального рівня! 🔥</p>
+                        <p className="text-sm font-bold text-white/90 flex items-center gap-2"><Crown size={16}/> Ви досягли максимального рівня! 🔥</p>
                     )}
                   </div>
                 </div>
