@@ -11,18 +11,27 @@ export async function POST(request: Request) {
     const CRM_URL = process.env.CRM_WEBHOOK_URL;
     const API_KEY = process.env.CRM_API_KEY;
 
-    console.log("🔑 [CRM] Налаштування:", {
-      url: CRM_URL ? "OK (URL Present)" : "MISSING",
-      key: API_KEY ? `OK (Key ends with ...${API_KEY.slice(-4)})` : "MISSING"
+    // Логуємо статус змінних (не показуючи сам ключ для безпеки)
+    console.log("🔑 [CRM] Перевірка налаштувань:", {
+      CRM_WEBHOOK_URL: CRM_URL ? "✅ Встановлено" : "❌ ВІДСУТНЄ",
+      CRM_API_KEY: API_KEY ? "✅ Встановлено" : "❌ ВІДСУТНЄ"
     });
 
     if (!CRM_URL || !API_KEY) {
-      console.error("❌ [CRM] Помилка: Немає налаштувань у .env.local");
-      return NextResponse.json({ success: false, error: "Settings missing" }, { status: 500 });
+      const missingVars = [];
+      if (!CRM_URL) missingVars.push("CRM_WEBHOOK_URL");
+      if (!API_KEY) missingVars.push("CRM_API_KEY");
+
+      console.error(`❌ [CRM] Помилка: На сервері відсутні змінні середовища: ${missingVars.join(", ")}`);
+      
+      return NextResponse.json({ 
+        success: false, 
+        error: `Server configuration error: Missing ${missingVars.join(", ")}. Check Vercel Environment Variables.` 
+      }, { status: 500 });
     }
 
     // 2. Відправка запиту
-    console.log("📤 [CRM] Відправка запиту на CRM...");
+    console.log("📤 [CRM] Відправка запиту на:", CRM_URL);
     
     const response = await fetch(CRM_URL, {
       method: 'POST',
@@ -45,7 +54,7 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("❌ [CRM] ГЛОБАЛЬНА ПОМИЛКА:", error.message);
-    // Повертаємо 200, щоб фронтенд думав, що все ок, але пишемо в лог
+    // Повертаємо 200, щоб фронтенд думав, що все ок (замовлення ж створено в БД), але пишемо помилку в тілі
     return NextResponse.json({ success: false, error: error.message }, { status: 200 });
   }
 }
