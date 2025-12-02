@@ -8,7 +8,7 @@ import {
   User, Package, Star, MapPin, LogOut, ArrowLeft, 
   Settings, CreditCard, Gift, ShieldCheck, Camera, 
   ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
-  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode
+  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
@@ -67,7 +67,7 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
   }
 };
 
-// Компонент штрих-коду (імітація)
+// Компонент штрих-коду
 const Barcode = ({ className }: { className?: string }) => (
     <div className={`flex items-center justify-center gap-[3px] h-16 w-full bg-white px-4 py-2 rounded-md overflow-hidden ${className}`}>
         {Array.from({ length: 50 }).map((_, i) => (
@@ -101,7 +101,7 @@ export default function UserProfile() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
-  const [isCardFlipped, setIsCardFlipped] = useState(false); // Стан для перегортання картки
+  const [isCardFlipped, setIsCardFlipped] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -158,27 +158,104 @@ export default function UserProfile() {
     router.push("/");
   }
 
-  const printInvoice = (order: any) => {
+  // Функція генерації документів (Рахунок або Накладна)
+  const printDocument = (order: any, type: 'invoice' | 'waybill') => {
       const buyerName = profile.company_name || profile.full_name || "Покупець";
       const buyerEdrpou = profile.edrpou ? `(${profile.edrpou})` : "";
-      const dateStr = new Date(order.created_at).toLocaleDateString('uk-UA');
       
-      const invoiceHTML = `
+      // Для накладної беремо дату оновлення (коли став "completed"), для рахунку - створення
+      const dateSource = type === 'waybill' ? (order.updated_at || order.created_at) : order.created_at;
+      const dateStr = new Date(dateSource).toLocaleDateString('uk-UA');
+      
+      const docTitle = type === 'invoice' ? `Рахунок-фактура №${order.id}` : `Видаткова накладна №${order.id}`;
+      const docHeader = type === 'invoice' ? `Рахунок-фактура № ${order.id}` : `Видаткова накладна № ${order.id}`;
+
+      const htmlContent = `
         <html>
         <head>
-            <title>Рахунок-фактура №${order.id}</title>
-            <style>body { font-family: sans-serif; padding: 40px; }</style>
+            <title>${docTitle}</title>
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+                .header { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+                .seller-info, .buyer-info { margin-bottom: 20px; }
+                h1 { font-size: 24px; margin-bottom: 5px; text-transform: uppercase; }
+                .date { color: #666; font-size: 14px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; margin-top: 20px; }
+                th { background: #f8f9fa; text-align: left; padding: 10px; border: 1px solid #ddd; font-size: 12px; text-transform: uppercase; }
+                td { padding: 10px; border: 1px solid #ddd; font-size: 14px; }
+                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }
+                .footer { margin-top: 50px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+                .label { font-weight: bold; color: #555; margin-right: 5px; }
+                .row { display: flex; justify-content: space-between; }
+                .section-title { font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; font-size: 14px; }
+            </style>
         </head>
         <body>
-            <h1>Рахунок № ${order.id}</h1>
-            <p>Покупець: ${buyerName} ${buyerEdrpou}</p>
-            <p>Дата: ${dateStr}</p>
-            <script>window.print();</script>
+            <div class="header">
+                <h1>${docHeader}</h1>
+                <div class="date">від ${dateStr}</div>
+            </div>
+
+            <div class="seller-info">
+                <div class="section-title">Постачальник</div>
+                <div><span class="label">Назва:</span> ФОП ШЕВЧУК ЯРОСЛАВ ВОЛОДИМИРОВИЧ</div>
+                <div><span class="label">Код (ЄДРПОУ):</span> 3605107010</div>
+                <div><span class="label">IBAN:</span> UA473052990000026006025512967</div>
+                <div><span class="label">Банк:</span> АТ КБ "ПРИВАТБАНК"</div>
+            </div>
+
+            <div class="buyer-info">
+                <div class="section-title">Одержувач</div>
+                <div><span class="label">Покупець:</span> ${buyerName} ${buyerEdrpou}</div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px; text-align: center;">№</th>
+                        <th>Товар</th>
+                        <th style="width: 60px; text-align: center;">Од.</th>
+                        <th style="width: 80px; text-align: center;">К-сть</th>
+                        <th style="width: 100px; text-align: right;">Ціна</th>
+                        <th style="width: 100px; text-align: right;">Сума</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${order.items.map((item: any, i: number) => `
+                        <tr>
+                            <td style="text-align: center;">${i + 1}</td>
+                            <td>
+                                ${item.title}
+                                ${item.selectedSize ? `<div style="font-size: 11px; color: #666;">Розмір: ${item.selectedSize}</div>` : ''}
+                            </td>
+                            <td style="text-align: center;">шт.</td>
+                            <td style="text-align: center;">${item.quantity}</td>
+                            <td style="text-align: right;">${item.price.toFixed(2)}</td>
+                            <td style="text-align: right;">${(item.price * item.quantity).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+
+            <div class="total">
+                Всього до сплати: ${order.final_price ? order.final_price.toFixed(2) : order.total_price.toFixed(2)} грн
+            </div>
+            
+            ${order.discount_bonuses > 0 ? `<div style="text-align: right; font-size: 14px; color: #666; margin-top: 5px;">(В т.ч. оплачено бонусами: ${order.discount_bonuses} грн)</div>` : ''}
+
+            ${type === 'invoice' 
+                ? `<div class="footer">Рахунок дійсний до сплати протягом 3-х банківських днів.</div>` 
+                : `<div class="footer" style="display: flex; justify-content: space-between; margin-top: 50px;">
+                     <div>Відвантажив: ___________________</div>
+                     <div>Отримав: ___________________</div>
+                   </div>`
+            }
         </body>
         </html>
       `;
+
       const win = window.open('', '_blank');
-      if(win) { win.document.write(invoiceHTML); win.document.close(); }
+      if(win) { win.document.write(htmlContent); win.document.close(); win.print(); }
   };
 
   const currentTier = getCurrentTier(profile.total_spent);
@@ -195,7 +272,6 @@ export default function UserProfile() {
       progressPercent = Math.min(100, Math.max(0, (currentProgress / totalNeeded) * 100));
   }
 
-  // Форматування номера картки (фейковий, на основі телефону)
   const formattedCardNumber = profile.phone 
     ? profile.phone.replace(/\D/g, '').padEnd(16, '0').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ')
     : "0000 0000 0000 0000";
@@ -253,7 +329,7 @@ export default function UserProfile() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
-                   {/* Міні-картка для профілю */}
+                   {/* Міні-картка */}
                    <div className={`aspect-[1.58] rounded-2xl p-6 relative overflow-hidden shadow-xl ${tierStyle.cardGradient} border border-white/10 flex flex-col justify-between`}>
                       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
                       <div className="relative z-10 flex justify-between items-start">
@@ -304,7 +380,6 @@ export default function UserProfile() {
           {/* --- ЗАМОВЛЕННЯ --- */}
           {activeTab === "orders" && (
              <div className="space-y-4">
-               {/* ... (код замовлень залишається без змін) ... */}
                <h1 className="text-3xl font-bold mb-8">Історія замовлень</h1>
                {orders.length === 0 ? (
                   <div className="text-center py-20 bg-zinc-900/50 rounded-2xl border border-white/10 border-dashed">
@@ -326,14 +401,7 @@ export default function UserProfile() {
                               <div>
                                   <div className="flex items-center gap-3">
                                       <span className="font-mono font-bold text-lg">#{order.id.toString().slice(0,6)}</span>
-                                      <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                                          order.status === 'completed' ? 'bg-green-500/20 text-green-500 border-green-500/30' : 
-                                          order.status === 'processing' ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' :
-                                          order.status === 'new' ? 'bg-blue-500/20 text-blue-500 border-blue-500/30' : 
-                                          'bg-red-500/20 text-red-500 border-red-500/30'
-                                      }`}>
-                                          {order.status === 'new' ? 'Нове' : order.status === 'processing' ? 'В роботі' : order.status === 'completed' ? 'Виконано' : 'Скасовано'}
-                                      </div>
+                                      <StatusBadge status={order.status} />
                                   </div>
                                   <div className="text-xs text-zinc-500 flex items-center gap-2 mt-1">
                                       <Clock size={12}/> {format(new Date(order.created_at), 'd MMMM yyyy, HH:mm', { locale: uk })}
@@ -358,13 +426,24 @@ export default function UserProfile() {
                                   className="border-t border-white/10 bg-black/30"
                               >
                                   <div className="p-6">
-                                      <div className="flex justify-end mb-6">
+                                      <div className="flex justify-end gap-3 mb-6">
+                                          {/* КНОПКА РАХУНКУ */}
                                           <button 
-                                            onClick={() => printInvoice(order)}
-                                            className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition"
+                                            onClick={() => printDocument(order, 'invoice')}
+                                            className="flex items-center gap-2 bg-zinc-800 text-white hover:bg-zinc-700 px-4 py-2 rounded-lg font-bold text-xs transition border border-white/10"
                                           >
-                                              <Printer size={16} /> Завантажити рахунок
+                                              <Printer size={16} /> Рахунок
                                           </button>
+                                          
+                                          {/* КНОПКА НАКЛАДНОЇ (Тільки якщо виконано) */}
+                                          {order.status === 'completed' && (
+                                              <button 
+                                                onClick={() => printDocument(order, 'waybill')}
+                                                className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-xs transition shadow-lg shadow-blue-900/20"
+                                              >
+                                                  <FileText size={16} /> Видаткова накладна
+                                              </button>
+                                          )}
                                       </div>
 
                                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -412,11 +491,11 @@ export default function UserProfile() {
           )}
 
           {/* --- БОНУСИ (КАРТКА FLIP) --- */}
+          {/* ... (Код картки лояльності залишається без змін) ... */}
           {activeTab === "loyalty" && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-3xl font-bold mb-2">Програма лояльності</h1>
               <p className="text-zinc-500 mb-8">Натисніть на картку, щоб побачити штрих-код.</p>
-
               <div className="flex justify-center mb-12 perspective-1000">
                   <motion.div 
                     className="w-full max-w-md aspect-[1.58] relative cursor-pointer"
@@ -425,18 +504,16 @@ export default function UserProfile() {
                     transition={{ type: "spring", stiffness: 260, damping: 20 }}
                     onClick={() => setIsCardFlipped(!isCardFlipped)}
                   >
-                      {/* === ПЕРЕДНЯ СТОРОНА === */}
-                      <div 
-                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 ${tierStyle.cardGradient} p-8 flex flex-col justify-between backface-hidden`}
-                        style={{ backfaceVisibility: "hidden" }}
-                      >
-                          {/* Текстура */}
+                      {/* ...FRONT CARD... */}
+                      <div className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 ${tierStyle.cardGradient} p-8 flex flex-col justify-between backface-hidden`} style={{ backfaceVisibility: "hidden" }}>
                           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 mix-blend-overlay"></div>
-                          
                           <div className="relative z-10 flex justify-between items-start">
                               <div className="flex flex-col gap-4">
                                   <span className="text-2xl font-black italic text-white tracking-tighter drop-shadow-md">REBRAND</span>
                                   <div className="w-12 h-9 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md border border-yellow-700/50 relative overflow-hidden shadow-inner">
+                                      <div className="absolute inset-0 border border-black/10 rounded-md"></div>
+                                      <div className="absolute top-1/2 left-0 w-full h-[1px] bg-black/20"></div>
+                                      <div className="absolute left-1/2 top-0 h-full w-[1px] bg-black/20"></div>
                                       <Wifi size={16} className="absolute right-1 top-1 text-black/20 -rotate-90"/>
                                   </div>
                               </div>
@@ -445,7 +522,6 @@ export default function UserProfile() {
                                   {currentTier.name}
                               </div>
                           </div>
-
                           <div className="relative z-10">
                               <div className="font-mono text-xl text-white/90 tracking-widest drop-shadow-md mb-1">{formattedCardNumber}</div>
                               <div className="flex justify-between items-end mt-6">
@@ -460,89 +536,49 @@ export default function UserProfile() {
                               </div>
                           </div>
                       </div>
-
-                      {/* === ЗАДНЯ СТОРОНА === */}
-                      <div 
-                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-zinc-900 p-0 flex flex-col justify-between backface-hidden`}
-                        style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
-                      >
+                      {/* ...BACK CARD... */}
+                      <div className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-zinc-900 p-0 flex flex-col justify-between backface-hidden`} style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
                          <div className="mt-6 h-12 w-full bg-black"></div>
-                         
                          <div className="px-8 flex-1 flex flex-col justify-center items-center gap-4">
                              <div className="w-full bg-white px-4 py-2 flex items-center gap-4">
-                                 <div className="flex-1 h-8 bg-gray-200 font-handwriting flex items-center px-2 text-black italic font-bold">
-                                     Authorized Signature
-                                 </div>
-                                 <div className="text-black font-bold font-mono text-lg">
-                                     {session?.user?.id?.slice(0, 3).toUpperCase()}
-                                 </div>
+                                 <div className="flex-1 h-8 bg-gray-200 font-handwriting flex items-center px-2 text-black italic font-bold">Authorized Signature</div>
+                                 <div className="text-black font-bold font-mono text-lg">{session?.user?.id?.slice(0, 3).toUpperCase()}</div>
                              </div>
-
                              <div className="w-full bg-white p-4 rounded-xl flex flex-col items-center justify-center">
                                  <Barcode className="w-full h-16" />
-                                 <div className="text-black font-mono text-xs tracking-[0.3em] mt-2">
-                                     {session?.user?.id?.slice(0, 12).toUpperCase() || "000000000000"}
-                                 </div>
+                                 <div className="text-black font-mono text-xs tracking-[0.3em] mt-2">{session?.user?.id?.slice(0, 12).toUpperCase() || "000000000000"}</div>
                              </div>
-                             
-                             <p className="text-zinc-500 text-[10px] text-center max-w-xs">
-                                 Ця картка є власністю REBRAND STUDIO. Використовуйте для нарахування та списання бонусів.
-                             </p>
+                             <p className="text-zinc-500 text-[10px] text-center max-w-xs">Ця картка є власністю REBRAND STUDIO. Використовуйте для нарахування та списання бонусів.</p>
                          </div>
                       </div>
                   </motion.div>
               </div>
-
-              {/* Прогрес до наступного рівня */}
+              {/* Прогрес */}
               {nextTier ? (
                   <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 mb-8">
                       <div className="flex justify-between items-end mb-4">
-                          <div>
-                              <h3 className="font-bold text-white">Ваш прогрес</h3>
-                              <p className="text-sm text-zinc-500">До рівня <span className={`${nextTier.color} font-bold`}>{nextTier.name}</span> залишилось:</p>
-                          </div>
-                          <div className="text-right">
-                              <span className="text-2xl font-bold text-white">{nextTier.threshold - profile.total_spent} грн</span>
-                          </div>
+                          <div><h3 className="font-bold text-white">Ваш прогрес</h3><p className="text-sm text-zinc-500">До рівня <span className={`${nextTier.color} font-bold`}>{nextTier.name}</span> залишилось:</p></div>
+                          <div className="text-right"><span className="text-2xl font-bold text-white">{nextTier.threshold - profile.total_spent} грн</span></div>
                       </div>
                       <div className="w-full bg-black h-4 rounded-full overflow-hidden border border-white/10 relative">
                           <div className={`h-full transition-all duration-1000 ${currentTier.name === 'Start' ? 'bg-zinc-500' : tierStyle.text.replace('text-', 'bg-')}`} style={{ width: `${progressPercent}%` }}></div>
                       </div>
-                      <p className="text-xs text-zinc-500 mt-3 text-center">
-                          Поточний кешбек: <span className="text-white font-bold">{currentTier.percent}%</span> &rarr; Наступний: <span className="text-white font-bold">{nextTier.percent}%</span>
-                      </p>
+                      <p className="text-xs text-zinc-500 mt-3 text-center">Поточний кешбек: <span className="text-white font-bold">{currentTier.percent}%</span> &rarr; Наступний: <span className="text-white font-bold">{nextTier.percent}%</span></p>
                   </div>
-              ) : (
-                  <div className="bg-gradient-to-r from-purple-900/50 to-fuchsia-900/50 border border-purple-500/30 rounded-2xl p-8 mb-8 text-center">
-                      <Crown size={48} className="mx-auto text-fuchsia-400 mb-4"/>
-                      <h3 className="text-2xl font-bold text-white mb-2">Ви досягли вершини!</h3>
-                      <p className="text-fuchsia-200">Максимальний рівень лояльності. Ви — наш найцінніший клієнт.</p>
-                  </div>
-              )}
-
-              {/* Історія транзакцій */}
+              ) : (<div className="bg-gradient-to-r from-purple-900/50 to-fuchsia-900/50 border border-purple-500/30 rounded-2xl p-8 mb-8 text-center"><Crown size={48} className="mx-auto text-fuchsia-400 mb-4"/><h3 className="text-2xl font-bold text-white mb-2">Ви досягли вершини!</h3><p className="text-fuchsia-200">Максимальний рівень лояльності. Ви — наш найцінніший клієнт.</p></div>)}
+              
+              {/* Історія бонусів (Залишається як було) */}
               <h3 className="text-lg font-bold mb-4">Історія бонусів</h3>
               <div className="bg-zinc-900 border border-white/10 rounded-xl overflow-hidden">
-                  {loyaltyLogs.length === 0 ? (
-                      <div className="p-8 text-center text-zinc-500">Історія порожня</div>
-                  ) : (
-                      loyaltyLogs.map((log) => (
+                  {loyaltyLogs.length === 0 ? <div className="p-8 text-center text-zinc-500">Історія порожня</div> : loyaltyLogs.map((log) => (
                           <div key={log.id} className="flex justify-between items-center p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition">
                               <div className="flex items-center gap-4">
-                                  <div className={`p-2 rounded-lg ${log.type === 'earn' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                                      {log.type === 'earn' ? <Plus size={16}/> : <Minus size={16}/>}
-                                  </div>
-                                  <div>
-                                      <div className="font-bold text-sm">{log.description}</div>
-                                      <div className="text-xs text-zinc-500">{format(new Date(log.created_at), 'd MMM yyyy', { locale: uk })}</div>
-                                  </div>
+                                  <div className={`p-2 rounded-lg ${log.type === 'earn' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{log.type === 'earn' ? <Plus size={16}/> : <Minus size={16}/>}</div>
+                                  <div><div className="font-bold text-sm">{log.description}</div><div className="text-xs text-zinc-500">{format(new Date(log.created_at), 'd MMM yyyy', { locale: uk })}</div></div>
                               </div>
-                              <div className={`font-mono font-bold ${log.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>
-                                  {log.type === 'earn' ? '+' : '-'}{log.amount}
-                              </div>
+                              <div className={`font-mono font-bold ${log.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>{log.type === 'earn' ? '+' : '-'}{log.amount}</div>
                           </div>
-                      ))
-                  )}
+                      ))}
               </div>
             </motion.div>
           )}
@@ -557,7 +593,6 @@ export default function UserProfile() {
                   </div>
               </motion.div>
           )}
-
         </div>
       </main>
     </div>
