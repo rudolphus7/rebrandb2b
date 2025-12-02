@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, Package, Star, MapPin, LogOut, ArrowLeft, 
   Settings, CreditCard, Gift, ShieldCheck, Camera, 
-  ChevronDown, ChevronUp, Clock, Truck, Plus, Minus
+  ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
@@ -22,10 +22,13 @@ export default function UserProfile() {
   const [activeTab, setActiveTab] = useState("profile");
   const [orders, setOrders] = useState<any[]>([]);
   const [loyaltyLogs, setLoyaltyLogs] = useState<any[]>([]);
+  
+  // --- ДОДАНО: Поле edrpou ---
   const [profile, setProfile] = useState<any>({
     full_name: "",
     company_name: "",
     phone: "",
+    edrpou: "", // Нове поле
     birthday: "",
     bonus_points: 0,
     total_spent: 0
@@ -58,6 +61,7 @@ export default function UserProfile() {
 
     setProfile({ 
         ...profileData, 
+        edrpou: profileData?.edrpou || "", // Підтягуємо ЄДРПОУ
         bonus_points: calculatedPoints,
         total_spent: totalSpentMoney
     });
@@ -74,6 +78,7 @@ export default function UserProfile() {
       full_name: profile.full_name,
       company_name: profile.company_name,
       phone: profile.phone,
+      edrpou: profile.edrpou, // Зберігаємо ЄДРПОУ
       birthday: profile.birthday || null,
     }).eq('id', session.user.id);
 
@@ -87,6 +92,98 @@ export default function UserProfile() {
     router.push("/");
   }
 
+  // --- ФУНКЦІЯ ДРУКУ РАХУНКУ ---
+  const printInvoice = (order: any) => {
+      const buyerName = profile.company_name || profile.full_name || "Покупець";
+      const buyerEdrpou = profile.edrpou ? `(${profile.edrpou})` : "";
+      
+      const dateStr = new Date(order.created_at).toLocaleDateString('uk-UA');
+
+      // HTML шаблон рахунку
+      const invoiceHTML = `
+        <html>
+        <head>
+            <title>Рахунок-фактура №${order.id}</title>
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+                .header { margin-bottom: 40px; }
+                .seller-info { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+                .buyer-info { margin-bottom: 30px; }
+                h1 { font-size: 24px; margin-bottom: 5px; }
+                .date { color: #666; margin-bottom: 20px; font-size: 14px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                th { background: #f8f9fa; text-align: left; padding: 10px; border: 1px solid #ddd; font-size: 12px; text-transform: uppercase; }
+                td { padding: 10px; border: 1px solid #ddd; font-size: 14px; }
+                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }
+                .footer { margin-top: 50px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+                .label { font-weight: bold; color: #555; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Рахунок-фактура № ${order.id}</h1>
+                <div class="date">від ${dateStr}</div>
+            </div>
+
+            <div class="seller-info">
+                <div style="margin-bottom: 5px;"><span class="label">Постачальник:</span> ФОП ШЕВЧУК ЯРОСЛАВ ВОЛОДИМИРОВИЧ</div>
+                <div style="margin-bottom: 5px;"><span class="label">Код отримувача:</span> 3605107010</div>
+                <div style="margin-bottom: 5px;"><span class="label">IBAN:</span> UA473052990000026006025512967</div>
+                <div><span class="label">Банк:</span> АТ КБ "ПРИВАТБАНК"</div>
+            </div>
+
+            <div class="buyer-info">
+                <span class="label">Покупець:</span> ${buyerName} ${buyerEdrpou}
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">№</th>
+                        <th>Товар</th>
+                        <th style="width: 80px; text-align: center;">К-сть</th>
+                        <th style="width: 100px; text-align: right;">Ціна</th>
+                        <th style="width: 100px; text-align: right;">Сума</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${order.items.map((item: any, i: number) => `
+                        <tr>
+                            <td style="text-align: center;">${i + 1}</td>
+                            <td>
+                                ${item.title}
+                                ${item.selectedSize ? `<div style="font-size: 11px; color: #666;">Розмір: ${item.selectedSize}</div>` : ''}
+                            </td>
+                            <td style="text-align: center;">${item.quantity}</td>
+                            <td style="text-align: right;">${item.price.toFixed(2)}</td>
+                            <td style="text-align: right;">${(item.price * item.quantity).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+
+            <div class="total">
+                Всього до сплати: ${order.final_price ? order.final_price.toFixed(2) : order.total_price.toFixed(2)} грн
+            </div>
+            
+            ${order.discount_bonuses > 0 ? `<div style="text-align: right; font-size: 14px; color: #666; margin-top: 5px;">(Оплачено бонусами: ${order.discount_bonuses} грн)</div>` : ''}
+
+            <div class="footer">
+                Рахунок дійсний до сплати протягом 3-х банківських днів.
+            </div>
+        </body>
+        </html>
+      `;
+
+      const win = window.open('', '_blank');
+      if (win) {
+          win.document.write(invoiceHTML);
+          win.document.close();
+          win.print();
+      }
+  };
+
+  // --- Визначаємо рівень ---
   const currentTier = getCurrentTier(profile.total_spent);
   const nextTier = getNextTier(profile.total_spent);
   
@@ -177,16 +274,16 @@ export default function UserProfile() {
                         <input type="text" value={profile.full_name || ""} onChange={e => setProfile({...profile, full_name: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none" placeholder="Іван Іванов"/>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Компанія (Необов'язково)</label>
+                        <label className="text-xs font-bold text-zinc-500 uppercase">Компанія (ТОВ/ФОП)</label>
                         <input type="text" value={profile.company_name || ""} onChange={e => setProfile({...profile, company_name: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none" placeholder="Brandzilla LLC"/>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-500 uppercase">ЄДРПОУ</label>
+                        <input type="text" value={profile.edrpou || ""} onChange={e => setProfile({...profile, edrpou: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none" placeholder="12345678"/>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-zinc-500 uppercase">Телефон</label>
                         <input type="text" value={profile.phone || ""} onChange={e => setProfile({...profile, phone: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none" placeholder="+380..."/>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Email (Login)</label>
-                        <input type="email" value={session.user.email} disabled className="w-full bg-zinc-800 border border-white/10 rounded-lg p-3 text-zinc-400 cursor-not-allowed"/>
                       </div>
                     </div>
                     
@@ -221,7 +318,7 @@ export default function UserProfile() {
                {orders.length === 0 ? (
                   <div className="text-center py-20 bg-zinc-900/50 rounded-2xl border border-white/10 border-dashed">
                     <Package size={48} className="mx-auto text-zinc-700 mb-4"/>
-                    <p className="text-zinc-500">Ви ще нічого не замовляли. Час це виправити!</p>
+                    <p className="text-zinc-500">Історія замовлень порожня.</p>
                     <button onClick={() => router.push('/catalog')} className="mt-4 text-blue-400 hover:text-blue-300 font-bold text-sm">Перейти в каталог</button>
                   </div>
                 ) : (
@@ -248,7 +345,7 @@ export default function UserProfile() {
                           <div className="flex items-center gap-6">
                               <div className="text-right">
                                   <span className="block text-zinc-500 text-xs uppercase">Сума</span>
-                                  <span className="text-xl font-bold">{order.total_price} ₴</span>
+                                  <span className="text-xl font-bold">{order.final_price || order.total_price} ₴</span>
                               </div>
                               <ChevronDown size={20} className={`text-zinc-500 transition-transform ${expandedOrder === order.id ? "rotate-180" : ""}`}/>
                           </div>
@@ -263,25 +360,39 @@ export default function UserProfile() {
                                   className="border-t border-white/10 bg-black/30"
                               >
                                   <div className="p-6">
+                                      
+                                      {/* КНОПКА ДРУКУ РАХУНКУ */}
+                                      <div className="flex justify-end mb-6">
+                                          <button 
+                                            onClick={() => printInvoice(order)}
+                                            className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition"
+                                          >
+                                              <Printer size={16} /> Завантажити рахунок
+                                          </button>
+                                      </div>
+
                                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                           {/* Товари */}
                                           <div>
                                               <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Товари в замовленні</h4>
                                               <div className="space-y-3">
-                                                  {order.items.map((item: any, i: number) => (
-                                                      <div key={i} className="flex gap-4 bg-zinc-800/50 p-2 rounded-lg">
-                                                          <div className="w-12 h-12 bg-black rounded overflow-hidden relative flex-shrink-0">
-                                                              <ProductImage src={item.image_url} alt={item.title} fill/>
-                                                          </div>
-                                                          <div className="flex-1 min-w-0 flex justify-between items-center">
-                                                              <div>
-                                                                  <div className="text-sm font-medium text-white truncate w-40 sm:w-auto">{item.title}</div>
-                                                                  <div className="text-xs text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
+                                                  {Array.isArray(order.items) && order.items.map((item: any, i: number) => {
+                                                      if (!item) return null; 
+                                                      return (
+                                                          <div key={i} className="flex gap-4 bg-zinc-800/50 p-2 rounded-lg">
+                                                              <div className="w-12 h-12 bg-black rounded overflow-hidden relative flex-shrink-0">
+                                                                  <ProductImage src={item.image_url || ''} alt={item.title || 'Товар'} fill/>
                                                               </div>
-                                                              <div className="font-bold text-sm">{item.price * item.quantity} ₴</div>
+                                                              <div className="flex-1 min-w-0 flex justify-between items-center">
+                                                                  <div>
+                                                                      <div className="text-sm font-medium text-white truncate w-40 sm:w-auto">{item.title || "Без назви"}</div>
+                                                                      <div className="text-xs text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
+                                                                  </div>
+                                                                  <div className="font-bold text-sm">{item.price * item.quantity} ₴</div>
+                                                              </div>
                                                           </div>
-                                                      </div>
-                                                  ))}
+                                                      );
+                                                  })}
                                               </div>
                                           </div>
                                           
@@ -312,7 +423,6 @@ export default function UserProfile() {
               <h1 className="text-3xl font-bold mb-2">Програма лояльності</h1>
               <p className="text-zinc-500 mb-8">Ваша активність та привілеї.</p>
 
-              {/* Картка Рівня */}
               <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTier.bg} p-8 md:p-12 text-center md:text-left mb-8 border border-white/10 shadow-2xl`}>
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl"></div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
@@ -346,7 +456,6 @@ export default function UserProfile() {
                 </div>
               </div>
 
-              {/* Історія транзакцій */}
               <h3 className="text-lg font-bold mb-4">Історія бонусів</h3>
               <div className="bg-zinc-900 border border-white/10 rounded-xl overflow-hidden">
                   {loyaltyLogs.length === 0 ? (
@@ -393,7 +502,6 @@ export default function UserProfile() {
   );
 }
 
-// Sub-components
 function StatusBadge({ status }: { status: string }) {
     const styles: any = {
         new: "bg-blue-500/20 text-blue-400 border-blue-500/30",
