@@ -8,7 +8,7 @@ import {
   User, Package, Star, MapPin, LogOut, ArrowLeft, 
   Settings, CreditCard, Gift, ShieldCheck, Camera, 
   ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
-  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck
+  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck, Copy, Check
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
@@ -102,6 +102,7 @@ export default function UserProfile() {
   const [isSaving, setIsSaving] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const [copiedTtn, setCopiedTtn] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -158,12 +159,17 @@ export default function UserProfile() {
     router.push("/");
   }
 
-  // Функція генерації документів (Рахунок або Накладна)
+  const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text);
+      setCopiedTtn(text);
+      setTimeout(() => setCopiedTtn(null), 2000);
+  };
+
+  // Функція генерації документів
   const printDocument = (order: any, type: 'invoice' | 'waybill') => {
       const buyerName = profile.company_name || profile.full_name || "Покупець";
       const buyerEdrpou = profile.edrpou ? `(${profile.edrpou})` : "";
       
-      // Для накладної беремо дату оновлення (коли став "completed"), для рахунку - створення
       const dateSource = type === 'waybill' ? (order.updated_at || order.created_at) : order.created_at;
       const dateStr = new Date(dateSource).toLocaleDateString('uk-UA');
       
@@ -328,6 +334,7 @@ export default function UserProfile() {
                <p className="text-zinc-500 mb-8">Ця інформація буде автоматично підставлятися при оформленні замовлень.</p>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Картка статусу (З ОНОВЛЕНИМ ДИЗАЙНОМ) */}
                 <div className="lg:col-span-1">
                    {/* Міні-картка */}
                    <div className={`aspect-[1.58] rounded-2xl p-6 relative overflow-hidden shadow-xl ${tierStyle.cardGradient} border border-white/10 flex flex-col justify-between`}>
@@ -436,7 +443,7 @@ export default function UserProfile() {
                                           </button>
                                           
                                           {/* КНОПКА НАКЛАДНОЇ (Тільки якщо виконано) */}
-                                          {order.status === 'completed' && (
+                                          {(order.status === 'completed' || order.status === 'shipped') && (
                                               <button 
                                                 onClick={() => printDocument(order, 'waybill')}
                                                 className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-xs transition shadow-lg shadow-blue-900/20"
@@ -476,7 +483,28 @@ export default function UserProfile() {
                                                   <div className="flex gap-2"><User size={16} className="text-blue-500"/> {order.delivery_data?.fullName}</div>
                                                   <div className="flex gap-2"><MapPin size={16} className="text-blue-500"/> {order.delivery_data?.city}, {order.delivery_data?.warehouse}</div>
                                                   <div className="flex gap-2"><Truck size={16} className="text-blue-500"/> {order.delivery_data?.phone}</div>
-                                                  <div className="flex gap-2"><CreditCard size={16} className="text-blue-500"/> {order.delivery_data?.payment === 'invoice' ? 'Рахунок' : 'Карта'}</div>
+                                                  {/* ТТН ОНОВЛЕНО */}
+                                                  {order.delivery_data?.ttn && (
+                                                      <div className="mt-3 pt-3 border-t border-white/5">
+                                                          <div className="text-xs text-zinc-500 mb-1">Номер накладної (ТТН):</div>
+                                                          <div className="flex items-center gap-3">
+                                                              <span className="font-mono text-lg text-white font-bold bg-black/50 px-2 py-1 rounded border border-white/10">
+                                                                  {order.delivery_data.ttn}
+                                                              </span>
+                                                              <button 
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(order.delivery_data.ttn);
+                                                                    setCopiedTtn(order.delivery_data.ttn);
+                                                                    setTimeout(() => setCopiedTtn(null), 2000);
+                                                                }} 
+                                                                className="text-xs text-blue-500 hover:text-white transition flex items-center gap-1"
+                                                              >
+                                                                  {copiedTtn === order.delivery_data.ttn ? <Check size={12}/> : <Copy size={12}/>}
+                                                                  {copiedTtn === order.delivery_data.ttn ? "Скопійовано" : "Копіювати"}
+                                                              </button>
+                                                          </div>
+                                                      </div>
+                                                  )}
                                               </div>
                                           </div>
                                       </div>
@@ -491,7 +519,6 @@ export default function UserProfile() {
           )}
 
           {/* --- БОНУСИ (КАРТКА FLIP) --- */}
-          {/* ... (Код картки лояльності залишається без змін) ... */}
           {activeTab === "loyalty" && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-3xl font-bold mb-2">Програма лояльності</h1>
@@ -593,6 +620,7 @@ export default function UserProfile() {
                   </div>
               </motion.div>
           )}
+
         </div>
       </main>
     </div>
