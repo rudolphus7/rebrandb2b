@@ -7,7 +7,7 @@ import {
     ArrowLeft, ShoppingBag, Truck, CreditCard, FileText, CheckCircle, Info, User, Phone, Mail, MapPin, Home as HomeIcon, Wallet
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient"; 
-import { useCart } from "../../components/CartContext"; 
+import { useCart } from "../components/CartContext"; 
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
 
 const CITIES = ["Київ", "Львів", "Одеса", "Дніпро", "Харків", "Івано-Франківськ", "Калуш"];
