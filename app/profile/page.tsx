@@ -8,18 +8,18 @@ import {
   User, Package, Star, MapPin, LogOut, ArrowLeft, 
   Settings, CreditCard, Gift, ShieldCheck, Camera, 
   ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
-  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi
+  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 import ProductImage from "../components/ProductImage";
 import { LOYALTY_TIERS, getCurrentTier, getNextTier } from "@/lib/loyaltyUtils";
 
-// --- КАСТОМІЗАЦІЯ РІВНІВ (ОНОВЛЕНО ДЛЯ КАРТКИ) ---
+// --- КАСТОМІЗАЦІЯ РІВНІВ ---
 const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: string, text: string, icon: any, iconColor: string }> = {
   "Start": { 
     bg: "from-zinc-800 to-zinc-900",
-    cardGradient: "bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-900",
+    cardGradient: "bg-gradient-to-br from-zinc-800 via-zinc-900 to-black",
     border: "border-zinc-600",
     text: "text-zinc-300",
     icon: User,
@@ -43,7 +43,7 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
   },
   "Gold": { 
     bg: "from-yellow-600/20 to-amber-900/20", 
-    cardGradient: "bg-gradient-to-br from-[#fbbf24] via-[#b45309] to-[#78350f]",
+    cardGradient: "bg-gradient-to-br from-[#FCD34D] via-[#B45309] to-[#78350F]",
     border: "border-yellow-500/50", 
     text: "text-yellow-100",
     icon: Star,
@@ -68,13 +68,13 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
 };
 
 // Компонент штрих-коду (імітація)
-const Barcode = () => (
-    <div className="flex items-center justify-center gap-[2px] h-10 w-full bg-white/90 px-2 py-1 rounded-sm overflow-hidden">
-        {Array.from({ length: 40 }).map((_, i) => (
+const Barcode = ({ className }: { className?: string }) => (
+    <div className={`flex items-center justify-center gap-[3px] h-16 w-full bg-white px-4 py-2 rounded-md overflow-hidden ${className}`}>
+        {Array.from({ length: 50 }).map((_, i) => (
             <div 
                 key={i} 
                 className="h-full bg-black" 
-                style={{ width: Math.random() > 0.5 ? '2px' : '4px', opacity: 0.9 }}
+                style={{ width: Math.random() > 0.5 ? '2px' : '5px' }}
             ></div>
         ))}
     </div>
@@ -101,6 +101,7 @@ export default function UserProfile() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [isCardFlipped, setIsCardFlipped] = useState(false); // Стан для перегортання картки
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -162,75 +163,22 @@ export default function UserProfile() {
       const buyerEdrpou = profile.edrpou ? `(${profile.edrpou})` : "";
       const dateStr = new Date(order.created_at).toLocaleDateString('uk-UA');
       
-      // ... (код друку рахунку залишаємо без змін) ...
       const invoiceHTML = `
         <html>
         <head>
             <title>Рахунок-фактура №${order.id}</title>
-            <style>
-                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.5; }
-                .header { margin-bottom: 40px; }
-                .seller-info { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
-                .buyer-info { margin-bottom: 30px; }
-                h1 { font-size: 24px; margin-bottom: 5px; }
-                .date { color: #666; margin-bottom: 20px; font-size: 14px; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-                th { background: #f8f9fa; text-align: left; padding: 10px; border: 1px solid #ddd; font-size: 12px; text-transform: uppercase; }
-                td { padding: 10px; border: 1px solid #ddd; font-size: 14px; }
-                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }
-                .footer { margin-top: 50px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
-                .label { font-weight: bold; color: #555; }
-            </style>
+            <style>body { font-family: sans-serif; padding: 40px; }</style>
         </head>
         <body>
-            <div class="header">
-                <h1>Рахунок-фактура № ${order.id}</h1>
-                <div class="date">від ${dateStr}</div>
-            </div>
-            <div class="seller-info">
-                <div style="margin-bottom: 5px;"><span class="label">Постачальник:</span> ФОП ШЕВЧУК ЯРОСЛАВ ВОЛОДИМИРОВИЧ</div>
-                <div style="margin-bottom: 5px;"><span class="label">Код отримувача:</span> 3605107010</div>
-                <div style="margin-bottom: 5px;"><span class="label">IBAN:</span> UA473052990000026006025512967</div>
-                <div><span class="label">Банк:</span> АТ КБ "ПРИВАТБАНК"</div>
-            </div>
-            <div class="buyer-info">
-                <span class="label">Покупець:</span> ${buyerName} ${buyerEdrpou}
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">№</th>
-                        <th>Товар</th>
-                        <th style="width: 80px; text-align: center;">К-сть</th>
-                        <th style="width: 100px; text-align: right;">Ціна</th>
-                        <th style="width: 100px; text-align: right;">Сума</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${order.items.map((item: any, i: number) => `
-                        <tr>
-                            <td style="text-align: center;">${i + 1}</td>
-                            <td>${item.title} ${item.selectedSize ? `<div style="font-size: 11px; color: #666;">Розмір: ${item.selectedSize}</div>` : ''}</td>
-                            <td style="text-align: center;">${item.quantity}</td>
-                            <td style="text-align: right;">${item.price.toFixed(2)}</td>
-                            <td style="text-align: right;">${(item.price * item.quantity).toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            <div class="total">Всього до сплати: ${order.final_price ? order.final_price.toFixed(2) : order.total_price.toFixed(2)} грн</div>
-            ${order.discount_bonuses > 0 ? `<div style="text-align: right; font-size: 14px; color: #666; margin-top: 5px;">(Оплачено бонусами: ${order.discount_bonuses} грн)</div>` : ''}
-            <div class="footer">Рахунок дійсний до сплати протягом 3-х банківських днів.</div>
+            <h1>Рахунок № ${order.id}</h1>
+            <p>Покупець: ${buyerName} ${buyerEdrpou}</p>
+            <p>Дата: ${dateStr}</p>
+            <script>window.print();</script>
         </body>
         </html>
       `;
-
       const win = window.open('', '_blank');
-      if (win) {
-          win.document.write(invoiceHTML);
-          win.document.close();
-          win.print();
-      }
+      if(win) { win.document.write(invoiceHTML); win.document.close(); }
   };
 
   const currentTier = getCurrentTier(profile.total_spent);
@@ -247,9 +195,9 @@ export default function UserProfile() {
       progressPercent = Math.min(100, Math.max(0, (currentProgress / totalNeeded) * 100));
   }
 
-  // Форматування номера картки (фейковий)
+  // Форматування номера картки (фейковий, на основі телефону)
   const formattedCardNumber = profile.phone 
-    ? profile.phone.replace(/\D/g, '').padEnd(16, '0').replace(/(\d{4})(?=\d)/g, '$1 ')
+    ? profile.phone.replace(/\D/g, '').padEnd(16, '0').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ')
     : "0000 0000 0000 0000";
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500">Завантаження...</div>;
@@ -305,9 +253,9 @@ export default function UserProfile() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
-                   {/* Маленька картка рівня (міні) */}
+                   {/* Міні-картка для профілю */}
                    <div className={`aspect-[1.58] rounded-2xl p-6 relative overflow-hidden shadow-xl ${tierStyle.cardGradient} border border-white/10 flex flex-col justify-between`}>
-                      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
                       <div className="relative z-10 flex justify-between items-start">
                          <span className="font-black italic text-white/90 tracking-tighter">REBRAND</span>
                          <TierIcon className="text-white/80" size={24}/>
@@ -315,8 +263,8 @@ export default function UserProfile() {
                       <div className="relative z-10">
                          <div className="text-xs text-white/60 mb-1 font-mono">{formattedCardNumber}</div>
                          <div className="flex justify-between items-end">
-                            <div className="text-sm font-bold text-white uppercase tracking-widest">{profile.full_name || "MEMBER"}</div>
-                            <div className="text-xs font-bold text-white/90 bg-white/20 px-2 py-0.5 rounded">{currentTier.name}</div>
+                            <div className="text-sm font-bold text-white uppercase tracking-widest truncate w-24">{profile.full_name || "MEMBER"}</div>
+                            <div className="text-xs font-bold text-white/90 bg-white/20 px-2 py-0.5 rounded backdrop-blur-sm">{currentTier.name}</div>
                          </div>
                       </div>
                    </div>
@@ -378,7 +326,14 @@ export default function UserProfile() {
                               <div>
                                   <div className="flex items-center gap-3">
                                       <span className="font-mono font-bold text-lg">#{order.id.toString().slice(0,6)}</span>
-                                      <StatusBadge status={order.status} />
+                                      <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                                          order.status === 'completed' ? 'bg-green-500/20 text-green-500 border-green-500/30' : 
+                                          order.status === 'processing' ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' :
+                                          order.status === 'new' ? 'bg-blue-500/20 text-blue-500 border-blue-500/30' : 
+                                          'bg-red-500/20 text-red-500 border-red-500/30'
+                                      }`}>
+                                          {order.status === 'new' ? 'Нове' : order.status === 'processing' ? 'В роботі' : order.status === 'completed' ? 'Виконано' : 'Скасовано'}
+                                      </div>
                                   </div>
                                   <div className="text-xs text-zinc-500 flex items-center gap-2 mt-1">
                                       <Clock size={12}/> {format(new Date(order.created_at), 'd MMMM yyyy, HH:mm', { locale: uk })}
@@ -456,58 +411,48 @@ export default function UserProfile() {
              </div>
           )}
 
-          {/* --- БОНУСИ (КАРТКА) --- */}
+          {/* --- БОНУСИ (КАРТКА FLIP) --- */}
           {activeTab === "loyalty" && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-3xl font-bold mb-2">Програма лояльності</h1>
-              <p className="text-zinc-500 mb-8">Ваша персональна картка учасника клубу.</p>
+              <p className="text-zinc-500 mb-8">Натисніть на картку, щоб побачити штрих-код.</p>
 
-              {/* === ВЕЛИКА КАРТКА КЛІЄНТА === */}
-              <div className="flex justify-center mb-12">
-                  <div className={`w-full max-w-md aspect-[1.58] rounded-3xl relative overflow-hidden shadow-2xl shadow-black/50 transition-transform hover:scale-[1.02] duration-500 ${tierStyle.cardGradient} border border-white/20`}>
-                      
-                      {/* Текстура "Шум" для реалізму */}
-                      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 mix-blend-overlay"></div>
-                      
-                      {/* Відблиск */}
-                      <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/20 rounded-full blur-3xl"></div>
-
-                      {/* Контент картки */}
-                      <div className="relative z-10 h-full flex flex-col justify-between p-8">
+              <div className="flex justify-center mb-12 perspective-1000">
+                  <motion.div 
+                    className="w-full max-w-md aspect-[1.58] relative cursor-pointer"
+                    style={{ transformStyle: "preserve-3d" }}
+                    animate={{ rotateY: isCardFlipped ? 180 : 0 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                    onClick={() => setIsCardFlipped(!isCardFlipped)}
+                  >
+                      {/* === ПЕРЕДНЯ СТОРОНА === */}
+                      <div 
+                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 ${tierStyle.cardGradient} p-8 flex flex-col justify-between backface-hidden`}
+                        style={{ backfaceVisibility: "hidden" }}
+                      >
+                          {/* Текстура */}
+                          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 mix-blend-overlay"></div>
                           
-                          {/* Верх: Лого і Чіп */}
-                          <div className="flex justify-between items-start">
+                          <div className="relative z-10 flex justify-between items-start">
                               <div className="flex flex-col gap-4">
                                   <span className="text-2xl font-black italic text-white tracking-tighter drop-shadow-md">REBRAND</span>
-                                  {/* Чіп */}
                                   <div className="w-12 h-9 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md border border-yellow-700/50 relative overflow-hidden shadow-inner">
-                                      <div className="absolute inset-0 border border-black/10 rounded-md"></div>
-                                      <div className="absolute top-1/2 left-0 w-full h-[1px] bg-black/20"></div>
-                                      <div className="absolute left-1/2 top-0 h-full w-[1px] bg-black/20"></div>
                                       <Wifi size={16} className="absolute right-1 top-1 text-black/20 -rotate-90"/>
                                   </div>
                               </div>
-                              <div className="text-right">
-                                  <div className={`flex items-center gap-2 font-bold uppercase tracking-widest ${tierStyle.text} bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10`}>
-                                      <TierIcon size={16} />
-                                      {currentTier.name}
+                              <div className={`flex items-center gap-2 font-bold uppercase tracking-widest ${tierStyle.text} bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10`}>
+                                  <TierIcon size={16} />
+                                  {currentTier.name}
+                              </div>
+                          </div>
+
+                          <div className="relative z-10">
+                              <div className="font-mono text-xl text-white/90 tracking-widest drop-shadow-md mb-1">{formattedCardNumber}</div>
+                              <div className="flex justify-between items-end mt-6">
+                                  <div>
+                                      <div className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">Власник</div>
+                                      <div className="text-sm font-bold text-white uppercase tracking-wide">{profile.full_name || "MEMBER"}</div>
                                   </div>
-                              </div>
-                          </div>
-
-                          {/* Центр: Номер картки */}
-                          <div className="font-mono text-xl md:text-2xl text-white tracking-widest drop-shadow-md opacity-90 mt-4" style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.5)" }}>
-                              {formattedCardNumber}
-                          </div>
-
-                          {/* Низ: Ім'я та Баланс + Штрих-код */}
-                          <div className="flex justify-between items-end">
-                              <div>
-                                  <div className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">Власник</div>
-                                  <div className="text-sm font-bold text-white uppercase tracking-wide">{profile.full_name || "VALUED MEMBER"}</div>
-                              </div>
-                              
-                              <div className="flex flex-col items-end gap-2">
                                   <div className="text-right">
                                       <div className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">Баланс</div>
                                       <div className="text-2xl font-black text-white leading-none">{profile.bonus_points} ₴</div>
@@ -515,15 +460,37 @@ export default function UserProfile() {
                               </div>
                           </div>
                       </div>
-                      
-                      {/* Штрих-код знизу */}
-                      <div className="absolute bottom-0 left-0 w-full h-12 bg-white flex items-center justify-center px-8">
-                           <Barcode />
-                           <div className="absolute bottom-1 right-4 text-[8px] text-black font-mono tracking-[0.2em]">
-                               {session?.user?.id?.slice(0, 8).toUpperCase() || "00000000"}
-                           </div>
+
+                      {/* === ЗАДНЯ СТОРОНА === */}
+                      <div 
+                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-zinc-900 p-0 flex flex-col justify-between backface-hidden`}
+                        style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+                      >
+                         <div className="mt-6 h-12 w-full bg-black"></div>
+                         
+                         <div className="px-8 flex-1 flex flex-col justify-center items-center gap-4">
+                             <div className="w-full bg-white px-4 py-2 flex items-center gap-4">
+                                 <div className="flex-1 h-8 bg-gray-200 font-handwriting flex items-center px-2 text-black italic font-bold">
+                                     Authorized Signature
+                                 </div>
+                                 <div className="text-black font-bold font-mono text-lg">
+                                     {session?.user?.id?.slice(0, 3).toUpperCase()}
+                                 </div>
+                             </div>
+
+                             <div className="w-full bg-white p-4 rounded-xl flex flex-col items-center justify-center">
+                                 <Barcode className="w-full h-16" />
+                                 <div className="text-black font-mono text-xs tracking-[0.3em] mt-2">
+                                     {session?.user?.id?.slice(0, 12).toUpperCase() || "000000000000"}
+                                 </div>
+                             </div>
+                             
+                             <p className="text-zinc-500 text-[10px] text-center max-w-xs">
+                                 Ця картка є власністю REBRAND STUDIO. Використовуйте для нарахування та списання бонусів.
+                             </p>
+                         </div>
                       </div>
-                  </div>
+                  </motion.div>
               </div>
 
               {/* Прогрес до наступного рівня */}
