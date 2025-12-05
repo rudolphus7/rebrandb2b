@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { 
-  ChevronDown, Package, Clock, User, Phone, MapPin, CreditCard, Truck
+  ChevronDown, Package, Clock, User, Phone, MapPin, CreditCard, Truck, Calendar, ChevronLeft, ChevronRight, X
 } from "lucide-react";
 import ProductImage from "../../components/ProductImage";
 
-// Константи кольорів (твої рідні)
+// Константи кольорів
 const STATUSES: any = {
   new: { label: "Нове", color: "bg-blue-900/30 text-blue-400 border-blue-800" },
   processing: { label: "В обробці", color: "bg-yellow-900/30 text-yellow-400 border-yellow-800" },
@@ -17,25 +17,65 @@ const STATUSES: any = {
   cancelled: { label: "Скасовано", color: "bg-red-900/30 text-red-400 border-red-800" },
 };
 
-export default function OrdersClient({ initialOrders }: { initialOrders: any[] }) {
+interface OrdersClientProps {
+  initialOrders: any[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+export default function OrdersClient({ initialOrders, totalCount, totalPages, currentPage }: OrdersClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  
   const currentFilter = searchParams.get("status") || "all";
+  const dateFromParam = searchParams.get("dateFrom") || "";
+  const dateToParam = searchParams.get("dateTo") || "";
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   
-  // Ми використовуємо initialOrders як стартові дані, але Next.js оновить їх при зміні URL
-  const orders = initialOrders; 
+  // Локальний стейт для дат (щоб не перезавантажувати сторінку при кожному введенні символу)
+  const [dateFrom, setDateFrom] = useState(dateFromParam);
+  const [dateTo, setDateTo] = useState(dateToParam);
+
+  // Оновлення URL параметрів (це тригер для серверного оновлення даних)
+  const updateParams = (newParams: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value === null || value === "") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+
+    // При зміні фільтрів завжди скидаємо на 1 сторінку
+    if (newParams.page === undefined) {
+        params.set("page", "1");
+    }
+
+    router.push(`/admin/orders?${params.toString()}`);
+  };
 
   const handleFilterChange = (status: string) => {
-    // Магія Next.js: замість стейту ми міняємо URL. 
-    // Це змушує сервер перерендерити сторінку з новими даними.
-    const params = new URLSearchParams(searchParams);
-    if (status === "all") {
-      params.delete("status");
-    } else {
-      params.set("status", status);
-    }
+    updateParams({ status: status === "all" ? null : status });
+  };
+
+  const handleDateApply = () => {
+    updateParams({ dateFrom, dateTo });
+  };
+
+  const handleDateClear = () => {
+    setDateFrom("");
+    setDateTo("");
+    updateParams({ dateFrom: null, dateTo: null });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
     router.push(`/admin/orders?${params.toString()}`);
   };
 
@@ -48,7 +88,6 @@ export default function OrdersClient({ initialOrders }: { initialOrders: any[] }
     if (error) {
       alert("Помилка оновлення: " + error.message);
     } else {
-      // Оновлюємо сторінку без перезавантаження, щоб підтягнути нові дані з сервера
       router.refresh(); 
     }
   }
@@ -59,44 +98,96 @@ export default function OrdersClient({ initialOrders }: { initialOrders: any[] }
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Замовлення</h1>
-          <p className="text-gray-400 text-sm mt-1">Керування продажами та статусами</p>
+      {/* --- Верхня панель: Заголовок + Фільтри + Дати --- */}
+      <div className="flex flex-col gap-6 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Замовлення <span className="text-gray-500 text-lg font-normal ml-2">({totalCount})</span></h1>
+              <p className="text-gray-400 text-sm mt-1">Керування продажами та статусами</p>
+            </div>
+
+            {/* Фільтр статусів */}
+            <div className="flex bg-[#1a1a1a] p-1 rounded-xl border border-white/10 overflow-x-auto max-w-full">
+              {["all", "new", "processing", "shipped", "completed", "cancelled"].map((status) => (
+                <button 
+                    key={status}
+                    onClick={() => handleFilterChange(status)}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition capitalize whitespace-nowrap ${
+                      (status === "all" && currentFilter === "all") || currentFilter === status 
+                        ? "bg-white text-black shadow-md" 
+                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                    {status === "all" ? "Всі" : STATUSES[status]?.label || status}
+                </button>
+              ))}
+            </div>
         </div>
-        
-        {/* Фільтр статусів через URL */}
-        <div className="flex bg-[#1a1a1a] p-1 rounded-xl border border-white/10">
-           {["all", "new", "processing"].map((status) => (
-             <button 
-                key={status}
-                onClick={() => handleFilterChange(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition capitalize ${
-                  (status === "all" && currentFilter === "all") || currentFilter === status 
-                    ? "bg-white text-black" 
-                    : "text-gray-400 hover:text-white"
-                }`}
-             >
-                {status === "all" ? "Всі" : STATUSES[status]?.label || status}
-             </button>
-           ))}
+
+        {/* Панель фільтрації по датах */}
+        <div className="flex flex-wrap items-center gap-4 bg-[#111] p-4 rounded-xl border border-white/5">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Calendar size={16} />
+                <span className="font-medium text-white">Період:</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+                <input 
+                    type="date" 
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-[#1a1a1a] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 transition w-36"
+                />
+                <span className="text-gray-500">-</span>
+                <input 
+                    type="date" 
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-[#1a1a1a] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 transition w-36"
+                />
+            </div>
+
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={handleDateApply}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg transition shadow-lg shadow-blue-900/20"
+                >
+                    Застосувати
+                </button>
+                {(dateFrom || dateTo) && (
+                    <button 
+                        onClick={handleDateClear}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                        title="Скинути дати"
+                    >
+                        <X size={18} />
+                    </button>
+                )}
+            </div>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {orders.length === 0 ? (
-          <div className="p-10 text-center bg-[#1a1a1a] rounded-2xl border border-white/5">
-            <Package size={48} className="mx-auto text-gray-600 mb-4"/>
-            <p className="text-gray-400">Замовлень поки немає</p>
+      {/* --- Список замовлень --- */}
+      <div className="space-y-4 min-h-[400px]">
+        {initialOrders.length === 0 ? (
+          <div className="p-16 text-center bg-[#1a1a1a] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+            <Package size={64} className="text-gray-700 mb-6"/>
+            <p className="text-xl text-white font-bold mb-2">Замовлень не знайдено</p>
+            <p className="text-gray-500">Спробуйте змінити фільтри або дати</p>
+            {(dateFromParam || dateToParam || currentFilter !== 'all') && (
+                <button onClick={() => { handleDateClear(); handleFilterChange('all'); }} className="mt-6 text-blue-400 hover:underline">
+                    Скинути всі фільтри
+                </button>
+            )}
           </div>
         ) : (
-          orders.map((order) => (
+          initialOrders.map((order) => (
             <div key={order.id} className={`bg-[#1a1a1a] border rounded-xl overflow-hidden transition ${expandedId === order.id ? "border-blue-500 ring-1 ring-blue-500" : "border-white/5 hover:border-white/20"}`}>
                 
                 {/* Рядок заголовка */}
-                <div className="p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                <div className="p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer hover:bg-white/[0.02] transition" onClick={() => toggleExpand(order.id)}>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center font-bold text-gray-400">
+                        <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center font-bold text-gray-400 text-sm">
                             #{order.id}
                         </div>
                         <div>
@@ -206,6 +297,31 @@ export default function OrdersClient({ initialOrders }: { initialOrders: any[] }
           ))
         )}
       </div>
+
+      {/* --- Пагінація --- */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8 pb-8">
+            <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-3 bg-[#1a1a1a] rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+                <ChevronLeft size={20} />
+            </button>
+            
+            <div className="text-sm font-bold text-gray-400">
+                Сторінка <span className="text-white">{currentPage}</span> з {totalPages}
+            </div>
+
+            <button 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-3 bg-[#1a1a1a] rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+                <ChevronRight size={20} />
+            </button>
+        </div>
+      )}
     </div>
   );
 }
