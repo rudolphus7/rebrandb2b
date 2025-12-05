@@ -10,7 +10,7 @@ import { useCart } from "../../components/CartContext";
 import CartDrawer from "../../components/CartDrawer"; 
 import { 
   Heart, Truck, CheckCircle, ShoppingBag, 
-  ChevronRight, Check, Minus, Plus, LayoutList, AlertCircle
+  ChevronRight, Check, Minus, Plus, LayoutList, AlertCircle, Info
 } from "lucide-react";
 
 export default function ProductPage() {
@@ -57,10 +57,12 @@ export default function ProductPage() {
 
       setProduct(currentProduct);
       
+      // Логіка галереї: якщо є масив images, беремо його.
       const imagesList = currentProduct.images && Array.isArray(currentProduct.images) && currentProduct.images.length > 0
         ? currentProduct.images 
         : [currentProduct.image_url];
       
+      // Перевіряємо, чи є головне фото в списку, якщо ні - додаємо
       if (!imagesList.includes(currentProduct.image_url) && currentProduct.image_url) {
         imagesList.unshift(currentProduct.image_url);
       }
@@ -71,6 +73,7 @@ export default function ProductPage() {
       setSingleQuantity(1);
       setQuantities({});
 
+      // Завантажуємо варіанти кольорів
       const { data: relatedProducts } = await supabase
         .from("products")
         .select("*")
@@ -167,37 +170,37 @@ export default function ProductPage() {
 
   async function handleLogout() { await supabase.auth.signOut(); router.push("/"); }
 
-  if (loading) return <div className="min-h-screen bg-[#111] flex items-center justify-center text-white">Завантаження...</div>;
-  if (!product) return <div className="min-h-screen bg-[#111] flex items-center justify-center text-white">Товар не знайдено</div>;
+  if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white"><div className="animate-pulse">Завантаження товару...</div></div>;
+  if (!product) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white">Товар не знайдено</div>;
 
   const stockFree = getStockFree();
   const hasSizes = product.sizes && Array.isArray(product.sizes) && product.sizes.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] text-gray-900 font-sans pb-20">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans pb-20">
       
-      <div className="bg-[#111]">
-        <Header 
-            onCartClick={() => setIsCartOpen(true)} 
-            cartCount={totalItems} 
-            onLogout={handleLogout}
-            onMobileMenuClick={() => {}}
-        />
-      </div>
+      {/* Header */}
+      <Header 
+          onCartClick={() => setIsCartOpen(true)} 
+          cartCount={totalItems} 
+          onLogout={handleLogout}
+          onMobileMenuClick={() => {}}
+      />
 
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         
-        <div className="text-xs text-gray-500 mb-6 flex items-center gap-2 uppercase tracking-widest flex-wrap">
-           <Link href="/" className="hover:text-black transition">Головна</Link> <ChevronRight size={12}/>
-           <Link href="/catalog" className="hover:text-black transition">Каталог</Link> <ChevronRight size={12}/>
-           <span className="text-gray-800 font-bold truncate max-w-[300px]">{product.title}</span>
+        {/* Breadcrumbs */}
+        <div className="text-xs text-gray-500 mb-8 flex items-center gap-2 uppercase tracking-widest flex-wrap">
+           <Link href="/" className="hover:text-white transition">Головна</Link> <ChevronRight size={12}/>
+           <Link href="/catalog" className="hover:text-white transition">Каталог</Link> <ChevronRight size={12}/>
+           <span className="text-white font-bold truncate max-w-[300px]">{product.title}</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           
-          {/* === ЛІВА ЧАСТИНА: ГАЛЕРЕЯ === */}
+          {/* === ЛІВА ЧАСТИНА: ГАЛЕРЕЯ (DARK) === */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="bg-white rounded-2xl p-4 border border-gray-200 aspect-[3/4] flex items-center justify-center relative overflow-hidden group shadow-sm">
+            <div className="bg-[#111] rounded-2xl p-4 border border-white/5 aspect-[3/4] flex items-center justify-center relative overflow-hidden group">
                <div className="w-full h-full relative">
                  <ProductImage 
                    src={activeImage || product.image_url} 
@@ -206,7 +209,7 @@ export default function ProductPage() {
                    className="transition duration-500 object-contain"
                  />
                </div>
-               <button className="absolute top-4 right-4 bg-white p-2 rounded-full hover:bg-gray-100 transition text-gray-400 hover:text-red-500 shadow-md z-10">
+               <button className="absolute top-4 right-4 bg-black/40 backdrop-blur-md p-2 rounded-full hover:bg-red-500/80 transition text-white/70 hover:text-white z-10 border border-white/10">
                  <Heart size={20}/>
                </button>
             </div>
@@ -218,9 +221,9 @@ export default function ProductPage() {
                         <div 
                             key={idx} 
                             onClick={() => setActiveImage(img)}
-                            className={`w-20 h-24 flex-shrink-0 bg-white border rounded-lg overflow-hidden cursor-pointer transition relative ${activeImage === img ? "border-blue-600 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-400"}`}
+                            className={`w-20 h-24 flex-shrink-0 bg-[#111] border rounded-lg overflow-hidden cursor-pointer transition relative ${activeImage === img ? "border-blue-500 ring-1 ring-blue-500" : "border-white/10 hover:border-white/30"}`}
                         >
-                            <ProductImage src={img} alt={`View ${idx}`} fill className="object-cover"/>
+                            <ProductImage src={img} alt={`View ${idx}`} fill className="object-cover opacity-80 hover:opacity-100 transition"/>
                         </div>
                     ))}
                 </div>
@@ -228,22 +231,22 @@ export default function ProductPage() {
 
             {/* Варіанти кольорів */}
             {variants.length > 1 && (
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2 flex justify-between">
+                <div className="bg-[#111] p-6 rounded-2xl border border-white/5">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 border-b border-white/5 pb-3 flex justify-between">
                         <span>Інші кольори</span>
-                        <span className="text-black bg-gray-100 px-2 rounded-full text-xs flex items-center">{variants.length}</span>
+                        <span className="text-white bg-white/10 px-2 rounded-full text-[10px] flex items-center">{variants.length}</span>
                     </h3>
                     <div className="grid grid-cols-5 sm:grid-cols-6 gap-3">
                         {variants.map((v) => (
                             <Link 
                               key={v.id} 
                               href={`/product/${v.id}`} 
-                              className={`aspect-square rounded-lg overflow-hidden border-2 transition relative group ${Number(product.id) === Number(v.id) ? "border-blue-600 shadow-md scale-105" : "border-gray-100 hover:border-gray-300"}`}
+                              className={`aspect-square rounded-lg overflow-hidden border-2 transition relative group ${Number(product.id) === Number(v.id) ? "border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105" : "border-white/5 hover:border-white/30"}`}
                               title={v.color || "Варіант"}
                             >
                                 <ProductImage src={v.image_url} alt="Color Variant" fill />
                                 {Number(product.id) === Number(v.id) && (
-                                   <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
+                                   <div className="absolute inset-0 bg-blue-600/30 flex items-center justify-center backdrop-blur-[1px]">
                                       <Check size={16} className="text-white drop-shadow-md stroke-[3]"/>
                                    </div>
                                 )}
@@ -254,39 +257,36 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* === ПРАВА ЧАСТИНА: ІНФО ТА КУПІВЛЯ === */}
+          {/* === ПРАВА ЧАСТИНА: ІНФО ТА ЗАМОВЛЕННЯ (DARK) === */}
           <div className="lg:col-span-6">
             <div className="sticky top-24 space-y-8">
               
               <div>
-                 <h1 className="text-3xl lg:text-4xl font-black mb-3 text-gray-900 leading-tight">{product.title}</h1>
-                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono font-bold text-gray-700">Арт: {product.sku}</span>
-                    {product.brand && <span className="font-medium text-gray-700">Бренд: {product.brand}</span>}
+                 <h1 className="text-3xl lg:text-4xl font-black mb-4 text-white leading-tight">{product.title}</h1>
+                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                    <span className="bg-[#222] border border-white/10 px-3 py-1 rounded text-xs font-mono font-bold text-gray-300">Арт: {product.sku}</span>
+                    {product.brand && <span className="font-medium text-gray-300 flex items-center gap-2"><span className="w-1 h-1 bg-gray-500 rounded-full"></span> {product.brand}</span>}
                  </div>
               </div>
 
-              {/* КАРТКА ЦІНИ ТА ВИБОРУ */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                  <div className="flex justify-between items-center mb-6">
+              {/* ГОЛОВНИЙ БЛОК: ЦІНА + ТАБЛИЦЯ */}
+              <div className="bg-[#111] p-6 lg:p-8 rounded-3xl border border-white/5 shadow-2xl">
+                  <div className="flex justify-between items-start mb-8">
                      <div className="flex flex-col">
-                        <span className="text-gray-400 text-xs font-bold uppercase">Ціна за шт.</span>
-                        <div className="text-4xl font-black text-gray-900 tracking-tight">
-                           {product.price} <span className="text-xl font-medium text-gray-400">грн</span>
+                        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Гуртова ціна</span>
+                        <div className="text-5xl font-black text-white tracking-tight flex items-baseline gap-2">
+                           {product.price} <span className="text-xl font-medium text-gray-500">грн</span>
                         </div>
                      </div>
                      
-                     {/* Статус наявності (Якщо немає розмірів) */}
                      {!hasSizes && (
-                         <div className="text-right">
+                         <div className="text-right mt-2">
                             {stockFree > 0 ? (
-                              <div className="flex flex-col items-end">
-                                  <span className="text-green-600 bg-green-50 px-3 py-1 rounded-full text-sm font-bold border border-green-100 flex items-center gap-2 mb-1">
-                                    <CheckCircle size={16}/> В наявності: {stockFree}
+                                  <span className="text-green-400 bg-green-900/20 px-4 py-1.5 rounded-full text-xs font-bold border border-green-500/20 flex items-center gap-2">
+                                    <CheckCircle size={14}/> В наявності: {stockFree}
                                   </span>
-                              </div>
                             ) : (
-                              <span className="text-red-500 bg-red-50 px-3 py-1 rounded-full text-sm font-bold border border-red-100">
+                              <span className="text-red-400 bg-red-900/20 px-4 py-1.5 rounded-full text-xs font-bold border border-red-500/20">
                                 Немає в наявності
                               </span>
                             )}
@@ -294,77 +294,76 @@ export default function ProductPage() {
                      )}
                   </div>
 
-                  {/* --- ТАБЛИЦЯ РОЗМІРІВ (Відновлена) --- */}
+                  {/* --- СПИСОК РОЗМІРІВ (TOTOBI DARK STYLE) --- */}
                   {hasSizes && (
                       <div className="mb-8">
-                          {/* Шапка таблиці */}
-                          <div className="grid grid-cols-12 text-xs text-gray-400 font-bold uppercase tracking-wider mb-2 px-2">
+                          {/* Шапка */}
+                          <div className="grid grid-cols-12 text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3 px-4">
                              <div className="col-span-3">Розмір</div>
                              <div className="col-span-3 text-center">Склад</div>
-                             <div className="col-span-3 text-center text-blue-600">Доступно</div>
-                             <div className="col-span-3 text-right">Замовити</div>
+                             <div className="col-span-3 text-center text-blue-400">Доступно</div>
+                             <div className="col-span-3 text-right">Кількість</div>
                           </div>
 
-                          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                          {/* Список БЕЗ скролу (повна висота) */}
+                          <div className="space-y-3">
                              {product.sizes.map((size: any, idx: number) => {
-                                 // Логіка: Загальний склад
                                  const totalStock = size.stock_available || 0;
-                                 // Резерв
                                  const reserve = size.reserve || 0;
-                                 // Доступно до покупки
                                  const available = getRealAvailable(totalStock, reserve);
-                                 
                                  const currentQty = quantities[size.label] || "";
 
                                  return (
-                                    <div key={idx} className={`grid grid-cols-12 items-center bg-white border p-3 rounded-xl transition ${available > 0 ? "border-gray-200 hover:border-blue-400 hover:shadow-md" : "border-gray-100 opacity-60 bg-gray-50"}`}>
+                                    <div key={idx} className={`grid grid-cols-12 items-center bg-[#1a1a1a] border p-4 rounded-2xl transition duration-200 ${available > 0 ? "border-white/5 hover:border-blue-500/50 hover:bg-[#222]" : "border-white/5 opacity-40 bg-black"}`}>
                                         
-                                        {/* Розмір і Ціна */}
+                                        {/* Розмір */}
                                         <div className="col-span-3">
-                                            <div className="font-black text-lg text-gray-900">{size.label}</div>
-                                            <div className="text-[10px] text-gray-400 font-mono">{Math.ceil(size.price * 1.2)} грн</div>
+                                            <div className="font-black text-xl text-white">{size.label}</div>
+                                            <div className="text-[10px] text-gray-500 font-mono mt-0.5">{Math.ceil(size.price * 1.2)} грн</div>
                                         </div>
                                         
-                                        {/* На складі (Загальна) */}
+                                        {/* На складі */}
                                         <div className="col-span-3 text-center">
-                                            <span className="text-gray-500 font-medium">{totalStock}</span>
+                                            <span className="text-gray-500 font-bold text-sm">{totalStock}</span>
                                         </div>
 
-                                        {/* Доступно (Реальна) */}
+                                        {/* Доступно */}
                                         <div className="col-span-3 text-center">
-                                             <span className={`font-bold ${available > 0 ? "text-blue-600" : "text-gray-400"}`}>
+                                             <span className={`font-black text-lg ${available > 0 ? "text-blue-400" : "text-gray-600"}`}>
                                                  {available}
                                              </span>
                                         </div>
 
-                                        {/* Інпут */}
+                                        {/* Input (Pill Style) */}
                                         <div className="col-span-3 flex justify-end">
                                              {available > 0 ? (
-                                                <input 
-                                                    type="number" 
-                                                    min="0"
-                                                    max={available}
-                                                    placeholder="0"
-                                                    value={currentQty}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value === "" ? 0 : parseInt(e.target.value);
-                                                        // Не даємо ввести більше ніж доступно
-                                                        if (val > available) return;
-                                                        // Якщо ввели 0, видаляємо з об'єкта
-                                                        if (val === 0) {
-                                                            const newQ = {...quantities};
-                                                            delete newQ[size.label];
-                                                            setQuantities(newQ);
-                                                        } else {
-                                                            setQuantities({...quantities, [size.label]: val});
-                                                        }
-                                                    }}
-                                                    className={`w-20 py-1.5 px-2 text-center border-2 rounded-full font-bold outline-none transition text-lg
-                                                        ${currentQty !== "" && currentQty > 0 ? "border-blue-600 text-blue-600 bg-blue-50" : "border-gray-300 text-gray-900 focus:border-blue-400 hover:border-gray-400"}
-                                                    `}
-                                                />
+                                                <div className="relative">
+                                                    <input 
+                                                        type="number" 
+                                                        min="0"
+                                                        max={available}
+                                                        placeholder="0"
+                                                        value={currentQty}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value === "" ? 0 : parseInt(e.target.value);
+                                                            if (val > available) return;
+                                                            if (val === 0) {
+                                                                const newQ = {...quantities};
+                                                                delete newQ[size.label];
+                                                                setQuantities(newQ);
+                                                            } else {
+                                                                setQuantities({...quantities, [size.label]: val});
+                                                            }
+                                                        }}
+                                                        className={`w-20 py-2 px-1 text-center bg-transparent border-2 rounded-full font-bold outline-none transition text-lg
+                                                            ${currentQty !== "" && currentQty > 0 
+                                                                ? "border-blue-500 text-blue-400 bg-blue-900/10 shadow-[0_0_10px_rgba(59,130,246,0.2)]" 
+                                                                : "border-white/10 text-white focus:border-blue-500/50 hover:border-white/30"}
+                                                        `}
+                                                    />
+                                                </div>
                                              ) : (
-                                                 <span className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded border border-red-100">Немає</span>
+                                                 <span className="text-[10px] text-red-400 font-bold bg-red-900/10 px-3 py-1.5 rounded-full border border-red-900/30">Немає</span>
                                              )}
                                         </div>
                                     </div>
@@ -374,42 +373,44 @@ export default function ProductPage() {
                       </div>
                   )}
 
-                  {/* КУПІВЛЯ (Для товарів без розмірів) */}
+                  {/* КУПІВЛЯ (Без розмірів) */}
                   {!hasSizes && (
-                      <div className="flex items-center gap-4 border-t border-gray-100 pt-6">
-                          <div className="flex items-center bg-gray-100 rounded-xl overflow-hidden border border-gray-200 h-12">
-                              <button onClick={() => setSingleQuantity(prev => Math.max(1, prev - 1))} className="w-10 h-full hover:bg-gray-200 transition text-gray-600 disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity <= 1}><Minus size={16} className="mx-auto"/></button>
-                              <input type="number" className="w-14 bg-transparent text-center font-bold text-lg text-gray-900 outline-none" value={singleQuantity} onChange={(e) => { const val = parseInt(e.target.value) || 1; setSingleQuantity(Math.min(val, stockFree)); }} disabled={stockFree <= 0} />
-                              <button onClick={() => setSingleQuantity(prev => Math.min(stockFree, prev + 1))} className="w-10 h-full hover:bg-gray-200 transition text-gray-600 disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity >= stockFree}><Plus size={16} className="mx-auto"/></button>
+                      <div className="flex items-center gap-4 border-t border-white/10 pt-8">
+                          <div className="flex items-center bg-[#000] rounded-xl overflow-hidden border border-white/10 h-14 w-40">
+                              <button onClick={() => setSingleQuantity(prev => Math.max(1, prev - 1))} className="w-12 h-full hover:bg-white/10 transition text-white disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity <= 1}><Minus size={18} className="mx-auto"/></button>
+                              <input type="number" className="flex-1 bg-transparent text-center font-black text-xl text-white outline-none" value={singleQuantity} onChange={(e) => { const val = parseInt(e.target.value) || 1; setSingleQuantity(Math.min(val, stockFree)); }} disabled={stockFree <= 0} />
+                              <button onClick={() => setSingleQuantity(prev => Math.min(stockFree, prev + 1))} className="w-12 h-full hover:bg-white/10 transition text-white disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity >= stockFree}><Plus size={18} className="mx-auto"/></button>
                           </div>
                           
-                          <button onClick={handleAddToCart} disabled={stockFree <= 0} className="flex-1 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed font-bold h-12 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-blue-200">
-                            <ShoppingBag size={20}/> Купити
+                          <button onClick={handleAddToCart} disabled={stockFree <= 0} className="flex-1 bg-white text-black hover:bg-blue-500 hover:text-white disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed font-black h-14 rounded-xl flex items-center justify-center gap-2 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                            <ShoppingBag size={20}/> <span className="uppercase tracking-widest text-sm">Купити</span>
                           </button>
                       </div>
                   )}
 
-                  {/* Підсумок для розмірної сітки */}
+                  {/* Підсумок */}
                   {hasSizes && (
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-6">
+                      <div className="flex items-center justify-between border-t border-white/10 pt-8 mt-4">
                            <div>
-                              <p className="text-gray-400 text-xs font-bold uppercase mb-1">Разом до сплати</p>
-                              <p className="text-2xl font-black text-gray-900">{calculateTotal()} грн</p>
+                              <p className="text-gray-500 text-[10px] font-bold uppercase mb-1 tracking-widest">Разом до сплати</p>
+                              <p className="text-3xl font-black text-white">{calculateTotal()} <span className="text-lg text-gray-500 font-medium">грн</span></p>
                            </div>
-                           <button onClick={handleAddToCart} disabled={calculateTotal() === 0} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-bold px-8 py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-blue-200">
-                             <ShoppingBag size={20}/> У кошик
+                           <button onClick={handleAddToCart} disabled={calculateTotal() === 0} className="bg-white text-black hover:bg-blue-600 hover:text-white disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed font-black px-10 py-4 rounded-xl flex items-center justify-center gap-3 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]">
+                             <ShoppingBag size={22}/> <span className="uppercase tracking-widest text-sm">У кошик</span>
                            </button>
                       </div>
                   )}
               </div>
 
               {/* Інфо про доставку */}
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3 items-start">
-                  <Truck className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="p-5 bg-[#1a1a00] border border-yellow-900/30 rounded-2xl flex gap-4 items-start">
+                  <div className="p-2 bg-yellow-900/20 rounded-lg text-yellow-500">
+                    <Truck size={24} />
+                  </div>
                   <div>
-                      <h4 className="text-yellow-800 font-bold text-sm mb-1">Склад постачальника</h4>
-                      <p className="text-yellow-700 text-xs leading-relaxed">
-                        Відвантаження відбувається протягом 1-3 робочих днів. Залишки оновлюються автоматично.
+                      <h4 className="text-yellow-500 font-bold text-sm mb-1 uppercase tracking-wide">Склад постачальника</h4>
+                      <p className="text-yellow-200/60 text-xs leading-relaxed">
+                        Відвантаження відбувається протягом 1-3 робочих днів. Залишки оновлюються автоматично в режимі реального часу.
                       </p>
                   </div>
               </div>
@@ -419,47 +420,47 @@ export default function ProductPage() {
 
         </div>
 
-        {/* === ВЕЛИКА ТАБЛИЦЯ НАЯВНОСТІ (МАТРИЦЯ) === */}
+        {/* === ВЕЛИКА МАТРИЦЯ (ДЛЯ МЕНЕДЖЕРА) === */}
         {variants.length > 0 && (
-            <div className="mt-12 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <LayoutList size={24} className="text-blue-600"/> Наявність по складах
+            <div className="mt-16 bg-[#111] rounded-3xl border border-white/5 overflow-hidden">
+                <div className="p-8 border-b border-white/5 bg-[#161616] flex justify-between items-center">
+                    <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                        <LayoutList size={28} className="text-blue-500"/> Загальна наявність
                     </h2>
-                    <div className="text-xs font-medium text-gray-500 flex gap-4">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span> Є багато</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400"></span> Закінчується</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300"></span> Немає</span>
+                    <div className="text-xs font-bold text-gray-500 flex gap-6 uppercase tracking-wider">
+                        <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Багато</span>
+                        <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></span> Мало</span>
+                        <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-700"></span> Немає</span>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto pb-2">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-white text-gray-500 text-xs uppercase tracking-wider">
-                                <th className="p-4 border-b font-bold w-[200px]">Колір / Артикул</th>
+                            <tr className="bg-[#0a0a0a] text-gray-500 text-[10px] uppercase tracking-widest">
+                                <th className="p-5 border-b border-white/5 font-bold w-[250px]">Колір / Артикул</th>
                                 {allSizes.length > 0 ? (
                                     allSizes.map(size => (
-                                        <th key={size} className="p-4 border-b font-bold text-center min-w-[80px]">{size}</th>
+                                        <th key={size} className="p-5 border-b border-white/5 font-bold text-center min-w-[80px]">{size}</th>
                                     ))
                                 ) : (
-                                    <th className="p-4 border-b font-bold text-center">Залишок</th>
+                                    <th className="p-5 border-b border-white/5 font-bold text-center">Залишок</th>
                                 )}
                             </tr>
                         </thead>
                         <tbody className="text-sm">
                             {variants.map(variant => (
-                                <tr key={variant.id} className={`hover:bg-blue-50 transition border-b border-gray-100 last:border-0 ${Number(product.id) === Number(variant.id) ? "bg-blue-50/50" : ""}`}>
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 relative rounded border border-gray-200 overflow-hidden flex-shrink-0">
+                                <tr key={variant.id} className={`hover:bg-white/[0.02] transition border-b border-white/5 last:border-0 ${Number(product.id) === Number(variant.id) ? "bg-blue-900/10" : ""}`}>
+                                    <td className="p-5">
+                                        <Link href={`/product/${variant.id}`} className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 relative rounded-lg border border-white/10 overflow-hidden flex-shrink-0 group-hover:border-white/30 transition">
                                                 <ProductImage src={variant.image_url} alt={variant.color} fill />
                                             </div>
                                             <div>
-                                                <div className="font-bold text-gray-900">{variant.color}</div>
-                                                <div className="text-xs text-gray-400 font-mono">{variant.sku}</div>
+                                                <div className="font-bold text-white group-hover:text-blue-400 transition">{variant.color}</div>
+                                                <div className="text-[10px] text-gray-500 font-mono mt-1">{variant.sku}</div>
                                             </div>
-                                        </div>
+                                        </Link>
                                     </td>
                                     
                                     {allSizes.length > 0 ? (
@@ -471,23 +472,23 @@ export default function ProductPage() {
 
                                             return (
                                                 <td key={sizeLabel} className="p-2 text-center align-middle">
-                                                    <div className="flex flex-col items-center justify-center h-full min-h-[60px]">
+                                                    <div className="flex flex-col items-center justify-center h-full">
                                                         {realAvailable > 0 ? (
-                                                            <span className={`text-sm font-bold ${realAvailable < 10 ? "text-orange-500" : "text-green-600"}`}>
+                                                            <span className={`text-sm font-bold ${realAvailable < 10 ? "text-orange-500" : "text-green-500"}`}>
                                                                 {realAvailable}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-gray-300 text-lg">-</span>
+                                                            <span className="text-gray-700 text-lg">-</span>
                                                         )}
                                                     </div>
                                                 </td>
                                             );
                                         })
                                     ) : (
-                                        <td className="p-4 text-center">
+                                        <td className="p-5 text-center">
                                             {(() => {
                                                 const realAv = getRealAvailable(variant.amount, variant.reserve);
-                                                return realAv > 0 ? <span className="font-bold text-green-600">{realAv} шт.</span> : <span className="text-gray-400">-</span>
+                                                return realAv > 0 ? <span className="font-bold text-green-500">{realAv} шт.</span> : <span className="text-gray-700">-</span>
                                             })()}
                                         </td>
                                     )}
