@@ -9,9 +9,8 @@ import Header from "../../components/Header";
 import { useCart } from "../../components/CartContext"; 
 import CartDrawer from "../../components/CartDrawer"; 
 import { 
-  ArrowLeft, ShoppingBag, Heart, Share2, Truck, ShieldCheck, 
-  CheckCircle, Star, Package, ChevronRight, Check, Info, AlertCircle,
-  Minus, Plus, LayoutList, Camera
+  Heart, Truck, CheckCircle, ShoppingBag, 
+  ChevronRight, Check, Minus, Plus, LayoutList, AlertCircle
 } from "lucide-react";
 
 export default function ProductPage() {
@@ -34,7 +33,7 @@ export default function ProductPage() {
   const [isCartOpen, setIsCartOpen] = useState(false); 
   const [session, setSession] = useState<any>(null);
 
-  // Для таблиці наявності
+  // Для таблиці наявності (матриця знизу)
   const [allSizes, setAllSizes] = useState<string[]>([]);
 
   useEffect(() => {
@@ -45,7 +44,6 @@ export default function ProductPage() {
     async function fetchProductData() {
       if (!params.id) return;
       
-      // 1. Завантажуємо поточний продукт
       const { data: currentProduct, error } = await supabase
         .from("products")
         .select("*")
@@ -59,14 +57,10 @@ export default function ProductPage() {
 
       setProduct(currentProduct);
       
-      // Логіка галереї:
-      // Якщо в базі є поле 'images' (масив), використовуємо його. 
-      // Якщо немає - створюємо масив з одного головного фото.
       const imagesList = currentProduct.images && Array.isArray(currentProduct.images) && currentProduct.images.length > 0
         ? currentProduct.images 
         : [currentProduct.image_url];
       
-      // Додаємо головне фото на початок, якщо його там немає
       if (!imagesList.includes(currentProduct.image_url) && currentProduct.image_url) {
         imagesList.unshift(currentProduct.image_url);
       }
@@ -77,7 +71,6 @@ export default function ProductPage() {
       setSingleQuantity(1);
       setQuantities({});
 
-      // 2. Завантажуємо ВСІ варіанти цієї моделі
       const { data: relatedProducts } = await supabase
         .from("products")
         .select("*")
@@ -108,8 +101,6 @@ export default function ProductPage() {
   }, [params.id]);
 
   // --- ХЕЛПЕРИ ДЛЯ ЗАЛИШКІВ ---
-
-  // Отримати "Чистий" залишок (Склад - Резерв)
   const getRealAvailable = (stock: number = 0, reserve: number = 0) => {
     return Math.max(0, stock - reserve);
   };
@@ -166,7 +157,6 @@ export default function ProductPage() {
       return (product.price || 0) * singleQuantity;
   };
 
-  // Розрахунок доступного залишку для "простого" товару (без розмірів)
   const getStockFree = (prod: any = product) => {
       if (!prod) return 0;
       if (prod.sizes && prod.sizes.length > 0) {
@@ -186,7 +176,6 @@ export default function ProductPage() {
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 font-sans pb-20">
       
-      {/* HEADER (Темний, як був) */}
       <div className="bg-[#111]">
         <Header 
             onCartClick={() => setIsCartOpen(true)} 
@@ -198,7 +187,6 @@ export default function ProductPage() {
 
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         
-        {/* BREADCRUMBS */}
         <div className="text-xs text-gray-500 mb-6 flex items-center gap-2 uppercase tracking-widest flex-wrap">
            <Link href="/" className="hover:text-black transition">Головна</Link> <ChevronRight size={12}/>
            <Link href="/catalog" className="hover:text-black transition">Каталог</Link> <ChevronRight size={12}/>
@@ -209,8 +197,6 @@ export default function ProductPage() {
           
           {/* === ЛІВА ЧАСТИНА: ГАЛЕРЕЯ === */}
           <div className="lg:col-span-6 space-y-6">
-            
-            {/* Головне фото */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200 aspect-[3/4] flex items-center justify-center relative overflow-hidden group shadow-sm">
                <div className="w-full h-full relative">
                  <ProductImage 
@@ -225,7 +211,7 @@ export default function ProductPage() {
                </button>
             </div>
 
-            {/* Мініатюри (Галерея) */}
+            {/* Мініатюри */}
             {gallery.length > 1 && (
                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                     {gallery.map((img, idx) => (
@@ -268,7 +254,7 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* === ПРАВА ЧАСТИНА: ІНФО === */}
+          {/* === ПРАВА ЧАСТИНА: ІНФО ТА КУПІВЛЯ === */}
           <div className="lg:col-span-6">
             <div className="sticky top-24 space-y-8">
               
@@ -277,11 +263,10 @@ export default function ProductPage() {
                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                     <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono font-bold text-gray-700">Арт: {product.sku}</span>
                     {product.brand && <span className="font-medium text-gray-700">Бренд: {product.brand}</span>}
-                    {product.color && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-400"></span> {product.color}</span>}
                  </div>
               </div>
 
-              {/* Ціна і Статус */}
+              {/* КАРТКА ЦІНИ ТА ВИБОРУ */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-6">
                      <div className="flex flex-col">
@@ -291,7 +276,7 @@ export default function ProductPage() {
                         </div>
                      </div>
                      
-                     {/* Статус наявності (Загальний) */}
+                     {/* Статус наявності (Якщо немає розмірів) */}
                      {!hasSizes && (
                          <div className="text-right">
                             {stockFree > 0 ? (
@@ -309,17 +294,95 @@ export default function ProductPage() {
                      )}
                   </div>
 
-                  {/* КУПІВЛЯ */}
+                  {/* --- ТАБЛИЦЯ РОЗМІРІВ (Відновлена) --- */}
+                  {hasSizes && (
+                      <div className="mb-8">
+                          {/* Шапка таблиці */}
+                          <div className="grid grid-cols-12 text-xs text-gray-400 font-bold uppercase tracking-wider mb-2 px-2">
+                             <div className="col-span-3">Розмір</div>
+                             <div className="col-span-3 text-center">Склад</div>
+                             <div className="col-span-3 text-center text-blue-600">Доступно</div>
+                             <div className="col-span-3 text-right">Замовити</div>
+                          </div>
+
+                          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                             {product.sizes.map((size: any, idx: number) => {
+                                 // Логіка: Загальний склад
+                                 const totalStock = size.stock_available || 0;
+                                 // Резерв
+                                 const reserve = size.reserve || 0;
+                                 // Доступно до покупки
+                                 const available = getRealAvailable(totalStock, reserve);
+                                 
+                                 const currentQty = quantities[size.label] || "";
+
+                                 return (
+                                    <div key={idx} className={`grid grid-cols-12 items-center bg-white border p-3 rounded-xl transition ${available > 0 ? "border-gray-200 hover:border-blue-400 hover:shadow-md" : "border-gray-100 opacity-60 bg-gray-50"}`}>
+                                        
+                                        {/* Розмір і Ціна */}
+                                        <div className="col-span-3">
+                                            <div className="font-black text-lg text-gray-900">{size.label}</div>
+                                            <div className="text-[10px] text-gray-400 font-mono">{Math.ceil(size.price * 1.2)} грн</div>
+                                        </div>
+                                        
+                                        {/* На складі (Загальна) */}
+                                        <div className="col-span-3 text-center">
+                                            <span className="text-gray-500 font-medium">{totalStock}</span>
+                                        </div>
+
+                                        {/* Доступно (Реальна) */}
+                                        <div className="col-span-3 text-center">
+                                             <span className={`font-bold ${available > 0 ? "text-blue-600" : "text-gray-400"}`}>
+                                                 {available}
+                                             </span>
+                                        </div>
+
+                                        {/* Інпут */}
+                                        <div className="col-span-3 flex justify-end">
+                                             {available > 0 ? (
+                                                <input 
+                                                    type="number" 
+                                                    min="0"
+                                                    max={available}
+                                                    placeholder="0"
+                                                    value={currentQty}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value === "" ? 0 : parseInt(e.target.value);
+                                                        // Не даємо ввести більше ніж доступно
+                                                        if (val > available) return;
+                                                        // Якщо ввели 0, видаляємо з об'єкта
+                                                        if (val === 0) {
+                                                            const newQ = {...quantities};
+                                                            delete newQ[size.label];
+                                                            setQuantities(newQ);
+                                                        } else {
+                                                            setQuantities({...quantities, [size.label]: val});
+                                                        }
+                                                    }}
+                                                    className={`w-20 py-1.5 px-2 text-center border-2 rounded-full font-bold outline-none transition text-lg
+                                                        ${currentQty !== "" && currentQty > 0 ? "border-blue-600 text-blue-600 bg-blue-50" : "border-gray-300 text-gray-900 focus:border-blue-400 hover:border-gray-400"}
+                                                    `}
+                                                />
+                                             ) : (
+                                                 <span className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded border border-red-100">Немає</span>
+                                             )}
+                                        </div>
+                                    </div>
+                                 )
+                             })}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* КУПІВЛЯ (Для товарів без розмірів) */}
                   {!hasSizes && (
                       <div className="flex items-center gap-4 border-t border-gray-100 pt-6">
-                          {/* Лічильник */}
                           <div className="flex items-center bg-gray-100 rounded-xl overflow-hidden border border-gray-200 h-12">
                               <button onClick={() => setSingleQuantity(prev => Math.max(1, prev - 1))} className="w-10 h-full hover:bg-gray-200 transition text-gray-600 disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity <= 1}><Minus size={16} className="mx-auto"/></button>
                               <input type="number" className="w-14 bg-transparent text-center font-bold text-lg text-gray-900 outline-none" value={singleQuantity} onChange={(e) => { const val = parseInt(e.target.value) || 1; setSingleQuantity(Math.min(val, stockFree)); }} disabled={stockFree <= 0} />
                               <button onClick={() => setSingleQuantity(prev => Math.min(stockFree, prev + 1))} className="w-10 h-full hover:bg-gray-200 transition text-gray-600 disabled:opacity-30" disabled={stockFree <= 0 || singleQuantity >= stockFree}><Plus size={16} className="mx-auto"/></button>
                           </div>
                           
-                          {/* Кнопка */}
                           <button onClick={handleAddToCart} disabled={stockFree <= 0} className="flex-1 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed font-bold h-12 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-blue-200">
                             <ShoppingBag size={20}/> Купити
                           </button>
@@ -402,40 +465,17 @@ export default function ProductPage() {
                                     {allSizes.length > 0 ? (
                                         allSizes.map(sizeLabel => {
                                             const sizeObj = variant.sizes?.find((s: any) => s.label === sizeLabel);
-                                            
-                                            // 🔥 ГОЛОВНА ЛОГІКА: ДОСТУПНО = СКЛАД - РЕЗЕРВ
                                             const totalOnStock = sizeObj ? (sizeObj.stock_available || 0) : 0;
                                             const reserve = sizeObj ? (sizeObj.reserve || 0) : 0;
                                             const realAvailable = getRealAvailable(totalOnStock, reserve);
-
-                                            // Поточна вибрана кількість у input
-                                            const currentQty = variant.id === product.id ? (quantities[sizeLabel] || "") : "";
 
                                             return (
                                                 <td key={sizeLabel} className="p-2 text-center align-middle">
                                                     <div className="flex flex-col items-center justify-center h-full min-h-[60px]">
                                                         {realAvailable > 0 ? (
-                                                            <>
-                                                                <span className={`text-sm font-bold mb-1 ${realAvailable < 10 ? "text-orange-500" : "text-green-600"}`}>
-                                                                    {realAvailable}
-                                                                </span>
-                                                                {/* Якщо це поточний товар, показуємо інпут */}
-                                                                {Number(variant.id) === Number(product.id) && (
-                                                                    <input 
-                                                                        type="number" 
-                                                                        min="0"
-                                                                        max={realAvailable}
-                                                                        placeholder="0"
-                                                                        value={currentQty}
-                                                                        className="w-12 h-8 text-center border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm transition"
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value === "" ? 0 : parseInt(e.target.value);
-                                                                            if (val > realAvailable) return;
-                                                                            setQuantities({...quantities, [sizeLabel]: val});
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </>
+                                                            <span className={`text-sm font-bold ${realAvailable < 10 ? "text-orange-500" : "text-green-600"}`}>
+                                                                {realAvailable}
+                                                            </span>
                                                         ) : (
                                                             <span className="text-gray-300 text-lg">-</span>
                                                         )}
@@ -445,7 +485,6 @@ export default function ProductPage() {
                                         })
                                     ) : (
                                         <td className="p-4 text-center">
-                                            {/* Для товарів без розмірів */}
                                             {(() => {
                                                 const realAv = getRealAvailable(variant.amount, variant.reserve);
                                                 return realAv > 0 ? <span className="font-bold text-green-600">{realAv} шт.</span> : <span className="text-gray-400">-</span>
