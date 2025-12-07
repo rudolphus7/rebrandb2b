@@ -6,17 +6,18 @@ import { XMLParser } from 'fast-xml-parser';
 export const maxDuration = 60; // Максимальний час виконання
 export const dynamic = 'force-dynamic';
 
-// Ініціалізація Supabase (Service Role для обходу RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+// --- ІНІЦІАЛІЗАЦІЯ SUPABASE ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+// Перевіряємо, чи є сервісний ключ. Якщо немає - пробуємо анон ключ (це може викликати помилки RLS)
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const isServiceKey = serviceKey === process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
   }
-);
+});
 
 const TOPTIME_CATEGORY_MAP: Record<string, string> = {
     '10': 'Футболки', 
@@ -53,7 +54,8 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const rate = parseFloat(searchParams.get('rate') || '43.5');
 
-    log(`🚀 Start Sync: ${provider} | URL provided: ${!!importUrl}`);
+    log(`🚀 Start Sync: ${provider} | Auth Mode: ${isServiceKey ? 'SERVICE_ROLE (Admin)' : 'ANON (Public/Restricted)'}`);
+    if (!isServiceKey) log(`⚠️ WARNING: SUPABASE_SERVICE_ROLE_KEY is missing. RLS policies might block category creation!`);
 
     if (!importUrl) {
          return NextResponse.json({ success: false, error: "URL is empty", debug_log: debugLog }, { status: 400 });
@@ -143,7 +145,6 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
             color: colorValue,
             brand: brandValue,
             category_external_id: offer.categoryId?.toString(),
-            // removed updated_at to fix cache error
         };
     }).filter((p: any) => p.external_id && p.title);
 
@@ -237,7 +238,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
         };
 
         if (!groupedProducts[parentSku]) {
-            // Перевірка різних полів для ID категорії
             const rawCatId = item.id_category || item.categoryId || item.category_id;
             
             groupedProducts[parentSku] = {
@@ -264,15 +264,19 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     log(`Grouped into ${productsList.length} unique products. checking DB categories...`);
 
     // ===========================================
-    // 🔥 АВТО-СТВОРЕННЯ КАТЕГОРІЙ
+    // 🔥 АВТО-СТВОРЕННЯ КАТЕГОРІЙ (FIXED)
     // ===========================================
     
-    // 1. Отримуємо існуючі категорії
+    // 1. Отримуємо існуючі категорії (Initial fetch)
     let { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
-    if (catError) log(`Category fetch warning: ${catError.message}`);
+    if (catError) {
+        log(`Category fetch error: ${catError.message}`);
+        dbCategories = [];
+    }
     if (!dbCategories) dbCategories = [];
+    log(`Initial DB Categories count: ${dbCategories.length}`);
 
-    // 2. Збираємо список назв категорій, які потрібні для цих товарів
+    // 2. Збираємо список назв категорій
     const neededCategoryNames = new Set<string>();
     productsList.forEach(p => {
         if (p._category_id_raw) {
@@ -281,35 +285,42 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
         }
     });
 
-    // 3. Знаходимо, яких ще немає в базі
+    // 3. Знаходимо відсутні
     const missingCategories: string[] = [];
     neededCategoryNames.forEach(name => {
-        // Шукаємо точний збіг (без урахування регістру)
         const exists = dbCategories?.find((c: any) => c.title.toLowerCase().trim() === name.toLowerCase().trim());
         if (!exists) missingCategories.push(name);
     });
 
     // 4. Створюємо відсутні
+    let refetchNeeded = false;
     if (missingCategories.length > 0) {
-        log(`Creating ${missingCategories.length} missing categories: ${missingCategories.join(', ')}`);
+        log(`Attempting to create ${missingCategories.length} categories: ${missingCategories.join(', ')}`);
         
         const newCatsPayload = missingCategories.map(title => ({
             title: title,
-            // Генеруємо безпечний slug
-            slug: 'cat-' + Date.now() + '-' + Math.floor(Math.random() * 10000), 
+            slug: 'cat-' + Date.now() + '-' + Math.floor(Math.random() * 100000), 
             image_url: '' 
         }));
 
         const { error: createError } = await supabaseAdmin.from('categories').insert(newCatsPayload);
         
         if (createError) {
-            log(`Failed to create categories: ${createError.message}`);
-        } else {
-            // Оновлюємо список категорій з бази
-            const { data: refreshed } = await supabaseAdmin.from('categories').select('id, title');
-            if (refreshed) dbCategories = refreshed;
-            log(`Categories created and refreshed.`);
+            log(`Create categories warning: ${createError.message}. (Could be duplicate error, ignoring...)`);
         }
+        refetchNeeded = true;
+    }
+
+    // 5. ОБОВ'ЯЗКОВИЙ RE-FETCH (якщо були спроби створення або список порожній)
+    if (refetchNeeded || dbCategories.length === 0) {
+         log(`Refetching categories...`);
+         const { data: refreshed, error: refreshError } = await supabaseAdmin.from('categories').select('id, title');
+         if (refreshError) {
+             log(`Refetch Error: ${refreshError.message}`);
+         } else if (refreshed) {
+             dbCategories = refreshed;
+             log(`Categories refreshed. New count: ${dbCategories.length}`);
+         }
     }
 
     // ===========================================
@@ -321,7 +332,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     const finalProducts = productsList.map(p => {
         let catId = null;
         
-        // 1. Спроба по ID мапінгу
         if (p._category_id_raw) {
              const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw.toString()];
              if (mapName && dbCategories) {
@@ -330,7 +340,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
              }
         }
         
-        // 2. Спроба по назві (fallback)
         if (!catId && p._category_name_hint && dbCategories) {
             const found = dbCategories.find((c: any) => c.title.toLowerCase().includes(p._category_name_hint.toLowerCase()));
             if (found) catId = found.id;
@@ -338,7 +347,8 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
 
         if (catId) matchedCategoriesCount++;
         else if (matchedCategoriesCount < 3) {
-            log(`Still failed match for ${p.sku} (RawID: ${p._category_id_raw}). DB has ${dbCategories?.length} cats.`);
+            // Лише кілька логів для налагодження
+            log(`Failed match for ${p.sku} (RawID: ${p._category_id_raw}). DB count: ${dbCategories?.length}`);
         }
 
         delete p._category_id_raw;
