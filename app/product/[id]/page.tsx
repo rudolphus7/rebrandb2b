@@ -94,7 +94,9 @@ export default function ProductPage() {
              return order.indexOf(a) - order.indexOf(b);
         });
         
-        setAllSizes(sortedSizes.length > 0 && sortedSizes[0] !== -1 ? sortedSizes : Array.from(sizesSet));
+        // FIX: Прибрано некоректну перевірку `&& sortedSizes[0] !== -1`
+        // sortedSizes містить рядки, тому порівнювати з числом -1 не можна
+        setAllSizes(sortedSizes.length > 0 ? sortedSizes : Array.from(sizesSet));
       }
       
       setLoading(false);
