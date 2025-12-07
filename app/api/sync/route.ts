@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+
+// Ініціалізація Supabase з правами ADMIN (Service Role), щоб обійти RLS
+// Це гарантує, що ми зможемо додавати та оновлювати товари
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Переконайтесь, що цей ключ є в .env.local та Vercel
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
 
 // --- НАЛАШТУВАННЯ КАТЕГОРІЙ TOPTIME ---
 // ID з XML -> Назва категорії у ТВОЇЙ базі даних
@@ -60,8 +73,9 @@ async function syncTotobi(url: string, offset: number, limit: number) {
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
     
-    const allOffers = jsonData.yml_catalog?.shop?.offers?.offer;
-    if (!allOffers) throw new Error("No offers found in XML");
+    // Гнучкий пошук offers
+    const allOffers = jsonData.yml_catalog?.shop?.offers?.offer || jsonData.offers?.offer;
+    if (!allOffers) throw new Error("No offers found in XML. Check XML structure.");
     
     const offersArray = Array.isArray(allOffers) ? allOffers : [allOffers];
     const totalOffers = offersArray.length;
@@ -96,7 +110,6 @@ async function syncTotobi(url: string, offset: number, limit: number) {
         let imageUrl = null;
         if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
 
-        // Отримання бренду і кольору з параметрів
         let colorValue = null;
         let brandValue = offer.vendor;
         if (offer.param) {
@@ -124,7 +137,7 @@ async function syncTotobi(url: string, offset: number, limit: number) {
     }).filter((p: any) => p.external_id && p.title);
 
     if (productsToUpsert.length > 0) {
-        const { error } = await supabase.from('products').upsert(productsToUpsert, { onConflict: 'external_id' });
+        const { error } = await supabaseAdmin.from('products').upsert(productsToUpsert, { onConflict: 'external_id' });
         if (error) throw error;
     }
 
@@ -137,7 +150,7 @@ async function syncTotobi(url: string, offset: number, limit: number) {
 }
 
 // ==========================================
-// 2. ЛОГІКА TOPTIME (XML)
+// 2. ЛОГІКА TOPTIME (XML) - ПОКРАЩЕНА
 // ==========================================
 async function syncTopTime(url: string, eurRate: number) {
     const response = await fetch(url, { cache: 'no-store' });
@@ -147,113 +160,116 @@ async function syncTopTime(url: string, eurRate: number) {
     const parser = new XMLParser();
     const jsonData = parser.parse(xmlText);
 
-    // В TopTime кожен розмір - це окремий item
-    const items = jsonData.yml_catalog?.shop?.items?.item || jsonData.items?.item;
-    if (!items) throw new Error("XML Structure unknown (cannot find items)");
+    // 🔥 ПОКРАЩЕНИЙ ПОШУК ITEMS
+    // Шукаємо масив товарів у різних можливих місцях XML структури
+    let items = null;
+    
+    if (jsonData.items?.item) items = jsonData.items.item;
+    else if (jsonData.yml_catalog?.shop?.items?.item) items = jsonData.yml_catalog.shop.items.item;
+    else if (jsonData.root?.item) items = jsonData.root.item;
+    else if (jsonData.catalog?.item) items = jsonData.catalog.item;
+    else if (jsonData.export?.item) items = jsonData.export.item;
+    else {
+        // Якщо не знайшли в стандартних шляхах, шукаємо перший ключ, що містить 'item'
+        const keys = Object.keys(jsonData);
+        for (const key of keys) {
+            if (jsonData[key]?.item) {
+                items = jsonData[key].item;
+                break;
+            }
+        }
+    }
+
+    if (!items) {
+        throw new Error(`XML Structure unknown. Available root keys: ${Object.keys(jsonData).join(', ')}`);
+    }
 
     const itemsArray = Array.isArray(items) ? items : [items];
     
-    // 1. ГРУПУВАННЯ: Нам треба зібрати всі розміри в один товар
-    // Ключ групування - 'article' (наприклад ST2000_YEL)
+    // 1. ГРУПУВАННЯ
     const groupedProducts: Record<string, any> = {};
 
     for (const item of itemsArray) {
-        const parentSku = item.article; // ST2000_YEL
+        const parentSku = item.article; // наприклад ST2000_YEL
         if (!parentSku) continue;
 
-        // Витягуємо розмір з назви (наприклад "Classic Men, 2XS" -> "2XS")
+        // Розмір
         let sizeLabel = "ONE SIZE";
         if (item.name && item.name.includes(',')) {
             const parts = item.name.split(',');
             sizeLabel = parts[parts.length - 1].trim();
+        } else if (item.code) {
+             // Спробуємо витягнути з коду, якщо в назві немає коми (ST2000_YEL_2XS)
+             const parts = item.code.split('_');
+             if (parts.length > 2) sizeLabel = parts[parts.length - 1];
         }
 
-        // Ціна в грн
+        // Ціна
         const priceEur = parseFloat(item.price);
         const priceUah = Math.ceil(priceEur * eurRate);
 
         // Наявність (count2 - доступно для покупки)
-        const stockAvailable = parseInt(item.count2) || 0;
+        const stockAvailable = parseInt(item.count2 || item.count || '0');
+        const stockTotal = parseInt(item.count3 || item.count || '0');
         
-        // Формуємо об'єкт розміру
         const sizeObj = {
             label: sizeLabel,
             price: priceUah,
-            stock_total: parseInt(item.count3) || 0, // На складі
-            stock_reserve: 0, // TopTime не віддає резерв окремо
+            stock_total: stockTotal, 
+            stock_reserve: 0, 
             stock_available: stockAvailable
         };
 
         if (!groupedProducts[parentSku]) {
-            // Створюємо батьківський товар
-            // Шукаємо категорію в базі
             const categoryName = TOPTIME_CATEGORY_MAP[item.id_category] || null;
-            let categoryId = null;
-
-            if (categoryName) {
-                // Спробуємо знайти категорію в БД (це спрощено, в ідеалі треба кешувати)
-                // Оскільки це серверний код, ми можемо зробити це пізніше або зараз
-                // Тут ми просто запишемо назву, а при upsert спробуємо зв'язати, якщо є ID
-            }
 
             groupedProducts[parentSku] = {
-                external_id: parentSku, // Використовуємо артикул як ID товару
-                title: item.name.split(',')[0].trim(), // "Classic Men"
+                external_id: parentSku,
+                title: item.name.split(',')[0].trim(),
                 price: priceUah,
                 image_url: item.photo,
                 sku: parentSku,
                 description: item.content || item.content_ua || "",
-                amount: 0, // Перерахуємо суму
+                amount: 0, 
                 reserve: 0,
                 sizes: [],
                 color: item.color,
                 brand: item.brand,
-                // Зберігаємо тимчасово ім'я категорії, щоб потім знайти ID
                 _category_name_hint: categoryName 
             };
         }
 
-        // Додаємо розмір
         groupedProducts[parentSku].sizes.push(sizeObj);
         groupedProducts[parentSku].amount += stockAvailable;
     }
 
-    // 2. ПІДГОТОВКА ДО ЗАПИСУ В БД
     const productsList = Object.values(groupedProducts);
 
-    // 3. РОЗУМНИЙ ПОШУК КАТЕГОРІЙ (Опціонально)
-    // Отримуємо всі категорії з БД, щоб знайти UUID
-    const { data: dbCategories } = await supabase.from('categories').select('id, title');
+    // 2. ОТРИМАННЯ КАТЕГОРІЙ З БД
+    const { data: dbCategories } = await supabaseAdmin.from('categories').select('id, title');
     
     const finalProducts = productsList.map(p => {
         let catId = null;
         if (p._category_name_hint && dbCategories) {
-            // Шукаємо схожу категорію
             const found = dbCategories.find((c: any) => 
                 c.title.toLowerCase().includes(p._category_name_hint.toLowerCase())
             );
             if (found) catId = found.id;
         }
-        
-        // Видаляємо тимчасове поле
         delete p._category_name_hint;
-        
-        return {
-            ...p,
-            category_id: catId // Якщо знайшли - прив'язуємо
-        };
+        return { ...p, category_id: catId };
     });
 
-    // 4. BATCH UPSERT (Записуємо пачками по 100, щоб не перевантажити базу)
+    // 3. ЗАПИС У БАЗУ (пачками по 100)
     const BATCH_SIZE = 100;
     for (let i = 0; i < finalProducts.length; i += BATCH_SIZE) {
         const batch = finalProducts.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('products').upsert(batch, { onConflict: 'external_id' });
+        const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
         if (error) console.error("Batch error:", error.message);
     }
 
     return NextResponse.json({ 
-        done: true, // TopTime робимо за один прохід
+        done: true, 
         total: finalProducts.length, 
         processed: finalProducts.length 
     });
