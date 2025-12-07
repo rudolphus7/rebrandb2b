@@ -12,18 +12,19 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
-import ProductImage from "../components/ProductImage";
+import ProductImage from "../components/ProductImage"; // Виправлено шлях
 import { LOYALTY_TIERS, getCurrentTier, getNextTier } from "@/lib/loyaltyUtils";
 
-// --- КАСТОМІЗАЦІЯ РІВНІВ ---
-const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: string, text: string, icon: any, iconColor: string }> = {
+// --- КАСТОМІЗАЦІЯ РІВНІВ (FIX: Додано поле shadow) ---
+const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: string, text: string, icon: any, iconColor: string, shadow: string }> = {
   "Start": { 
     bg: "from-zinc-800 to-zinc-900",
     cardGradient: "bg-gradient-to-br from-zinc-800 via-zinc-900 to-black",
     border: "border-zinc-600",
     text: "text-zinc-300",
     icon: User,
-    iconColor: "text-zinc-400"
+    iconColor: "text-zinc-400",
+    shadow: "shadow-zinc-900/20"
   },
   "Bronze": { 
     bg: "from-orange-900/20 to-zinc-900",
@@ -31,7 +32,8 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
     border: "border-orange-700/50", 
     text: "text-orange-200",
     icon: Shield,
-    iconColor: "text-orange-300"
+    iconColor: "text-orange-300",
+    shadow: "shadow-orange-900/20"
   },
   "Silver": { 
     bg: "from-slate-700/20 to-zinc-900", 
@@ -39,7 +41,8 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
     border: "border-slate-400/50", 
     text: "text-slate-100",
     icon: ShieldCheck,
-    iconColor: "text-white"
+    iconColor: "text-white",
+    shadow: "shadow-slate-500/20"
   },
   "Gold": { 
     bg: "from-yellow-600/20 to-amber-900/20", 
@@ -47,7 +50,8 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
     border: "border-yellow-500/50", 
     text: "text-yellow-100",
     icon: Star,
-    iconColor: "text-yellow-200"
+    iconColor: "text-yellow-200",
+    shadow: "shadow-yellow-500/20"
   },
   "Platinum": { 
     bg: "from-cyan-600/20 to-blue-900/20", 
@@ -55,7 +59,8 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
     border: "border-cyan-400/50", 
     text: "text-cyan-50",
     icon: Gem,
-    iconColor: "text-cyan-100"
+    iconColor: "text-cyan-100",
+    shadow: "shadow-cyan-500/20"
   },
   "Elite": { 
     bg: "from-fuchsia-600/20 to-purple-900/20", 
@@ -63,7 +68,8 @@ const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: st
     border: "border-fuchsia-500/50", 
     text: "text-fuchsia-100",
     icon: Crown,
-    iconColor: "text-fuchsia-200"
+    iconColor: "text-fuchsia-200",
+    shadow: "shadow-fuchsia-500/20"
   }
 };
 
@@ -252,9 +258,9 @@ export default function UserProfile() {
             ${type === 'invoice' 
                 ? `<div class="footer">Рахунок дійсний до сплати протягом 3-х банківських днів.</div>` 
                 : `<div class="footer" style="display: flex; justify-content: space-between; margin-top: 50px;">
-                     <div>Відвантажив: ___________________</div>
-                     <div>Отримав: ___________________</div>
-                   </div>`
+                      <div>Відвантажив: ___________________</div>
+                      <div>Отримав: ___________________</div>
+                    </div>`
             }
         </body>
         </html>
@@ -340,15 +346,15 @@ export default function UserProfile() {
                    <div className={`aspect-[1.58] rounded-2xl p-6 relative overflow-hidden shadow-xl ${tierStyle.cardGradient} border border-white/10 flex flex-col justify-between`}>
                       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
                       <div className="relative z-10 flex justify-between items-start">
-                         <span className="font-black italic text-white/90 tracking-tighter">REBRAND</span>
-                         <TierIcon className="text-white/80" size={24}/>
+                          <span className="font-black italic text-white/90 tracking-tighter">REBRAND</span>
+                          <TierIcon className="text-white/80" size={24}/>
                       </div>
                       <div className="relative z-10">
-                         <div className="text-xs text-white/60 mb-1 font-mono">{formattedCardNumber}</div>
-                         <div className="flex justify-between items-end">
+                          <div className="text-xs text-white/60 mb-1 font-mono">{formattedCardNumber}</div>
+                          <div className="flex justify-between items-end">
                             <div className="text-sm font-bold text-white uppercase tracking-widest truncate w-24">{profile.full_name || "MEMBER"}</div>
                             <div className="text-xs font-bold text-white/90 bg-white/20 px-2 py-0.5 rounded backdrop-blur-sm">{currentTier.name}</div>
-                         </div>
+                          </div>
                       </div>
                    </div>
                 </div>
@@ -514,7 +520,7 @@ export default function UserProfile() {
                         </AnimatePresence>
                     </div>
                   ))
-               )}
+                )}
              </div>
           )}
 
@@ -565,8 +571,8 @@ export default function UserProfile() {
                       </div>
                       {/* ...BACK CARD... */}
                       <div className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-zinc-900 p-0 flex flex-col justify-between backface-hidden`} style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
-                         <div className="mt-6 h-12 w-full bg-black"></div>
-                         <div className="px-8 flex-1 flex flex-col justify-center items-center gap-4">
+                          <div className="mt-6 h-12 w-full bg-black"></div>
+                          <div className="px-8 flex-1 flex flex-col justify-center items-center gap-4">
                              <div className="w-full bg-white px-4 py-2 flex items-center gap-4">
                                  <div className="flex-1 h-8 bg-gray-200 font-handwriting flex items-center px-2 text-black italic font-bold">Authorized Signature</div>
                                  <div className="text-black font-bold font-mono text-lg">{session?.user?.id?.slice(0, 3).toUpperCase()}</div>
@@ -576,7 +582,7 @@ export default function UserProfile() {
                                  <div className="text-black font-mono text-xs tracking-[0.3em] mt-2">{session?.user?.id?.slice(0, 12).toUpperCase() || "000000000000"}</div>
                              </div>
                              <p className="text-zinc-500 text-[10px] text-center max-w-xs">Ця картка є власністю REBRAND STUDIO. Використовуйте для нарахування та списання бонусів.</p>
-                         </div>
+                          </div>
                       </div>
                   </motion.div>
               </div>
@@ -599,11 +605,11 @@ export default function UserProfile() {
               <div className="bg-zinc-900 border border-white/10 rounded-xl overflow-hidden">
                   {loyaltyLogs.length === 0 ? <div className="p-8 text-center text-zinc-500">Історія порожня</div> : loyaltyLogs.map((log) => (
                           <div key={log.id} className="flex justify-between items-center p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition">
-                              <div className="flex items-center gap-4">
-                                  <div className={`p-2 rounded-lg ${log.type === 'earn' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{log.type === 'earn' ? <Plus size={16}/> : <Minus size={16}/>}</div>
-                                  <div><div className="font-bold text-sm">{log.description}</div><div className="text-xs text-zinc-500">{format(new Date(log.created_at), 'd MMM yyyy', { locale: uk })}</div></div>
-                              </div>
-                              <div className={`font-mono font-bold ${log.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>{log.type === 'earn' ? '+' : '-'}{log.amount}</div>
+                            <div className="flex items-center gap-4">
+                                <div className={`p-2 rounded-lg ${log.type === 'earn' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{log.type === 'earn' ? <Plus size={16}/> : <Minus size={16}/>}</div>
+                                <div><div className="font-bold text-sm">{log.description}</div><div className="text-xs text-zinc-500">{format(new Date(log.created_at), 'd MMM yyyy', { locale: uk })}</div></div>
+                            </div>
+                            <div className={`font-mono font-bold ${log.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>{log.type === 'earn' ? '+' : '-'}{log.amount}</div>
                           </div>
                       ))}
               </div>
