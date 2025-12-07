@@ -1,31 +1,16 @@
 import type { NextConfig } from "next";
 
-const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'totobi.com.ua',
-        pathname: '**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'totobi.com.ua',
-        pathname: '**',
-      },
+const nextConfig: NextConfig = {
+  // Тут можуть бути images, env, тощо.
+  // Але БЕЗ ключа 'eslint'
+  images: {
+    remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
-        pathname: '**',
-      }
+        hostname: '**',
+      },
     ],
   },
-} satisfies NextConfig;
+};
 
 export default nextConfig;

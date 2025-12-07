@@ -2,65 +2,75 @@
 
 import { useState } from "react";
 import { 
-  RefreshCw, FileSpreadsheet, Globe, Database, 
-  UploadCloud, CheckCircle, AlertTriangle, Clock, 
-  ArrowRight, FileCode, Settings, Loader2
+  RefreshCw, FileCode, Database, 
+  UploadCloud, CheckCircle, Clock, 
+  Loader2, Euro, ShoppingCart
 } from "lucide-react";
 
 export default function AdminSync() {
-  const [activeTab, setActiveTab] = useState<"yml" | "excel" | "sheets" | "api">("yml");
+  const [activeProvider, setActiveProvider] = useState<"totobi" | "toptime">("totobi");
   
-  // Стан процесу синхронізації
+  // Стан процесу
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ processed: 0, total: 0 });
   const [syncStatus, setSyncStatus] = useState<string>("");
-  const [ymlUrl, setYmlUrl] = useState("https://totobi.com.ua/index.php?dispatch=yml.get&access_key=lg3bjy2gvww");
+  
+  // Налаштування URL
+  const [totobiUrl, setTotobiUrl] = useState("https://totobi.com.ua/index.php?dispatch=yml.get&access_key=lg3bjy2gvww");
+  const [toptimeUrl, setToptimeUrl] = useState("https://toptime.com.ua/xml/toptime.xml");
+  
+  // Курс валют для TopTime (EUR -> UAH)
+  const [eurRate, setEurRate] = useState(43.5);
 
-  // Mock logs
-  const [logs, setLogs] = useState([
-    { id: 1, type: "YML", status: "success", items: 1420, date: "28.11.2025 14:30", source: "totobi.com.ua" },
-  ]);
-
-  const handleYmlSync = async () => {
+  const handleSync = async () => {
     setIsSyncing(true);
-    setSyncStatus("Початок завантаження...");
+    setSyncStatus("Ініціалізація...");
     setSyncProgress({ processed: 0, total: 0 });
 
     try {
         let offset = 0;
-        const limit = 50; // Обробляємо по 50 товарів за раз, щоб не "покласти" сервер
+        const limit = 50; 
         let done = false;
 
+        // Для TopTime ми робимо один запит (він не підтримує пагінацію так, як Totobi)
+        // Але наш API сам розбереться
+        
         while (!done) {
-            const res = await fetch(`/api/sync?url=${encodeURIComponent(ymlUrl)}&offset=${offset}&limit=${limit}`);
+            // Формуємо URL з параметрами
+            const apiUrl = new URL('/api/sync', window.location.href);
+            apiUrl.searchParams.set('provider', activeProvider);
+            apiUrl.searchParams.set('offset', offset.toString());
+            apiUrl.searchParams.set('limit', limit.toString());
+            
+            if (activeProvider === 'totobi') {
+                apiUrl.searchParams.set('url', totobiUrl);
+            } else {
+                apiUrl.searchParams.set('url', toptimeUrl);
+                apiUrl.searchParams.set('rate', eurRate.toString());
+            }
+
+            const res = await fetch(apiUrl.toString());
             const data = await res.json();
 
             if (!res.ok) throw new Error(data.error || "Помилка сервера");
 
             if (data.done) {
                 done = true;
-                setSyncStatus("Завершено успішно!");
+                setSyncStatus(`✅ Успішно! Оновлено товарів: ${data.total || data.processed}`);
+                setSyncProgress({ processed: data.total, total: data.total });
             } else {
                 setSyncProgress({ processed: data.processed, total: data.total });
-                setSyncStatus(`Оброблено ${data.processed} з ${data.total}...`);
+                setSyncStatus(`Оброблено ${data.processed} з ${data.total || '?' }...`);
                 offset = data.nextOffset;
+                
+                // Якщо це TopTime, він зазвичай віддає done:true з першого разу, 
+                // бо ми парсимо весь XML одразу.
             }
         }
 
-        // Додаємо успішний лог
-        setLogs(prev => [{
-            id: Date.now(),
-            type: "YML",
-            status: "success",
-            items: syncProgress.total || offset, // приблизно
-            date: new Date().toLocaleString(),
-            source: new URL(ymlUrl).hostname
-        }, ...prev]);
-
     } catch (error: any) {
         console.error(error);
-        setSyncStatus("Помилка: " + error.message);
-        alert("Помилка синхронізації: " + error.message);
+        setSyncStatus("❌ Помилка: " + error.message);
     } finally {
         setIsSyncing(false);
     }
@@ -69,158 +79,114 @@ export default function AdminSync() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Синхронізація товарів</h1>
-        <p className="text-gray-400">Керуйте імпортом товарів від постачальників та оновленням залишків.</p>
+        <h1 className="text-3xl font-bold mb-2">Синхронізація складів</h1>
+        <p className="text-gray-400">Автоматичне оновлення товарів, цін та наявності від постачальників.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* === ЛІВА КОЛОНКА: ВИБІР МЕТОДУ === */}
-        <div className="space-y-4">
+        {/* === ЛІВА КОЛОНКА: ВИБІР === */}
+        <div className="lg:col-span-4 space-y-4">
             <button 
-                onClick={() => setActiveTab("yml")}
-                className={`w-full p-4 rounded-xl border text-left transition flex items-center gap-4 ${activeTab === "yml" ? "bg-blue-900/20 border-blue-500 ring-1 ring-blue-500" : "bg-[#1a1a1a] border-white/5 hover:border-white/20"}`}
+                onClick={() => setActiveProvider("totobi")}
+                className={`w-full p-5 rounded-2xl border text-left transition flex items-center gap-4 ${activeProvider === "totobi" ? "bg-blue-900/20 border-blue-500 ring-1 ring-blue-500" : "bg-[#1a1a1a] border-white/5 hover:border-white/20"}`}
             >
-                <div className={`p-3 rounded-lg ${activeTab === "yml" ? "bg-blue-500 text-white" : "bg-[#222] text-gray-400"}`}><FileCode size={24} /></div>
-                <div><h3 className="font-bold text-white">YML / XML Feed</h3><p className="text-xs text-gray-500 mt-1">Основний імпорт (Totobi)</p></div>
+                <div className={`p-3 rounded-xl ${activeProvider === "totobi" ? "bg-blue-600 text-white" : "bg-[#222] text-gray-500"}`}><ShoppingCart size={24} /></div>
+                <div>
+                    <h3 className="font-bold text-white text-lg">Totobi</h3>
+                    <p className="text-xs text-gray-500 mt-1">Одяг, YML Feed (UAH)</p>
+                </div>
             </button>
 
             <button 
-                onClick={() => setActiveTab("excel")}
-                className={`w-full p-4 rounded-xl border text-left transition flex items-center gap-4 ${activeTab === "excel" ? "bg-green-900/20 border-green-500 ring-1 ring-green-500" : "bg-[#1a1a1a] border-white/5 hover:border-white/20"}`}
+                onClick={() => setActiveProvider("toptime")}
+                className={`w-full p-5 rounded-2xl border text-left transition flex items-center gap-4 ${activeProvider === "toptime" ? "bg-emerald-900/20 border-emerald-500 ring-1 ring-emerald-500" : "bg-[#1a1a1a] border-white/5 hover:border-white/20"}`}
             >
-                <div className={`p-3 rounded-lg ${activeTab === "excel" ? "bg-green-600 text-white" : "bg-[#222] text-gray-400"}`}><FileSpreadsheet size={24} /></div>
-                <div><h3 className="font-bold text-white">Excel / CSV</h3><p className="text-xs text-gray-500 mt-1">Ручне завантаження</p></div>
-            </button>
-
-            <button 
-                onClick={() => setActiveTab("api")}
-                className={`w-full p-4 rounded-xl border text-left transition flex items-center gap-4 ${activeTab === "api" ? "bg-purple-900/20 border-purple-500 ring-1 ring-purple-500" : "bg-[#1a1a1a] border-white/5 hover:border-white/20"}`}
-            >
-                <div className={`p-3 rounded-lg ${activeTab === "api" ? "bg-purple-500 text-white" : "bg-[#222] text-gray-400"}`}><Database size={24} /></div>
-                <div><h3 className="font-bold text-white">API & 1C</h3><p className="text-xs text-gray-500 mt-1">Налаштування Webhook</p></div>
+                <div className={`p-3 rounded-xl ${activeProvider === "toptime" ? "bg-emerald-600 text-white" : "bg-[#222] text-gray-500"}`}><Clock size={24} /></div>
+                <div>
+                    <h3 className="font-bold text-white text-lg">TopTime</h3>
+                    <p className="text-xs text-gray-500 mt-1">Сувенірка, XML (EUR)</p>
+                </div>
             </button>
         </div>
 
         {/* === ПРАВА КОЛОНКА: НАЛАШТУВАННЯ === */}
-        <div className="lg:col-span-2">
-            <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl p-8 mb-8 min-h-[300px]">
+        <div className="lg:col-span-8">
+            <div className="bg-[#1a1a1a] border border-white/5 rounded-3xl p-8 min-h-[400px]">
                 
-                {/* --- YML FORM --- */}
-                {activeTab === "yml" && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="flex items-center gap-3 mb-6">
-                            <FileCode className="text-blue-500" size={32}/>
-                            <h2 className="text-2xl font-bold">Імпорт з YML/XML</h2>
-                        </div>
-                        
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-400 mb-2">Посилання на файл (URL)</label>
+                <div className="flex items-center gap-4 mb-8 pb-8 border-b border-white/5">
+                    {activeProvider === 'totobi' ? <ShoppingCart className="text-blue-500" size={32}/> : <Clock className="text-emerald-500" size={32}/>}
+                    <div>
+                        <h2 className="text-2xl font-bold text-white">
+                            {activeProvider === 'totobi' ? 'Налаштування Totobi' : 'Налаштування TopTime'}
+                        </h2>
+                        <p className="text-sm text-gray-500">Перевірте посилання перед запуском</p>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-400 mb-2">XML / YML Посилання</label>
+                        <input 
+                            type="text" 
+                            value={activeProvider === 'totobi' ? totobiUrl : toptimeUrl}
+                            onChange={(e) => activeProvider === 'totobi' ? setTotobiUrl(e.target.value) : setToptimeUrl(e.target.value)}
+                            className="w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:border-blue-500 outline-none font-mono text-sm"
+                        />
+                    </div>
+
+                    {/* Додаткове поле для TopTime: Курс валют */}
+                    {activeProvider === 'toptime' && (
+                        <div className="bg-[#111] p-4 rounded-xl border border-white/10 flex items-center gap-4">
+                            <div className="p-2 bg-emerald-900/30 text-emerald-400 rounded-lg"><Euro size={20}/></div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase">Курс Євро (EUR)</label>
                                 <input 
-                                    type="text" 
-                                    value={ymlUrl}
-                                    onChange={(e) => setYmlUrl(e.target.value)}
-                                    className="w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:border-blue-500 outline-none font-mono"
+                                    type="number" 
+                                    value={eurRate}
+                                    onChange={(e) => setEurRate(parseFloat(e.target.value))}
+                                    className="bg-transparent text-white font-bold text-lg outline-none w-full placeholder-gray-600"
+                                    placeholder="42.5"
                                 />
                             </div>
+                        </div>
+                    )}
 
-                            <div className="flex flex-col gap-3 bg-[#222] p-4 rounded-xl border border-white/5">
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" className="w-5 h-5 rounded bg-black border-white/20 text-blue-600 focus:ring-0" defaultChecked />
-                                    <span className="text-sm text-gray-300">Оновлювати ціни та залишки</span>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" className="w-5 h-5 rounded bg-black border-white/20 text-blue-600 focus:ring-0" defaultChecked />
-                                    <span className="text-sm text-gray-300">Створювати нові товари</span>
-                                </label>
-                            </div>
-
-                            {isSyncing && (
-                                <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl">
-                                    <div className="flex justify-between text-sm mb-2 text-blue-300 font-bold">
-                                        <span>Статус: {syncStatus}</span>
-                                        <span>{syncProgress.processed} / {syncProgress.total}</span>
-                                    </div>
-                                    <div className="w-full bg-black rounded-full h-2.5">
+                    <div className="pt-4">
+                        {isSyncing && (
+                            <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-4">
+                                <div className="flex justify-between text-sm mb-2 text-white font-bold">
+                                    <span>{syncStatus}</span>
+                                    {activeProvider === 'totobi' && <span>{syncProgress.processed} / {syncProgress.total}</span>}
+                                </div>
+                                {activeProvider === 'totobi' && (
+                                    <div className="w-full bg-black rounded-full h-2">
                                         <div 
-                                            className="bg-blue-500 h-2.5 rounded-full transition-all duration-500" 
+                                            className="bg-blue-500 h-2 rounded-full transition-all duration-500" 
                                             style={{ width: `${syncProgress.total ? (syncProgress.processed / syncProgress.total) * 100 : 0}%` }}
                                         ></div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                        )}
 
-                            <button 
-                                onClick={handleYmlSync}
-                                disabled={isSyncing}
-                                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full flex items-center justify-center gap-3 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isSyncing ? <Loader2 className="animate-spin"/> : <UploadCloud />}
-                                {isSyncing ? "Синхронізація..." : "Запустити імпорт"}
-                            </button>
-                        </div>
+                        <button 
+                            onClick={handleSync}
+                            disabled={isSyncing}
+                            className={`
+                                w-full py-4 px-8 rounded-xl font-bold flex items-center justify-center gap-3 transition disabled:opacity-50 disabled:cursor-not-allowed
+                                ${activeProvider === 'totobi' 
+                                    ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20" 
+                                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20"}
+                            `}
+                        >
+                            {isSyncing ? <Loader2 className="animate-spin"/> : <UploadCloud />}
+                            {isSyncing ? "Синхронізація..." : "Запустити імпорт"}
+                        </button>
                     </div>
-                )}
-
-                {/* --- EXCEL FORM (Placeholder) --- */}
-                {activeTab === "excel" && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300 text-center py-10">
-                        <FileSpreadsheet size={48} className="mx-auto text-gray-600 mb-4"/>
-                        <h3 className="text-xl font-bold text-gray-400">Імпорт з Excel</h3>
-                        <p className="text-gray-600">Функціонал в розробці. Скористайтеся YML.</p>
-                    </div>
-                )}
-
-                {/* --- API FORM (Info) --- */}
-                {activeTab === "api" && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Database className="text-purple-500" size={32}/>
-                            <h2 className="text-2xl font-bold">API Інтеграція</h2>
-                        </div>
-                        <div className="bg-[#222] p-4 rounded-xl border border-white/5">
-                            <p className="text-xs text-gray-500 uppercase font-bold mb-2">Ваш Endpoint</p>
-                            <code className="text-sm text-purple-400 font-mono break-all block bg-black p-3 rounded">POST /api/sync/webhook</code>
-                        </div>
-                    </div>
-                )}
-
-            </div>
-
-            {/* --- LOGS --- */}
-            <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Clock size={20}/> Історія синхронізацій</h3>
-                <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-[#222] text-gray-400 uppercase text-xs">
-                            <tr>
-                                <th className="p-4">Дата</th>
-                                <th className="p-4">Тип</th>
-                                <th className="p-4">Джерело</th>
-                                <th className="p-4 text-center">Товарів</th>
-                                <th className="p-4 text-right">Статус</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {logs.map(log => (
-                                <tr key={log.id} className="hover:bg-white/5 transition">
-                                    <td className="p-4 text-gray-300">{log.date}</td>
-                                    <td className="p-4 font-bold text-white">{log.type}</td>
-                                    <td className="p-4 text-gray-500 font-mono text-xs">{log.source}</td>
-                                    <td className="p-4 text-center font-bold">{log.items}</td>
-                                    <td className="p-4 text-right">
-                                        <span className="inline-flex items-center gap-1 text-green-400 bg-green-900/20 px-2 py-1 rounded text-xs font-bold border border-green-900/50">
-                                            <CheckCircle size={12}/> Успіх
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
                 </div>
-            </div>
 
+            </div>
         </div>
       </div>
     </div>
