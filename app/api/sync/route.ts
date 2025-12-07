@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
-import { XMLParser } from 'fast-xml-parser';
 import { createClient } from '@supabase/supabase-js';
+import { XMLParser } from 'fast-xml-parser';
 
-// Ініціалізація Supabase з правами ADMIN (Service Role), щоб обійти RLS
-// Це гарантує, що ми зможемо додавати та оновлювати товари
+// Налаштування для Vercel (важливо для довгих операцій)
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
+// Ініціалізація Supabase з правами ADMIN (Service Role)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Переконайтесь, що цей ключ є в .env.local та Vercel
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, // Fallback, але краще використовувати Service Role
   {
     auth: {
       autoRefreshToken: false,
@@ -48,7 +51,11 @@ export async function GET(request: Request) {
     // Для TopTime (курс валют)
     const rate = parseFloat(searchParams.get('rate') || '43.5');
 
-    console.log(`🚀 [Sync] Provider: ${provider} | Offset: ${offset}`);
+    console.log(`🚀 [Sync] Provider: ${provider} | Offset: ${offset} | URL: ${importUrl}`);
+
+    if (!importUrl) {
+         return NextResponse.json({ success: false, error: "URL parameter is required" }, { status: 400 });
+    }
 
     if (provider === 'toptime') {
         return await syncTopTime(importUrl, rate);
@@ -66,6 +73,7 @@ export async function GET(request: Request) {
 // 1. ЛОГІКА TOTOBI (YML)
 // ==========================================
 async function syncTotobi(url: string, offset: number, limit: number) {
+    console.log(`Fetching Totobi XML from ${url}...`);
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`YML fetch failed: ${response.statusText}`);
     
@@ -80,6 +88,8 @@ async function syncTotobi(url: string, offset: number, limit: number) {
     const offersArray = Array.isArray(allOffers) ? allOffers : [allOffers];
     const totalOffers = offersArray.length;
 
+    console.log(`Total offers found: ${totalOffers}`);
+
     if (offset >= totalOffers) {
         return NextResponse.json({ done: true, total: totalOffers, processed: 0 });
     }
@@ -93,6 +103,7 @@ async function syncTotobi(url: string, offset: number, limit: number) {
         // Парсинг розмірів Totobi (вони вкладені в param)
         if (offer.textile === 'Y' && offer.sizes?.size) {
             const sizesArr = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
+            // Якщо ціна не вказана на рівні offer, беремо з першого розміру
             if ((!basePrice || isNaN(basePrice)) && sizesArr.length > 0) {
                 basePrice = parseFloat(sizesArr[0]['@_modifier']);
             }
@@ -129,16 +140,21 @@ async function syncTotobi(url: string, offset: number, limit: number) {
             description: offer.description ? offer.description.substring(0, 5000) : "",
             amount: parseInt(offer.amount) || 0,
             reserve: parseInt(offer.reserve) || 0,
-            sizes: sizesData, 
+            sizes: sizesData, // Переконайтесь, що в базі це поле типу JSONB
             color: colorValue,
             brand: brandValue,
             category_external_id: offer.categoryId?.toString(),
+            updated_at: new Date().toISOString(),
         };
     }).filter((p: any) => p.external_id && p.title);
 
     if (productsToUpsert.length > 0) {
+        // Upsert в базу
         const { error } = await supabaseAdmin.from('products').upsert(productsToUpsert, { onConflict: 'external_id' });
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase Upsert Error:", error);
+            throw error;
+        }
     }
 
     return NextResponse.json({ 
@@ -153,6 +169,7 @@ async function syncTotobi(url: string, offset: number, limit: number) {
 // 2. ЛОГІКА TOPTIME (XML) - ПОКРАЩЕНА
 // ==========================================
 async function syncTopTime(url: string, eurRate: number) {
+    console.log(`Fetching TopTime XML from ${url} with rate ${eurRate}...`);
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`TopTime XML fetch failed: ${response.statusText}`);
     
@@ -185,6 +202,7 @@ async function syncTopTime(url: string, eurRate: number) {
     }
 
     const itemsArray = Array.isArray(items) ? items : [items];
+    console.log(`Found ${itemsArray.length} raw items from TopTime.`);
     
     // 1. ГРУПУВАННЯ
     const groupedProducts: Record<string, any> = {};
@@ -235,6 +253,7 @@ async function syncTopTime(url: string, eurRate: number) {
                 sizes: [],
                 color: item.color,
                 brand: item.brand,
+                updated_at: new Date().toISOString(),
                 _category_name_hint: categoryName 
             };
         }
@@ -244,6 +263,7 @@ async function syncTopTime(url: string, eurRate: number) {
     }
 
     const productsList = Object.values(groupedProducts);
+    console.log(`Grouped into ${productsList.length} unique products.`);
 
     // 2. ОТРИМАННЯ КАТЕГОРІЙ З БД
     const { data: dbCategories } = await supabaseAdmin.from('categories').select('id, title');
@@ -260,10 +280,11 @@ async function syncTopTime(url: string, eurRate: number) {
         return { ...p, category_id: catId };
     });
 
-    // 3. ЗАПИС У БАЗУ (пачками по 100)
-    const BATCH_SIZE = 100;
+    // 3. ЗАПИС У БАЗУ (пачками по 50, щоб не перевищити ліміти)
+    const BATCH_SIZE = 50;
     for (let i = 0; i < finalProducts.length; i += BATCH_SIZE) {
         const batch = finalProducts.slice(i, i + BATCH_SIZE);
+        console.log(`Upserting batch ${i} - ${i + BATCH_SIZE}...`);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
         if (error) console.error("Batch error:", error.message);
     }
