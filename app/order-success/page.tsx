@@ -1,39 +1,36 @@
 "use client";
 
-import Link from "next/link";
 import { CheckCircle, ArrowRight, Home } from "lucide-react";
-import { useEffect } from "react";
-import { confetti } from "canvas-confetti"; // Якщо хочете салют (опціонально)
+import Link from "next/link";
 
 export default function OrderSuccessPage() {
-  
   return (
-    <div className="min-h-screen bg-[#111] text-white flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
-        
-        {/* Декоративний фон */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-
-        <div className="mb-6 flex justify-center">
-            <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center">
-                <CheckCircle size={48} className="text-green-500" />
-            </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-4 text-center">
+      <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/5 shadow-2xl max-w-md w-full flex flex-col items-center animate-in fade-in zoom-in duration-500">
+        <div className="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center mb-6 text-green-500 ring-1 ring-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
+          <CheckCircle size={48} />
         </div>
-
-        <h1 className="text-3xl font-black uppercase mb-2">Замовлення прийнято!</h1>
-        <p className="text-gray-400 mb-8">
-          Дякуємо за покупку. Наш менеджер вже отримав сповіщення і скоро зателефонує вам для підтвердження деталей.
+        
+        <h1 className="text-3xl font-black mb-2 tracking-tight">Замовлення прийнято!</h1>
+        <p className="text-gray-400 mb-8 leading-relaxed">
+          Дякуємо за покупку. Наш менеджер зв'яжеться з вами найближчим часом для уточнення деталей доставки.
         </p>
 
-        <div className="space-y-3">
-            <Link href="/" className="block w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition flex items-center justify-center gap-2">
-                <Home size={20}/> На головну
-            </Link>
-            <Link href="/catalog" className="block w-full bg-[#252525] text-white font-bold py-4 rounded-xl hover:bg-[#333] transition border border-white/5">
-                Переглянути інші товари
-            </Link>
+        <div className="space-y-3 w-full">
+          <Link 
+            href="/catalog" 
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-blue-900/20"
+          >
+            <ArrowRight size={20} /> Продовжити покупки
+          </Link>
+          
+          <Link 
+            href="/" 
+            className="w-full bg-[#222] hover:bg-[#333] text-gray-300 hover:text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition border border-white/5"
+          >
+            <Home size={20} /> На головну
+          </Link>
         </div>
-
       </div>
     </div>
   );
