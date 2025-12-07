@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic';
 
 // --- ІНІЦІАЛІЗАЦІЯ SUPABASE ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// Використовуємо Service Role Key, якщо він є, інакше Anon Key
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
@@ -21,20 +20,24 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
 // Карта категорій для TopTime (ID -> Назва)
 const TOPTIME_CATEGORY_MAP: Record<string, string> = {
     '10': 'Футболки', 
-    '11': 'Футболки',
-    '12': 'Футболки',
+    '11': 'Футболки', // V-подібний
+    '12': 'Футболки', // Довгий рукав
     '13': 'Майки',
     '2': 'Поло',
     '14': 'Реглани',
     '15': 'Худі',
     '16': 'Худі',
     '4': 'Фліси',
-    '19': 'Куртки',
+    '19': 'Куртки', // Жилети також сюди
     '6': 'Кепки',
     '7': 'Шапки',
     '9': 'Запальнички',
     '17': 'Ручки',
-    '8': 'Шнурки'
+    '8': 'Шнурки',
+    // Додаємо категорії для сумок (перевірте, чи ці ID вірні для вашого XML, зазвичай це 20 або 21)
+    '20': 'Сумки', 
+    '21': 'Рюкзаки',
+    '1': 'Парасолі'
 };
 
 export async function GET(request: Request) {
@@ -49,17 +52,17 @@ export async function GET(request: Request) {
     const provider = searchParams.get('provider') || 'totobi';
     const importUrl = searchParams.get('url') || "";
     const offset = parseInt(searchParams.get('offset') || '0');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    // Ліміт 50, якщо виникають помилки timeout - зменшуйте до 20
+    const limit = parseInt(searchParams.get('limit') || '50'); 
     const rate = parseFloat(searchParams.get('rate') || '43.5');
 
-    log(`🚀 Start Sync: ${provider} | Offset: ${offset}`);
+    log(`🚀 Start Sync: ${provider} | Offset: ${offset} | Limit: ${limit}`);
 
     if (!importUrl) {
          return NextResponse.json({ success: false, error: "URL is empty", debug_log: debugLog }, { status: 400 });
     }
 
     if (provider === 'toptime') {
-        // Передаємо offset та limit для пагінації
         return await syncTopTime(importUrl, rate, offset, limit, log, debugLog);
     } else {
         return await syncTotobi(importUrl, offset, limit, log, debugLog);
@@ -75,7 +78,6 @@ export async function GET(request: Request) {
 // 1. ЛОГІКА TOTOBI
 // ==========================================
 async function syncTotobi(url: string, offset: number, limit: number, log: Function, debugLog: string[]) {
-    // log(`Fetching Totobi XML...`); // Менше логів, щоб не засмічувати при пагінації
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     
@@ -130,8 +132,10 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
 
         const catId = offer.categoryId?.toString();
-        const catName = categoriesMap[catId] || null;
+        const catName = categoriesMap[catId] || "Інше";
+        const amount = parseInt(offer.amount) || 0;
 
+        // Додаткові параметри
         let colorValue = null;
         let brandValue = offer.vendor;
         if (offer.param) {
@@ -149,14 +153,15 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
             image_url: imageUrl,
             sku: offer.vendorCode,
             description: offer.description ? offer.description.substring(0, 5000) : "",
-            amount: parseInt(offer.amount) || 0,
+            amount: amount,
             reserve: parseInt(offer.reserve) || 0,
             sizes: sizesData,
             color: colorValue,
             brand: brandValue,
             category: catName, 
             category_external_id: catId,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            in_stock: amount > 0 // Автоматично ставимо наявність
         };
     }).filter((p: any) => p.external_id && p.title);
 
@@ -178,11 +183,10 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
 }
 
 // ==========================================
-// 2. ЛОГІКА TOPTIME (З ПІДТРИМКОЮ PROGRESS BAR)
+// 2. ЛОГІКА TOPTIME
 // ==========================================
 async function syncTopTime(url: string, eurRate: number, offset: number, limit: number, log: Function, debugLog: string[]) {
-    // log(`Downloading TopTime XML...`);
-    
+    // Завантаження XML
     let xmlText = "";
     try {
         const response = await fetch(url, { cache: 'no-store' });
@@ -208,8 +212,7 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
     
     const itemsArray = Array.isArray(items) ? items : [items];
     
-    // Групуємо всі товари
-    // (Це трохи ресурсоємно робити щоразу, але необхідно для stateless пагінації)
+    // Групуємо товари
     const groupedProducts: Record<string, any> = {};
 
     for (const item of itemsArray) {
@@ -240,7 +243,8 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
 
         if (!groupedProducts[parentSku]) {
             const rawCatId = (item.id_category || item.categoryId || item.category_id)?.toString();
-            const catName = TOPTIME_CATEGORY_MAP[rawCatId] || null;
+            // Мапінг категорій
+            const catName = TOPTIME_CATEGORY_MAP[rawCatId] || "Інше";
 
             groupedProducts[parentSku] = {
                 external_id: parentSku.toString(),
@@ -256,12 +260,18 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
                 brand: item.brand,
                 category: catName,
                 category_external_id: rawCatId,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                // 🔥 ВАЖЛИВО: Ставимо in_stock за замовчуванням false, оновимо нижче
+                in_stock: false 
             };
         }
 
         groupedProducts[parentSku].sizes.push(sizeObj);
         groupedProducts[parentSku].amount += stockAvailable;
+        // 🔥 ОНОВЛЕННЯ СТАТУСУ: Якщо хоча б один розмір є в наявності -> товар в наявності
+        if (stockAvailable > 0) {
+            groupedProducts[parentSku].in_stock = true;
+        }
     }
 
     const finalProducts = Object.values(groupedProducts);
@@ -277,10 +287,10 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
         });
     }
 
-    // Беремо тільки поточну порцію (chunk)
-    const batch = finalProducts.slice(offset, offset + limit);
+    const endIndex = Math.min(offset + limit, totalProducts);
+    const batch = finalProducts.slice(offset, endIndex);
     
-    log(`Upserting TopTime batch: ${offset} - ${offset + batch.length} of ${totalProducts}`);
+    log(`Upserting TopTime batch: ${offset} - ${endIndex} of ${totalProducts} (Limit: ${limit})`);
 
     const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
     
@@ -288,13 +298,11 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
         log(`Batch error: ${error.message}`);
         throw error;
     }
-
-    // Повертаємо done: false та nextOffset, щоб фронтенд знав, що треба робити наступний запит
     return NextResponse.json({ 
         done: false, 
         total: totalProducts, 
-        processed: offset + batch.length,
-        nextOffset: offset + limit,
+        processed: endIndex,
+        nextOffset: endIndex,
         debug_log: debugLog
     });
 }
