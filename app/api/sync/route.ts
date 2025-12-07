@@ -143,7 +143,7 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
             color: colorValue,
             brand: brandValue,
             category_external_id: offer.categoryId?.toString(),
-            updated_at: new Date().toISOString(),
+            // removed updated_at to fix cache error
         };
     }).filter((p: any) => p.external_id && p.title);
 
@@ -237,6 +237,9 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
         };
 
         if (!groupedProducts[parentSku]) {
+            // Перевірка різних полів для ID категорії
+            const rawCatId = item.id_category || item.categoryId || item.category_id;
+            
             groupedProducts[parentSku] = {
                 external_id: parentSku.toString(),
                 title: item.name ? item.name.split(',')[0].trim() : "No Title",
@@ -249,8 +252,8 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
                 sizes: [],
                 color: item.color,
                 brand: item.brand,
-                updated_at: new Date().toISOString(),
-                _category_id_raw: item.id_category
+                // updated_at не передаємо, нехай БД сама ставить
+                _category_id_raw: rawCatId
             };
         }
 
@@ -265,24 +268,37 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
     if (catError) log(`Category fetch warning: ${catError.message}`);
     
+    let matchedCategoriesCount = 0;
+
     const finalProducts = productsList.map(p => {
         let catId = null;
         // 1. Спроба по ID мапінгу (TopTime ID -> Назва -> ID в базі)
-        const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw];
-        if (mapName && dbCategories) {
-            const found = dbCategories.find((c: any) => c.title.toLowerCase() === mapName.toLowerCase());
-            if (found) catId = found.id;
+        if (p._category_id_raw) {
+             const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw.toString()];
+             if (mapName && dbCategories) {
+                const found = dbCategories.find((c: any) => c.title.toLowerCase().trim() === mapName.toLowerCase().trim());
+                if (found) catId = found.id;
+             }
         }
+        
         // 2. Спроба по назві (якщо є підказка в назві або деінде)
         if (!catId && p._category_name_hint && dbCategories) {
             const found = dbCategories.find((c: any) => c.title.toLowerCase().includes(p._category_name_hint.toLowerCase()));
             if (found) catId = found.id;
         }
 
+        if (catId) matchedCategoriesCount++;
+        else if (matchedCategoriesCount < 5) { // Логуємо перші 5 невдач
+            log(`Failed to match category for product ${p.sku}. Raw Cat ID: ${p._category_id_raw}`);
+        }
+
         delete p._category_id_raw;
-        // Повертаємо об'єкт з category_id (переконайтеся, що SQL скрипт виконано!)
+        delete p._category_name_hint;
+        
         return { ...p, category_id: catId };
     });
+
+    log(`Categories matched for ${matchedCategoriesCount} / ${finalProducts.length} products.`);
 
     const BATCH_SIZE = 20; 
     let successCount = 0;
