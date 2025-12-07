@@ -52,14 +52,15 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const rate = parseFloat(searchParams.get('rate') || '43.5');
 
-    log(`🚀 Start Sync: ${provider} | URL provided: ${!!importUrl}`);
+    log(`🚀 Start Sync: ${provider} | Offset: ${offset}`);
 
     if (!importUrl) {
          return NextResponse.json({ success: false, error: "URL is empty", debug_log: debugLog }, { status: 400 });
     }
 
     if (provider === 'toptime') {
-        return await syncTopTime(importUrl, rate, log, debugLog);
+        // Передаємо offset та limit для пагінації
+        return await syncTopTime(importUrl, rate, offset, limit, log, debugLog);
     } else {
         return await syncTotobi(importUrl, offset, limit, log, debugLog);
     }
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
 // 1. ЛОГІКА TOTOBI
 // ==========================================
 async function syncTotobi(url: string, offset: number, limit: number, log: Function, debugLog: string[]) {
-    log(`Fetching Totobi XML...`);
+    // log(`Fetching Totobi XML...`); // Менше логів, щоб не засмічувати при пагінації
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     
@@ -82,7 +83,7 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
     
-    // 1. ПАРСИНГ КАТЕГОРІЙ (щоб отримати назви по ID)
+    // 1. ПАРСИНГ КАТЕГОРІЙ
     const categoriesMap: Record<string, string> = {};
     const rawCats = jsonData.yml_catalog?.shop?.categories?.category;
     if (rawCats) {
@@ -90,7 +91,6 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         catsArr.forEach((c: any) => {
             if (c['@_id']) categoriesMap[c['@_id'].toString()] = c['#text'];
         });
-        log(`Loaded ${Object.keys(categoriesMap).length} category names from XML.`);
     }
 
     // 2. ПАРСИНГ ТОВАРІВ
@@ -100,10 +100,8 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
     const offersArray = Array.isArray(allOffers) ? allOffers : [allOffers];
     const totalOffers = offersArray.length;
 
-    log(`Total offers: ${totalOffers}, Offset: ${offset}`);
-
     if (offset >= totalOffers) {
-        return NextResponse.json({ done: true, total: totalOffers, processed: 0, debug_log: debugLog });
+        return NextResponse.json({ done: true, total: totalOffers, processed: totalOffers, debug_log: debugLog });
     }
 
     const chunk = offersArray.slice(offset, offset + limit);
@@ -112,7 +110,6 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         let basePrice = parseFloat(offer.price);
         let sizesData = [];
 
-        // Обробка розмірів
         if (offer.textile === 'Y' && offer.sizes?.size) {
             const sizesArr = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
             if ((!basePrice || isNaN(basePrice)) && sizesArr.length > 0) {
@@ -132,11 +129,9 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         let imageUrl = null;
         if (offer.picture) imageUrl = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
 
-        // Визначаємо назву категорії
         const catId = offer.categoryId?.toString();
         const catName = categoriesMap[catId] || null;
 
-        // Додаткові параметри
         let colorValue = null;
         let brandValue = offer.vendor;
         if (offer.param) {
@@ -159,14 +154,12 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
             sizes: sizesData,
             color: colorValue,
             brand: brandValue,
-            // ПИШЕМО ПРЯМО В ТЕКСТОВІ КОЛОНКИ
             category: catName, 
             category_external_id: catId,
             updated_at: new Date().toISOString()
         };
     }).filter((p: any) => p.external_id && p.title);
 
-    // Запис у базу
     if (productsToUpsert.length > 0) {
         const { error } = await supabaseAdmin.from('products').upsert(productsToUpsert, { onConflict: 'external_id' });
         if (error) {
@@ -185,10 +178,10 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
 }
 
 // ==========================================
-// 2. ЛОГІКА TOPTIME
+// 2. ЛОГІКА TOPTIME (З ПІДТРИМКОЮ PROGRESS BAR)
 // ==========================================
-async function syncTopTime(url: string, eurRate: number, log: Function, debugLog: string[]) {
-    log(`Downloading TopTime XML (Rate: ${eurRate})...`);
+async function syncTopTime(url: string, eurRate: number, offset: number, limit: number, log: Function, debugLog: string[]) {
+    // log(`Downloading TopTime XML...`);
     
     let xmlText = "";
     try {
@@ -202,12 +195,10 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     const parser = new XMLParser();
     const jsonData = parser.parse(xmlText);
 
-    // Пошук items
     let items = null;
     if (jsonData.items?.item) items = jsonData.items.item;
     else if (jsonData.yml_catalog?.shop?.items?.item) items = jsonData.yml_catalog.shop.items.item;
     else {
-        // Fallback
         for (const key of Object.keys(jsonData)) {
             if (jsonData[key]?.item) { items = jsonData[key].item; break; }
         }
@@ -216,8 +207,9 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     if (!items) throw new Error("Could not find <item> list in XML.");
     
     const itemsArray = Array.isArray(items) ? items : [items];
-    log(`Found ${itemsArray.length} items. Grouping...`);
     
+    // Групуємо всі товари
+    // (Це трохи ресурсоємно робити щоразу, але необхідно для stateless пагінації)
     const groupedProducts: Record<string, any> = {};
 
     for (const item of itemsArray) {
@@ -248,7 +240,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
 
         if (!groupedProducts[parentSku]) {
             const rawCatId = (item.id_category || item.categoryId || item.category_id)?.toString();
-            // Беремо назву з карти
             const catName = TOPTIME_CATEGORY_MAP[rawCatId] || null;
 
             groupedProducts[parentSku] = {
@@ -263,7 +254,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
                 sizes: [],
                 color: item.color,
                 brand: item.brand,
-                // ПИШЕМО ПРЯМО В ТЕКСТОВІ КОЛОНКИ
                 category: catName,
                 category_external_id: rawCatId,
                 updated_at: new Date().toISOString()
@@ -275,31 +265,36 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     }
 
     const finalProducts = Object.values(groupedProducts);
-    
-    // Запис у БД порціями по 50
-    const BATCH_SIZE = 50; 
-    let successCount = 0;
-    let errorCount = 0;
+    const totalProducts = finalProducts.length;
 
-    log(`Upserting ${finalProducts.length} products...`);
-
-    for (let i = 0; i < finalProducts.length; i += BATCH_SIZE) {
-        const batch = finalProducts.slice(i, i + BATCH_SIZE);
-        const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
-        
-        if (error) {
-            log(`Batch error: ${error.message}`);
-            errorCount += batch.length;
-        } else {
-            successCount += batch.length;
-        }
+    // ПАГІНАЦІЯ
+    if (offset >= totalProducts) {
+        return NextResponse.json({ 
+            done: true, 
+            total: totalProducts, 
+            processed: totalProducts, 
+            debug_log: debugLog 
+        });
     }
 
+    // Беремо тільки поточну порцію (chunk)
+    const batch = finalProducts.slice(offset, offset + limit);
+    
+    log(`Upserting TopTime batch: ${offset} - ${offset + batch.length} of ${totalProducts}`);
+
+    const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
+    
+    if (error) {
+        log(`Batch error: ${error.message}`);
+        throw error;
+    }
+
+    // Повертаємо done: false та nextOffset, щоб фронтенд знав, що треба робити наступний запит
     return NextResponse.json({ 
-        done: true, 
-        total: finalProducts.length, 
-        success: successCount,
-        errors: errorCount,
+        done: false, 
+        total: totalProducts, 
+        processed: offset + batch.length,
+        nextOffset: offset + limit,
         debug_log: debugLog
     });
 }
