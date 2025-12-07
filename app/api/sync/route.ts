@@ -264,28 +264,27 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     }
 
     const productsList = Object.values(groupedProducts);
-    log(`Grouped into ${productsList.length} unique products. Fetching DB categories...`);
+    log(`Grouped into ${productsList.length} unique products. Preparing for DB...`);
 
-    // Отримання категорій
-    const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
-    if (catError) log(`Category fetch warning: ${catError.message}`);
+    // !!! ВИМКНЕНО ОТРИМАННЯ КАТЕГОРІЙ, БО НЕМАЄ ПОЛЯ category_id !!!
+    // const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
     
     const finalProducts = productsList.map(p => {
+        /* * ТИМЧАСОВО ВИМКНЕНО: Логіка мапінгу категорій.
+         * У таблиці 'products' немає колонки 'category_id'.
+         * Щоб увімкнути категорії, додайте колонку в БД і розкоментуйте код нижче.
+         */
+        
+        /*
         let catId = null;
-        // 1. Спроба по ID мапінгу
-        const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw];
-        if (mapName && dbCategories) {
-            const found = dbCategories.find((c: any) => c.title.toLowerCase() === mapName.toLowerCase());
-            if (found) catId = found.id;
-        }
-        // 2. Спроба по назві категорії з XML (якщо є)
-        if (!catId && p._category_name_hint && dbCategories) {
-            const found = dbCategories.find((c: any) => c.title.toLowerCase().includes(p._category_name_hint.toLowerCase()));
-            if (found) catId = found.id;
-        }
+        if (TOPTIME_CATEGORY_MAP[p._category_id_raw] && dbCategories) { ... }
+        */
 
-        delete p._category_id_raw;
-        return { ...p, category_id: catId };
+        // Видаляємо тимчасові поля перед записом в БД
+        delete p._category_id_raw; 
+        
+        // Повертаємо об'єкт БЕЗ category_id
+        return { ...p }; 
     });
 
     // Запис у БД маленькими порціями
