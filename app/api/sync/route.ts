@@ -252,7 +252,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
                 sizes: [],
                 color: item.color,
                 brand: item.brand,
-                // updated_at не передаємо, нехай БД сама ставить
                 _category_id_raw: rawCatId
             };
         }
@@ -262,17 +261,67 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     }
 
     const productsList = Object.values(groupedProducts);
-    log(`Grouped into ${productsList.length} unique products. Fetching DB categories...`);
+    log(`Grouped into ${productsList.length} unique products. checking DB categories...`);
 
-    // !!! ВІДНОВЛЕНО ОТРИМАННЯ КАТЕГОРІЙ !!!
-    const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
-    if (catError) log(`Category fetch warning: ${catError.message}`);
+    // ===========================================
+    // 🔥 АВТО-СТВОРЕННЯ КАТЕГОРІЙ
+    // ===========================================
     
+    // 1. Отримуємо існуючі категорії
+    let { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
+    if (catError) log(`Category fetch warning: ${catError.message}`);
+    if (!dbCategories) dbCategories = [];
+
+    // 2. Збираємо список назв категорій, які потрібні для цих товарів
+    const neededCategoryNames = new Set<string>();
+    productsList.forEach(p => {
+        if (p._category_id_raw) {
+            const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw.toString()];
+            if (mapName) neededCategoryNames.add(mapName);
+        }
+    });
+
+    // 3. Знаходимо, яких ще немає в базі
+    const missingCategories: string[] = [];
+    neededCategoryNames.forEach(name => {
+        // Шукаємо точний збіг (без урахування регістру)
+        const exists = dbCategories?.find((c: any) => c.title.toLowerCase().trim() === name.toLowerCase().trim());
+        if (!exists) missingCategories.push(name);
+    });
+
+    // 4. Створюємо відсутні
+    if (missingCategories.length > 0) {
+        log(`Creating ${missingCategories.length} missing categories: ${missingCategories.join(', ')}`);
+        
+        const newCatsPayload = missingCategories.map(title => ({
+            title: title,
+            // Генеруємо безпечний slug
+            slug: 'cat-' + Date.now() + '-' + Math.floor(Math.random() * 10000), 
+            image_url: '' 
+        }));
+
+        const { error: createError } = await supabaseAdmin.from('categories').insert(newCatsPayload);
+        
+        if (createError) {
+            log(`Failed to create categories: ${createError.message}`);
+        } else {
+            // Оновлюємо список категорій з бази
+            const { data: refreshed } = await supabaseAdmin.from('categories').select('id, title');
+            if (refreshed) dbCategories = refreshed;
+            log(`Categories created and refreshed.`);
+        }
+    }
+
+    // ===========================================
+    // 🔥 МАПІНГ ТА ЗАПИС
+    // ===========================================
+
     let matchedCategoriesCount = 0;
 
     const finalProducts = productsList.map(p => {
         let catId = null;
-        // 1. Спроба по ID мапінгу (TopTime ID -> Назва -> ID в базі)
+        
+        // 1. Спроба по ID мапінгу
         if (p._category_id_raw) {
              const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw.toString()];
              if (mapName && dbCategories) {
@@ -281,15 +330,15 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
              }
         }
         
-        // 2. Спроба по назві (якщо є підказка в назві або деінде)
+        // 2. Спроба по назві (fallback)
         if (!catId && p._category_name_hint && dbCategories) {
             const found = dbCategories.find((c: any) => c.title.toLowerCase().includes(p._category_name_hint.toLowerCase()));
             if (found) catId = found.id;
         }
 
         if (catId) matchedCategoriesCount++;
-        else if (matchedCategoriesCount < 5) { // Логуємо перші 5 невдач
-            log(`Failed to match category for product ${p.sku}. Raw Cat ID: ${p._category_id_raw}`);
+        else if (matchedCategoriesCount < 3) {
+            log(`Still failed match for ${p.sku} (RawID: ${p._category_id_raw}). DB has ${dbCategories?.length} cats.`);
         }
 
         delete p._category_id_raw;
