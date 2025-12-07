@@ -98,7 +98,6 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
     const chunk = offersArray.slice(offset, offset + limit);
 
     const productsToUpsert = chunk.map((offer: any) => {
-        // ... (Логіка парсингу Totobi без змін) ...
         let basePrice = parseFloat(offer.price);
         let sizesData = [];
 
@@ -186,7 +185,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     const parser = new XMLParser();
     const jsonData = parser.parse(xmlText);
 
-    // Пошук масиву items
     let items = null;
     if (jsonData.items?.item) items = jsonData.items.item;
     else if (jsonData.yml_catalog?.shop?.items?.item) items = jsonData.yml_catalog.shop.items.item;
@@ -194,7 +192,6 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     else if (jsonData.catalog?.item) items = jsonData.catalog.item;
     else if (jsonData.export?.item) items = jsonData.export.item;
     else {
-        // Fallback пошук
         for (const key of Object.keys(jsonData)) {
             if (jsonData[key]?.item) {
                 items = jsonData[key].item;
@@ -211,14 +208,12 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     const itemsArray = Array.isArray(items) ? items : [items];
     log(`Found ${itemsArray.length} items. Processing...`);
     
-    // Групування
     const groupedProducts: Record<string, any> = {};
 
     for (const item of itemsArray) {
         const parentSku = item.article; 
         if (!parentSku) continue;
 
-        // Визначення розміру
         let sizeLabel = "ONE SIZE";
         if (item.name && typeof item.name === 'string' && item.name.includes(',')) {
             const parts = item.name.split(',');
@@ -255,7 +250,7 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
                 color: item.color,
                 brand: item.brand,
                 updated_at: new Date().toISOString(),
-                _category_id_raw: item.id_category // Зберігаємо для мапінгу
+                _category_id_raw: item.id_category
             };
         }
 
@@ -264,31 +259,32 @@ async function syncTopTime(url: string, eurRate: number, log: Function, debugLog
     }
 
     const productsList = Object.values(groupedProducts);
-    log(`Grouped into ${productsList.length} unique products. Preparing for DB...`);
+    log(`Grouped into ${productsList.length} unique products. Fetching DB categories...`);
 
-    // !!! ВИМКНЕНО ОТРИМАННЯ КАТЕГОРІЙ, БО НЕМАЄ ПОЛЯ category_id !!!
-    // const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
+    // !!! ВІДНОВЛЕНО ОТРИМАННЯ КАТЕГОРІЙ !!!
+    const { data: dbCategories, error: catError } = await supabaseAdmin.from('categories').select('id, title');
+    if (catError) log(`Category fetch warning: ${catError.message}`);
     
     const finalProducts = productsList.map(p => {
-        /* * ТИМЧАСОВО ВИМКНЕНО: Логіка мапінгу категорій.
-         * У таблиці 'products' немає колонки 'category_id'.
-         * Щоб увімкнути категорії, додайте колонку в БД і розкоментуйте код нижче.
-         */
-        
-        /*
         let catId = null;
-        if (TOPTIME_CATEGORY_MAP[p._category_id_raw] && dbCategories) { ... }
-        */
+        // 1. Спроба по ID мапінгу (TopTime ID -> Назва -> ID в базі)
+        const mapName = TOPTIME_CATEGORY_MAP[p._category_id_raw];
+        if (mapName && dbCategories) {
+            const found = dbCategories.find((c: any) => c.title.toLowerCase() === mapName.toLowerCase());
+            if (found) catId = found.id;
+        }
+        // 2. Спроба по назві (якщо є підказка в назві або деінде)
+        if (!catId && p._category_name_hint && dbCategories) {
+            const found = dbCategories.find((c: any) => c.title.toLowerCase().includes(p._category_name_hint.toLowerCase()));
+            if (found) catId = found.id;
+        }
 
-        // Видаляємо тимчасові поля перед записом в БД
-        delete p._category_id_raw; 
-        
-        // Повертаємо об'єкт БЕЗ category_id
-        return { ...p }; 
+        delete p._category_id_raw;
+        // Повертаємо об'єкт з category_id (переконайтеся, що SQL скрипт виконано!)
+        return { ...p, category_id: catId };
     });
 
-    // Запис у БД маленькими порціями
-    const BATCH_SIZE = 20; // Зменшено для стабільності
+    const BATCH_SIZE = 20; 
     let successCount = 0;
     let errorCount = 0;
 
