@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-// Налаштування для Vercel
+// Налаштування для Vercel (Timeouts)
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
@@ -17,27 +17,38 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
   }
 });
 
-// Карта категорій для TopTime (ID -> Назва)
+// --- SMART MAPPING КАТЕГОРІЙ ---
+// Приводимо TopTime ID до назв твого MEGA MENU (Totobi)
 const TOPTIME_CATEGORY_MAP: Record<string, string> = {
+    // Одяг
     '10': 'Футболки', 
-    '11': 'Футболки', // V-подібний
-    '12': 'Футболки', // Довгий рукав
-    '13': 'Майки',
-    '2': 'Поло',
-    '14': 'Реглани',
-    '15': 'Худі',
-    '16': 'Худі',
-    '4': 'Фліси',
-    '19': 'Куртки', // Жилети також сюди
+    '11': 'Футболки', 
+    '12': 'Футболки',
+    '13': 'Футболки', // Майки туди ж, або створи окрему якщо в меню є
+    '2':  'Поло',
+    '14': 'Реглани, фліси',
+    '15': 'Реглани, фліси', // Худі
+    '16': 'Реглани, фліси',
+    '4':  'Реглани, фліси', // Фліси
+    '19': 'Куртки та софтшели', // Жилети/Куртки
+    '23': 'Куртки та софтшели',
+    
+    // Головні убори
     '6': 'Кепки',
-    '7': 'Шапки',
-    '9': 'Запальнички',
-    '17': 'Ручки',
-    '8': 'Шнурки',
-    // Додаємо категорії для сумок (перевірте, чи ці ID вірні для вашого XML, зазвичай це 20 або 21)
-    '20': 'Сумки', 
+    '7': 'Шапки', // Якщо в меню є "Шапки", інакше "Головні убори"
+    
+    // Сумки та рюкзаки
+    '20': 'Сумки для покупок', // Шопери
     '21': 'Рюкзаки',
-    '1': 'Парасолі'
+    '22': 'Сумки дорожні та спортивні',
+    
+    // Парасолі
+    '1': 'Парасолі',
+
+    // Інше (Mapping під структуру Totobi)
+    '17': 'Ручки', // Офіс -> Ручки
+    '9':  'Запальнички',
+    '8':  'Шнурки'
 };
 
 export async function GET(request: Request) {
@@ -52,7 +63,6 @@ export async function GET(request: Request) {
     const provider = searchParams.get('provider') || 'totobi';
     const importUrl = searchParams.get('url') || "";
     const offset = parseInt(searchParams.get('offset') || '0');
-    // Ліміт 50, якщо виникають помилки timeout - зменшуйте до 20
     const limit = parseInt(searchParams.get('limit') || '50'); 
     const rate = parseFloat(searchParams.get('rate') || '43.5');
 
@@ -75,7 +85,7 @@ export async function GET(request: Request) {
 }
 
 // ==========================================
-// 1. ЛОГІКА TOTOBI
+// 1. ЛОГІКА TOTOBI (Без змін, працює добре)
 // ==========================================
 async function syncTotobi(url: string, offset: number, limit: number, log: Function, debugLog: string[]) {
     const response = await fetch(url, { cache: 'no-store' });
@@ -85,7 +95,7 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
     
-    // 1. ПАРСИНГ КАТЕГОРІЙ
+    // 1. Категорії
     const categoriesMap: Record<string, string> = {};
     const rawCats = jsonData.yml_catalog?.shop?.categories?.category;
     if (rawCats) {
@@ -95,7 +105,7 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         });
     }
 
-    // 2. ПАРСИНГ ТОВАРІВ
+    // 2. Товари
     const allOffers = jsonData.yml_catalog?.shop?.offers?.offer || jsonData.offers?.offer;
     if (!allOffers) throw new Error("No offers found in XML.");
     
@@ -112,6 +122,7 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         let basePrice = parseFloat(offer.price);
         let sizesData = [];
 
+        // Обробка розмірів Totobi
         if (offer.textile === 'Y' && offer.sizes?.size) {
             const sizesArr = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
             if ((!basePrice || isNaN(basePrice)) && sizesArr.length > 0) {
@@ -122,7 +133,10 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
                 price: parseFloat(s['@_modifier']),
                 stock_total: parseInt(s['@_amount'] || 0),
                 stock_reserve: parseInt(s['@_reserve'] || 0),
-                stock_available: parseInt(s['@_in_stock'] || 0)
+                stock_available: parseInt(s['@_in_stock'] || 0),
+                // Totobi зазвичай має колір в параметрах, а не в sizes, 
+                // але для уніфікації можна додавати сюди, якщо потрібно
+                color: extractColor(offer.param) 
             }));
         }
 
@@ -134,17 +148,8 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
         const catId = offer.categoryId?.toString();
         const catName = categoriesMap[catId] || "Інше";
         const amount = parseInt(offer.amount) || 0;
-
-        // Додаткові параметри
-        let colorValue = null;
-        let brandValue = offer.vendor;
-        if (offer.param) {
-            const params = Array.isArray(offer.param) ? offer.param : [offer.param];
-            const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Група Кольорів');
-            if (colorParam) colorValue = colorParam['#text'];
-            const brandParam = params.find((p: any) => p['@_name'] === 'ТМ' || p['@_name'] === 'Бренд');
-            if (brandParam) brandValue = brandParam['#text'];
-        }
+        const colorVal = extractColor(offer.param);
+        const brandVal = extractBrand(offer.param, offer.vendor);
 
         return {
             external_id: offer['@_id']?.toString(),
@@ -156,12 +161,12 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
             amount: amount,
             reserve: parseInt(offer.reserve) || 0,
             sizes: sizesData,
-            color: colorValue,
-            brand: brandValue,
+            color: colorVal,
+            brand: brandVal,
             category: catName, 
             category_external_id: catId,
             updated_at: new Date().toISOString(),
-            in_stock: amount > 0 // Автоматично ставимо наявність
+            in_stock: amount > 0
         };
     }).filter((p: any) => p.external_id && p.title);
 
@@ -182,11 +187,26 @@ async function syncTotobi(url: string, offset: number, limit: number, log: Funct
     });
 }
 
+// Допоміжні функції для Totobi
+function extractColor(params: any) {
+    if (!params) return null;
+    const pArr = Array.isArray(params) ? params : [params];
+    const p = pArr.find((x: any) => x['@_name'] === 'Колір' || x['@_name'] === 'Група Кольорів');
+    return p ? p['#text'] : null;
+}
+function extractBrand(params: any, vendor: string) {
+    if (vendor) return vendor;
+    if (!params) return null;
+    const pArr = Array.isArray(params) ? params : [params];
+    const p = pArr.find((x: any) => x['@_name'] === 'ТМ' || x['@_name'] === 'Бренд');
+    return p ? p['#text'] : null;
+}
+
 // ==========================================
-// 2. ЛОГІКА TOPTIME
+// 2. ЛОГІКА TOPTIME (REFACTORED)
 // ==========================================
 async function syncTopTime(url: string, eurRate: number, offset: number, limit: number, log: Function, debugLog: string[]) {
-    // Завантаження XML
+    // 1. Завантаження XML
     let xmlText = "";
     try {
         const response = await fetch(url, { cache: 'no-store' });
@@ -199,26 +219,35 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
     const parser = new XMLParser();
     const jsonData = parser.parse(xmlText);
 
+    // Шукаємо масив items
     let items = null;
     if (jsonData.items?.item) items = jsonData.items.item;
     else if (jsonData.yml_catalog?.shop?.items?.item) items = jsonData.yml_catalog.shop.items.item;
     else {
+        // Fallback пошук
         for (const key of Object.keys(jsonData)) {
             if (jsonData[key]?.item) { items = jsonData[key].item; break; }
         }
     }
 
     if (!items) throw new Error("Could not find <item> list in XML.");
-    
     const itemsArray = Array.isArray(items) ? items : [items];
     
-    // Групуємо товари
+    // 2. ГРУПУВАННЯ ЗА БАЗОВИМ АРТИКУЛОМ
+    // Ми хочемо, щоб різні кольори однієї моделі стали одним товаром
     const groupedProducts: Record<string, any> = {};
 
     for (const item of itemsArray) {
-        const parentSku = item.article; 
-        if (!parentSku) continue;
+        // TopTime: article = "5102.10" (Модель.Колір)
+        // Ми хочемо згрупувати по "5102"
+        const fullSku = item.article ? item.article.toString() : "";
+        if (!fullSku) continue;
 
+        // ВИТЯГУЄМО БАЗОВИЙ SKU (до крапки або дефісу)
+        // Якщо артикул "5102", base = "5102". Якщо "5102.30", base = "5102".
+        const baseSku = fullSku.split(/[.-]/)[0];
+
+        // Визначаємо розмір
         let sizeLabel = "ONE SIZE";
         if (item.name && typeof item.name === 'string' && item.name.includes(',')) {
             const parts = item.name.split(',');
@@ -231,53 +260,59 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
         const priceEur = parseFloat(item.price) || 0;
         const priceUah = Math.ceil(priceEur * eurRate);
         const stockAvailable = parseInt(item.count2 || item.count || '0');
-        const stockTotal = parseInt(item.count3 || item.count || '0');
         
+        // Формуємо варіант для sizes
         const sizeObj = {
             label: sizeLabel,
             price: priceUah,
-            stock_total: stockTotal, 
+            stock_total: parseInt(item.count3 || item.count || '0'), 
             stock_reserve: 0, 
-            stock_available: stockAvailable
+            stock_available: stockAvailable,
+            // ВАЖЛИВО: Додаємо колір у варіант, щоб фронтенд знав, що це за розмір
+            color: item.color || "Assorted",
+            sku_variant: fullSku // Зберігаємо унікальний код варіанту
         };
 
-        if (!groupedProducts[parentSku]) {
+        if (!groupedProducts[baseSku]) {
             const rawCatId = (item.id_category || item.categoryId || item.category_id)?.toString();
-            // Мапінг категорій
+            // Мапінг на назви Totobi
             const catName = TOPTIME_CATEGORY_MAP[rawCatId] || "Інше";
 
-            groupedProducts[parentSku] = {
-                external_id: parentSku.toString(),
-                title: item.name ? item.name.split(',')[0].trim() : "No Title",
+            // Чистимо назву від кольору і розміру (беремо першу частину до коми)
+            const cleanTitle = item.name ? item.name.split(',')[0].trim() : "Product";
+
+            groupedProducts[baseSku] = {
+                // Використовуємо Base SKU як ID товару в базі!
+                external_id: baseSku, 
+                title: cleanTitle,
                 price: priceUah,
                 image_url: item.photo,
-                sku: parentSku.toString(),
+                sku: baseSku,
                 description: item.content || item.content_ua || "",
                 amount: 0, 
                 reserve: 0,
-                sizes: [],
-                color: item.color,
+                sizes: [], // Сюди пушимо всі кольори і розміри
+                color: "Multi", // На рівні товару пишемо Multi, бо кольори всередині
                 brand: item.brand,
                 category: catName,
                 category_external_id: rawCatId,
                 updated_at: new Date().toISOString(),
-                // 🔥 ВАЖЛИВО: Ставимо in_stock за замовчуванням false, оновимо нижче
                 in_stock: false 
             };
         }
 
-        groupedProducts[parentSku].sizes.push(sizeObj);
-        groupedProducts[parentSku].amount += stockAvailable;
-        // 🔥 ОНОВЛЕННЯ СТАТУСУ: Якщо хоча б один розмір є в наявності -> товар в наявності
+        // Додаємо варіант до батьківського товару
+        groupedProducts[baseSku].sizes.push(sizeObj);
+        groupedProducts[baseSku].amount += stockAvailable;
         if (stockAvailable > 0) {
-            groupedProducts[parentSku].in_stock = true;
+            groupedProducts[baseSku].in_stock = true;
         }
     }
 
     const finalProducts = Object.values(groupedProducts);
     const totalProducts = finalProducts.length;
 
-    // ПАГІНАЦІЯ
+    // Пагінація (Simulated for Supabase batching)
     if (offset >= totalProducts) {
         return NextResponse.json({ 
             done: true, 
@@ -290,14 +325,16 @@ async function syncTopTime(url: string, eurRate: number, offset: number, limit: 
     const endIndex = Math.min(offset + limit, totalProducts);
     const batch = finalProducts.slice(offset, endIndex);
     
-    log(`Upserting TopTime batch: ${offset} - ${endIndex} of ${totalProducts} (Limit: ${limit})`);
+    log(`Upserting TopTime batch: ${offset} - ${endIndex} of ${totalProducts} grouped models.`);
 
+    // Upsert в базу
     const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
     
     if (error) {
         log(`Batch error: ${error.message}`);
         throw error;
     }
+
     return NextResponse.json({ 
         done: false, 
         total: totalProducts, 
