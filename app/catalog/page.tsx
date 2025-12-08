@@ -13,7 +13,7 @@ import { useCart } from "../components/CartContext";
 import Header from "../components/Header";
 import CartDrawer from "../components/CartDrawer";
 
-// Структура категорій (має збігатися з тим, що в Header)
+// Структура категорій
 const SIDEBAR_STRUCTURE = [
   { name: "Сумки", subcategories: ["Валізи", "Косметички", "Мішок спортивний", "Рюкзаки", "Сумки для ноутбуків", "Сумки для покупок", "Сумки дорожні та спортивні", "Сумки на пояс", "Термосумки"] },
   { name: "Ручки", subcategories: ["Еко ручки", "Металеві ручки", "Олівці", "Пластикові ручки"] },
@@ -140,17 +140,16 @@ function CatalogContent() {
     if (q) setSearchQuery(q);
   }, [searchParams]);
 
-  // 1. FETCH DATA (Simple Select)
+  // 1. ЗАВАНТАЖЕННЯ ДАНИХ (ПРОСТЕ, БЕЗ ГРУПУВАННЯ)
+  // Бекенд вже все згрупував!
   useEffect(() => {
     async function loadData() {
         setLoading(true);
-        // Ми просто беремо товари. Вони ВЖЕ згруповані бекендом.
         const { data, error } = await supabase.from("products").select("*");
         
         if (error) {
             console.error("Error loading products:", error);
         } else {
-            // FIX: Якщо прийшло null, ставимо пустий масив
             setAllProducts(data || []);
             setDisplayedProducts(data || []);
         }
@@ -159,31 +158,32 @@ function CatalogContent() {
     loadData();
   }, []);
 
-  // 2. FILTER DATA (Client Side)
+  // 2. ФІЛЬТРАЦІЯ
   useEffect(() => {
     if (loading) return;
 
     let result = allProducts;
 
-    // Filter by Category
+    // По категорії
     if (selectedSubCat) {
         result = result.filter(p => p.category === selectedSubCat);
     }
 
-    // Filter by Search (Title or SKU)
+    // Пошук (по назві або артикулу)
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
         result = result.filter(p => 
             (p.title && p.title.toLowerCase().includes(q)) || 
-            (p.sku && p.sku.toLowerCase().includes(q))
+            (p.sku && p.sku.toLowerCase().includes(q)) ||
+            (p.base_sku && p.base_sku.toLowerCase().includes(q))
         );
     }
 
-    // Filter by Color (Check inside variants)
+    // По кольору (шукаємо всередині variants)
     if (selectedColors.length > 0) {
         result = result.filter(p => {
-             // Перевіряємо, чи є хоч один варіант з потрібним кольором
              if (!p.variants || !Array.isArray(p.variants)) return false;
+             // Якщо хоч один варіант має вибраний колір
              return p.variants.some((v: any) => selectedColors.includes(v.color));
         });
     }
@@ -192,9 +192,10 @@ function CatalogContent() {
   }, [selectedSubCat, searchQuery, selectedColors, allProducts, loading]);
 
   const handleAddToCart = (item: any) => {
-      // Для кнопки "Швидко в кошик" додаємо перший доступний варіант
+      // Додаємо просто модель (без розміру за замовчуванням, або перший ліпший)
+      // Краще перекинути на сторінку товару, але якщо треба кнопка "Купити":
       addToCart({
-          id: item.id,
+          id: item.external_id,
           title: item.title,
           price: item.price,
           image_url: item.image_url,
@@ -275,11 +276,12 @@ function CatalogContent() {
                  ) : (
                    displayedProducts.map((item) => (
                      <div key={item.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 hover:border-blue-500/30 hover:shadow-2xl transition group flex gap-3 h-full relative">
-                       {/* Color Dots */}
+                       {/* Color Dots (ІКОНКИ КОЛЬОРІВ, А НЕ РОЗМІРІВ) */}
                        <div className="flex flex-col gap-2 w-10 flex-shrink-0 pt-2 z-10">
+                          {/* Показуємо перші 5 кольорів з variants */}
                           {item.variants && item.variants.length > 0 ? (
                              item.variants.slice(0, 5).map((v: any, idx: number) => (
-                               <div key={idx} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110">
+                               <div key={idx} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110" title={v.color}>
                                    <ProductImage src={v.image} alt={v.color} fill />
                                </div>
                              ))
@@ -292,7 +294,7 @@ function CatalogContent() {
                        {/* Content */}
                        <div className="flex-1 flex flex-col min-w-0">
                           <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
-                             {/* ВАЖЛИВО: Посилання використовує external_id (RBR-...) */}
+                             {/* Посилання на сторінку товару */}
                              <Link href={`/product/${item.external_id}`} className="block w-full h-full">
                                <ProductImage src={item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
                              </Link>
