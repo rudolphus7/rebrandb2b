@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-// Налаштування
 export const maxDuration = 300; 
 export const dynamic = 'force-dynamic';
 
@@ -13,36 +12,68 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-// --- HELPER: Очищення рядків (замість crypto) ---
-// Робить з "Футболка Valueweight Червона" -> "futbolka-valueweight"
-function generateSlugId(text: string): string {
-    return text
-        .toLowerCase()
-        .replace(/[^a-z0-9а-яіїєґ]+/g, '-') // Замінюємо спецсимволи на дефіс
-        .replace(/^-+|-+$/g, '') // Прибираємо дефіси по краях
-        .substring(0, 50); // Обрізаємо, щоб не було гігантських ID
-}
+// --- СТРУКТУРА МЕНЮ ---
+const MENU_STRUCTURE = [
+  { name: 'Сумки', subs: ['Валізи', 'Косметички', 'Мішок спортивний', 'Рюкзаки', 'Сумки для ноутбуків', 'Сумки для покупок', 'Сумки дорожні та спортивні', 'Сумки на пояс', 'Термосумки'] },
+  { name: 'Ручки', subs: ['Еко ручки', 'Металеві ручки', 'Олівці', 'Пластикові ручки'] },
+  { name: 'Подорож та відпочинок', subs: ['Все для пікніка', 'Ліхтарики', 'Ланч бокси', 'Лопати', 'Пледи', 'Пляшки для пиття', 'Подушки', 'Термоси та термокружки', 'Фляги', 'Фрізбі', 'Штопори'] },
+  { name: 'Парасолі', subs: ['Парасолі складні', 'Парасолі-тростини'] },
+  { name: 'Одяг', subs: ['Вітровки', 'Рукавички', 'Спортивний одяг', 'Футболки', 'Поло', 'Дитячий одяг', 'Реглани, фліси', 'Жилети', 'Куртки та софтшели'] },
+  { name: 'Головні убори', subs: ['Дитяча кепка', 'Панами', 'Шапки', 'Кепки'] },
+  { name: 'Інструменти', subs: ['Викрутки', 'Мультитули', 'Набір інструментів', 'Ножі', 'Рулетки'] },
+  { name: 'Офіс', subs: ['Записні книжки', 'Календарі'] },
+  { name: 'Персональні аксессуари', subs: ['Брелки', 'Візитниці', 'Дзеркала'] },
+  { name: 'Для професіоналів', subs: ['Опадоміри'] },
+  { name: 'Електроніка', subs: ['Аксесуари', 'Годинники', 'Зарядні пристрої', 'Зволожувачі повітря', 'Лампи', 'Портативна акустика'] },
+  { name: 'Дім', subs: ['Дошки кухонні', 'Кухонне приладдя', 'Млини для спецій', 'Набори для сиру', 'Рушники', 'Свічки', 'Сковорідки', 'Стакани', 'Чайники', 'Годівнички'] },
+  { name: 'Посуд', subs: ['Горнятка'] },
+  { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
+];
 
-// --- HELPER: Безпечний текст ---
+// --- HELPER: АБСОЛЮТНО БЕЗПЕЧНИЙ РЯДОК ---
 function safeStr(val: any): string {
-    if (val === null || val === undefined) return "";
-    if (typeof val === 'object') return val['#text'] ? String(val['#text']) : "";
-    return String(val).trim();
+    try {
+        if (val === null || val === undefined) return "";
+        if (typeof val === 'string') return val.trim();
+        if (typeof val === 'number') return String(val);
+        if (typeof val === 'object') {
+            // Якщо це масив, беремо перший елемент
+            if (Array.isArray(val)) return safeStr(val[0]);
+            // Якщо об'єкт з текстом (XML особливість)
+            if (val['#text']) return String(val['#text']).trim();
+            return "";
+        }
+        return String(val).trim();
+    } catch (e) {
+        return "";
+    }
 }
 
-// --- ВИЗНАЧЕННЯ КАТЕГОРІЙ (Спрощено) ---
-function detectCategory(title: string, rawCat: string) {
-    const t = (title + " " + rawCat).toLowerCase();
+function generateSlugId(text: string): string {
+    const safeText = safeStr(text);
+    if (!safeText) return "RBR-UNKNOWN-" + Math.random().toString(36).substr(2, 5);
     
-    if (t.includes('сумк') || t.includes('рюкзак') || t.includes('шопер')) return 'Сумки';
-    if (t.includes('ручк') || t.includes('олівц')) return 'Ручки';
-    if (t.includes('парасол')) return 'Парасолі';
-    if (t.includes('футболк')) return 'Футболки';
-    if (t.includes('поло')) return 'Поло';
-    if (t.includes('кепк') || t.includes('шапк')) return 'Головні убори';
-    if (t.includes('куртк') || t.includes('жилет') || t.includes('фліс')) return 'Одяг';
-    if (t.includes('чашк') || t.includes('термос')) return 'Посуд';
+    return safeText
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 50);
+}
+
+function detectCategory(titleInput: any, rawCategoryInput: any) {
+    const text = `${safeStr(titleInput)} ${safeStr(rawCategoryInput)}`.toLowerCase();
     
+    for (const main of MENU_STRUCTURE) {
+        for (const sub of main.subs) {
+            if (sub === 'Футболки' && text.includes('поло')) continue;
+            if (sub === 'Кепки' && text.includes('дитяч')) continue;
+            if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
+        }
+    }
+    if (text.includes('футболк')) return 'Футболки';
+    if (text.includes('поло')) return 'Поло';
+    if (text.includes('куртк')) return 'Куртки та софтшели';
+    if (text.includes('рюкзак')) return 'Рюкзаки';
     return "Інше";
 }
 
@@ -56,170 +87,177 @@ export async function GET(request: Request) {
     const url = searchParams.get('url');
     const eurRate = 43.5;
 
-    if (!url) throw new Error("URL is missing");
+    if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
 
-    log(`1. Start fetching ${provider}...`);
-    
+    log(`Start fetching ${provider}...`);
     const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     const xmlText = await response.text();
     
-    log(`2. XML received. Length: ${xmlText.length}`);
-
+    // Парсинг без типізації чисел (все як текст)
     const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });
     const jsonData = parser.parse(xmlText);
 
-    // --- ОТРИМАННЯ МАСИВУ ТОВАРІВ ---
     let items: any[] = [];
     
-    // Шукаємо масив items де завгодно
-    if (jsonData?.yml_catalog?.shop?.offers?.offer) {
-        items = jsonData.yml_catalog.shop.offers.offer;
-    } else if (jsonData?.items?.item) {
-        items = jsonData.items.item;
-    } else if (jsonData?.yml_catalog?.shop?.items?.item) {
-        items = jsonData.yml_catalog.shop.items.item;
+    // Максимально широкий пошук масиву товарів
+    if (provider === 'toptime') {
+        let raw = jsonData?.items?.item || jsonData?.yml_catalog?.shop?.items?.item;
+        if (!raw && jsonData) {
+             const keys = Object.keys(jsonData);
+             if (keys.length > 0 && jsonData[keys[0]]?.item) raw = jsonData[keys[0]].item;
+        }
+        items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
     } else {
-        // Fallback: шукаємо перший масив в об'єкті
-        const findArray = (obj: any): any[] => {
-            for (const key in obj) {
-                if (Array.isArray(obj[key])) return obj[key];
-                if (typeof obj[key] === 'object') {
-                    const found = findArray(obj[key]);
-                    if (found.length) return found;
-                }
-            }
-            return [];
-        };
-        items = findArray(jsonData);
+        let raw = jsonData?.yml_catalog?.shop?.offers?.offer;
+        items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
     }
 
-    if (!Array.isArray(items)) items = [items];
-    
-    log(`3. Found ${items.length} items. Processing...`);
+    log(`Found ${items.length} items.`);
 
     // --- ОБРОБКА ---
     const models: Record<string, any> = {};
+    let errorCount = 0;
 
     for (const item of items) {
-        if (!item) continue;
+        // 🔥 TRY-CATCH НА КОЖЕН ЕЛЕМЕНТ - ЦЕ ГАРАНТУЄ, ЩО СКРИПТ НЕ ВПАДЕ
+        try {
+            if (!item) continue;
 
-        // Витягуємо дані максимально безпечно
-        let title = safeStr(item.name || item.title);
-        let sku = safeStr(item.vendorCode || item.article || item.code);
-        let price = parseFloat(safeStr(item.price).replace(',', '.')) || 0;
-        let image = "";
-        let color = "";
-        
-        // Картинка
-        if (item.picture) image = Array.isArray(item.picture) ? safeStr(item.picture[0]) : safeStr(item.picture);
-        else if (item.photo) image = safeStr(item.photo);
+            // Витягуємо дані використовуючи safeStr
+            let title = "", sku = "", image = "", desc = "", catRaw = "", brand = "", color = "";
+            let price = 0;
+            let sizes: any[] = [];
 
-        // Опис
-        let desc = safeStr(item.description || item.content || item.content_ua).substring(0, 2000);
+            if (provider === 'toptime') {
+                title = safeStr(item.name);
+                sku = safeStr(item.article || item.code);
+                const pVal = parseFloat(safeStr(item.price).replace(',', '.'));
+                price = Math.ceil((isNaN(pVal) ? 0 : pVal) * eurRate);
+                image = safeStr(item.photo);
+                desc = safeStr(item.content || item.content_ua);
+                catRaw = safeStr(item.group);
+                brand = safeStr(item.brand);
+                color = safeStr(item.color);
+                
+                const stock = parseInt(safeStr(item.count2 || item.count || '0').replace(/\D/g, '')) || 0;
+                if (stock > 0) sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
+            } else {
+                // Totobi
+                title = safeStr(item.name);
+                sku = safeStr(item.vendorCode);
+                const pVal = parseFloat(safeStr(item.price).replace(',', '.'));
+                price = isNaN(pVal) ? 0 : pVal;
+                
+                const rawP = item.picture;
+                image = Array.isArray(rawP) ? safeStr(rawP[0]) : safeStr(rawP);
+                if (image && !image.startsWith('http')) image = ""; // Валідація картинки
 
-        // Колір (з параметрів або поля)
-        if (item.color) color = safeStr(item.color);
-        if (!color && item.param) {
-            const params = Array.isArray(item.param) ? item.param : [item.param];
-            const c = params.find((p: any) => safeStr(p?.['@_name']).toLowerCase().includes('колір'));
-            if (c) color = safeStr(c['#text']);
-        }
-        
-        // Якщо немає кольору, пробуємо взяти останнє слово назви
-        if (!color) {
-            const parts = title.split(' ');
-            if (parts.length > 2) color = parts[parts.length - 1];
-        }
+                desc = safeStr(item.description);
+                catRaw = safeStr(item.categoryId);
+                brand = safeStr(item.vendor);
+                
+                // Безпечний пошук параметрів
+                const params = Array.isArray(item?.param) ? item.param : (item?.param ? [item.param] : []);
+                const cParam = params.find((p: any) => safeStr(p?.['@_name']).toLowerCase().includes('колір') || safeStr(p?.['@_name']).toLowerCase().includes('color'));
+                if (cParam) color = safeStr(cParam['#text']);
 
-        // Чистимо назву від кольору (щоб отримати назву моделі)
-        let modelName = title;
-        if (color) {
-            modelName = title.replace(new RegExp(color, 'gi'), '').trim();
-            // Також прибираємо зайві символи в кінці
-            modelName = modelName.replace(/[-_.,]+$/, '').trim();
-        }
+                // Розміри
+                const rawSizes = item?.sizes?.size;
+                if (rawSizes) {
+                    const sArr = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
+                    sArr.forEach((s: any) => {
+                        const stockVal = parseInt(safeStr(s['@_in_stock'] || s['@_amount']).replace(/\D/g, '')) || 0;
+                        const modP = parseFloat(safeStr(s['@_modifier']).replace(',', '.'));
+                        sizes.push({
+                            label: safeStr(s['#text'] || "STD"),
+                            stock_available: stockVal,
+                            price: isNaN(modP) ? price : modP
+                        });
+                    });
+                } else {
+                    const stock = parseInt(safeStr(item.amount || item.in_stock).replace(/\D/g, '')) || 0;
+                    sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
+                }
+            }
 
-        if (modelName.length < 3) modelName = title; // Якщо зрізали зайве
+            // Валідація: якщо немає назви, пропускаємо
+            if (!title) continue;
 
-        // ГЕНЕРУЄМО ВЛАСНИЙ ID (RBR-slug)
-        const myId = `RBR-${generateSlugId(modelName)}`;
+            // --- ВЛАСНИЙ ID (RBR-...) ---
+            
+            // Якщо колір не прийшов окремим полем, шукаємо в кінці назви
+            if (!color) {
+                const parts = title.split(' ');
+                if (parts.length > 2) color = parts[parts.length - 1];
+            }
 
-        // Ініціалізація моделі
-        if (!models[myId]) {
-            models[myId] = {
-                external_id: myId,
-                title: modelName,
-                description: desc,
-                category: detectCategory(title, safeStr(item.categoryId || item.group)),
-                price: provider === 'toptime' ? Math.ceil(price * eurRate) : price,
-                image_url: image,
-                sku: myId, // Наш артикул
-                base_sku: myId,
-                variants: [],
-                updated_at: new Date().toISOString(),
-                in_stock: false,
-                amount: 0
-            };
-        }
+            // Чистимо назву від кольору
+            let modelName = title;
+            if (color && color.length > 1) {
+                // Екрануємо спецсимволи для regex
+                const safeColor = color.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                modelName = title.replace(new RegExp(safeColor, 'gi'), '').trim();
+                modelName = modelName.replace(/[-_.,]+$/, '').trim(); // Прибрати хвости
+            }
+            if (modelName.length < 3) modelName = title;
 
-        // Додаємо варіант
-        // Визначаємо наявність
-        let stock = 0;
-        let variantSizes: any[] = [];
+            const myId = `RBR-${generateSlugId(modelName)}`;
 
-        // Логіка розмірів
-        if (item.sizes?.size) {
-            const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
-            sArr.forEach((s: any) => {
-                const qty = parseInt(safeStr(s['@_in_stock'] || s['@_amount']).replace(/\D/g, '')) || 0;
-                const modPrice = parseFloat(safeStr(s['@_modifier'])) || models[myId].price;
-                stock += qty;
-                variantSizes.push({
-                    label: safeStr(s['#text'] || "STD"),
-                    stock_available: qty,
-                    price: modPrice
+            // Створення моделі
+            if (!models[myId]) {
+                models[myId] = {
+                    external_id: myId,
+                    title: modelName,
+                    description: desc.substring(0, 5000),
+                    category: detectCategory(title, catRaw),
+                    price: price,
+                    image_url: image,
+                    sku: myId,
+                    base_sku: myId,
+                    brand: brand,
+                    variants: [],
+                    updated_at: new Date().toISOString(),
+                    in_stock: false,
+                    amount: 0
+                };
+            }
+
+            // Додавання варіанту
+            const isDup = models[myId].variants.some((v: any) => v.sku_variant === sku);
+            if (!isDup) {
+                models[myId].variants.push({
+                    sku_variant: sku || "UNKNOWN",
+                    color: color || "Standard",
+                    image: image,
+                    sizes: sizes,
+                    price: price
                 });
-            });
-        } else {
-            stock = parseInt(safeStr(item.amount || item.count || item.count2 || item.in_stock).replace(/\D/g, '')) || 0;
-            variantSizes.push({ 
-                label: "ONE SIZE", 
-                stock_available: stock, 
-                price: models[myId].price 
-            });
-        }
+            }
 
-        // Уникаємо дублів
-        const isDup = models[myId].variants.some((v: any) => v.sku_variant === sku);
-        if (!isDup) {
-            models[myId].variants.push({
-                sku_variant: sku, // Артикул постачальника
-                color: color || "Standard",
-                image: image,
-                sizes: variantSizes,
-                price: models[myId].price
-            });
-            models[myId].amount += stock;
-            if (stock > 0) models[myId].in_stock = true;
+            const totalS = sizes.reduce((a, b) => a + b.stock_available, 0);
+            models[myId].amount += totalS;
+            if (totalS > 0) models[myId].in_stock = true;
+
+        } catch (e) {
+            // ЛОГУЄМО, АЛЕ НЕ ПАДАЄМО
+            console.error("Item skipped due to error:", e);
+            errorCount++;
         }
     }
 
     const finalData = Object.values(models);
-    log(`4. Grouped into ${finalData.length} unique models.`);
+    log(`Grouped into ${finalData.length} models. Errors skipped: ${errorCount}`);
 
-    // --- ЗАПИС В БАЗУ (Пакетами) ---
-    const batchSize = 20; 
+    // Запис в базу (Батчі)
+    const batchSize = 50; 
     for (let i = 0; i < finalData.length; i += batchSize) {
         const batch = finalData.slice(i, i + batchSize);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
         if (error) {
-            log(`❌ Error batch ${i}: ${error.message}`);
-            // Продовжуємо, не падаємо
+            console.error(`Batch error at index ${i}:`, error.message);
+            // Продовжуємо навіть якщо батч впав
         }
     }
-
-    log("5. Sync Complete!");
 
     return NextResponse.json({ success: true, logs: logs });
 
