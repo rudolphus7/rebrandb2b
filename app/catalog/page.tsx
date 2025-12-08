@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { 
   Search, Filter, ChevronDown, ChevronUp, Check, 
-  Home as HomeIcon, X, Menu, Loader2, RefreshCcw
+  Home as HomeIcon, X, Menu, Loader2
 } from "lucide-react";
 import ProductImage from "../components/ProductImage";
 import { useCart } from "../components/CartContext"; 
@@ -20,11 +20,10 @@ interface Category {
   parent_id: string | null;
 }
 
-// Функція для "обрізання" закінчень слів (щоб знайти "Валіза" по слову "Валізи")
+// Функція для "обрізання" закінчень слів (для розумного пошуку)
 function getSearchStems(word: string): string[] {
     if (!word || word.length < 3) return [word];
     const stems = [word];
-    // Обрізаємо типові закінчення множини/однини: и, і, а, я, ї, ий, ій...
     const clean = word.replace(/(и|і|ї|а|я|ов|ев|ів|ий|ій|ая|е)$/gi, "");
     if (clean.length >= 3 && clean !== word) {
         stems.push(clean);
@@ -50,7 +49,7 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
         });
     }, []);
 
-    // Авто-розкриття
+    // Авто-розкриття при виборі категорії
     useEffect(() => {
         if (activeCategory && categories.length > 0) {
             const activeItem = categories.find(c => c.name.toLowerCase() === activeCategory.toLowerCase());
@@ -162,7 +161,7 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
                 <input type="text" placeholder="Пошук..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#222] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-blue-500 outline-none"/>
              </div>
           )}
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
             {filteredItems.map((item, idx) => (
               <label key={idx} className="flex items-center gap-2 cursor-pointer group">
                 <div className={`relative w-4 h-4 border rounded flex items-center justify-center transition ${selectedItems.includes(item) ? 'border-blue-500 bg-blue-500' : 'border-white/20 group-hover:border-blue-500'}`}>
@@ -183,7 +182,8 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const ITEMS_PER_PAGE = 100;
+  // 🔥🔥🔥 ЗНЯТТЯ ОБМЕЖЕНЬ: Вантажимо 10000 товарів за раз 🔥🔥🔥
+  const ITEMS_PER_LOAD = 10000;
   
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
@@ -193,9 +193,6 @@ function CatalogContent() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
 
   const { addToCart, totalItems } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -205,10 +202,7 @@ function CatalogContent() {
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
 
   useEffect(() => {
-    setProducts([]);
-    setPage(0);
-    setHasMore(true);
-    fetchData(0, true);
+    fetchData();
   }, [query, categoryParam, colorParam, materialParam, genderParam]);
 
   const getCleanTitle = (title: string) => {
@@ -217,57 +211,37 @@ function CatalogContent() {
       return title.replace(colorRegex, '').trim();
   };
 
-  async function fetchData(pageIndex: number, isNewSearch: boolean = false) {
-    if (isNewSearch) setLoading(true);
-    else setLoadingMore(true);
-
+  async function fetchData() {
+    setLoading(true);
     let request = supabase.from("products").select("*");
 
     // --- ФІЛЬТРАЦІЯ ---
     if (query) {
-        // Якщо є прямий пошук, шукаємо всюди
         request = request.or(`title.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%`);
     }
 
-    // 🔥 АГРЕСИВНИЙ ПОШУК ПО КАТЕГОРІЯХ (Fix 0 items)
     if (categoryParam) {
-        // 1. Отримуємо ID та Назву поточної категорії
+        // Розумний пошук категорій
         const { data: catData } = await supabase.from('categories').select('id, title').ilike('title', categoryParam).maybeSingle();
-        
-        // Масив слів для пошуку. Починаємо з поточного
         let searchKeywords: string[] = [];
-        
-        // Додаємо варіанти поточної назви (Валізи -> Валіз)
         searchKeywords.push(...getSearchStems(categoryParam));
 
         if (catData) {
-            // 2. Якщо категорія знайдена в базі, беремо всіх її дітей (підкатегорії)
             const { data: children } = await supabase.from('categories').select('title').eq('parent_id', catData.id);
             if (children && children.length > 0) {
                 children.forEach(c => {
-                    if (c.title) {
-                        // Додаємо і назву, і її "корінь" (Рюкзаки -> Рюкзак)
-                        searchKeywords.push(...getSearchStems(c.title));
-                    }
+                    if (c.title) searchKeywords.push(...getSearchStems(c.title));
                 });
             }
         }
-
-        // Видаляємо дублікати ключових слів
         searchKeywords = Array.from(new Set(searchKeywords));
-
-        // 3. Будуємо ВЕЛИКИЙ запит OR
-        // Шукаємо ці слова і в полі category (від постачальника), і в назві товару (title), і в описі (description)
-        // Це максимальне покриття.
         const conditions = searchKeywords.map(term => 
             `category.ilike.%${term}%,title.ilike.%${term}%,description.ilike.%${term}%`
         );
-        
         request = request.or(conditions.join(','));
     }
 
     if (colorParam) request = request.in('color', colorParam.split(","));
-    
     if (materialParam) {
         const orQuery = materialParam.split(",").map(m => `description.ilike.%${m}%`).join(",");
         request = request.or(orQuery);
@@ -277,43 +251,24 @@ function CatalogContent() {
         request = request.or(orQuery);
     }
 
-    // --- ПАГІНАЦІЯ ---
-    const from = pageIndex * ITEMS_PER_PAGE;
-    const to = from + ITEMS_PER_PAGE - 1;
-
-    const { data, error } = await request.range(from, to).order("id", { ascending: true });
+    // 🔥 ВАНТАЖИМО ВСЕ ОДРАЗУ
+    const { data, error } = await request.range(0, ITEMS_PER_LOAD - 1).order("id", { ascending: true });
 
     if (error) {
         console.error("Error fetching products:", error);
         setLoading(false);
-        setLoadingMore(false);
         return;
     }
 
-    if (!data || data.length === 0) {
-        setHasMore(false);
+    if (!data) {
+        setProducts([]);
         setLoading(false);
-        setLoadingMore(false);
         return;
     }
 
-    if (data.length < ITEMS_PER_PAGE) {
-        setHasMore(false);
-    }
-
-    processProducts(data, isNewSearch);
-  }
-
-  const processProducts = (newData: any[], isNewSearch: boolean) => {
-    const currentProducts = isNewSearch ? [] : products;
+    // ГРУПУВАННЯ
     const groupedMap = new Map<string, any>();
-
-    currentProducts.forEach(p => {
-        const key = p.groupKey;
-        groupedMap.set(key, { ...p });
-    });
-
-    newData.forEach((item) => {
+    data.forEach((item) => {
         const rawSku = item.sku ? item.sku.trim() : "";
         let baseSku = rawSku.split(/[\s\-_./\\]+/)[0];
         
@@ -363,14 +318,7 @@ function CatalogContent() {
 
     setProducts(processed);
     setLoading(false);
-    setLoadingMore(false);
-  };
-
-  const handleLoadMore = () => {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchData(nextPage, false);
-  };
+  }
 
   const handleAddToCart = (product: any) => {
     addToCart({
@@ -406,7 +354,10 @@ function CatalogContent() {
            {(categoryParam || query || colorParam || materialParam || genderParam) && (
               <Link href="/catalog" className="text-xs text-red-400 flex items-center gap-1 hover:underline mb-4 block"><X size={12}/> Скинути все</Link>
            )}
+           
+           {/* КАТЕГОРІЇ ТУТ */}
            <CategorySidebar activeCategory={categoryParam} />
+           
            <div className="w-full h-[1px] bg-white/10 my-6"></div>
            <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Filter size={18}/> Фільтри</h3>
            <FilterGroup title="Колір" items={COLORS} paramName="color" isOpenDefault={true} />
@@ -473,20 +424,6 @@ function CatalogContent() {
                        ))
                      }
                    </div>
-                   
-                   {/* Load More Button */}
-                   {hasMore && !loading && (
-                       <div className="mt-8 flex justify-center">
-                           <button 
-                               onClick={handleLoadMore} 
-                               disabled={loadingMore}
-                               className="bg-[#222] border border-white/10 text-white px-8 py-3 rounded-xl font-bold hover:bg-white hover:text-black transition flex items-center gap-2 disabled:opacity-50"
-                           >
-                               {loadingMore ? <Loader2 className="animate-spin" size={20}/> : <RefreshCcw size={20}/>}
-                               {loadingMore ? "Завантаження..." : "Завантажити ще товари"}
-                           </button>
-                       </div>
-                   )}
                </>
            )}
         </div>
