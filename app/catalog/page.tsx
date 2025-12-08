@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
@@ -20,18 +20,29 @@ interface Category {
   parent_id: string | null;
 }
 
+// Функція для "обрізання" закінчень слів (щоб знайти "Валіза" по слову "Валізи")
+function getSearchStems(word: string): string[] {
+    if (!word || word.length < 3) return [word];
+    const stems = [word];
+    // Обрізаємо типові закінчення множини/однини: и, і, а, я, ї, ий, ій...
+    const clean = word.replace(/(и|і|ї|а|я|ов|ев|ів|ий|ій|ая|е)$/gi, "");
+    if (clean.length >= 3 && clean !== word) {
+        stems.push(clean);
+    }
+    return stems;
+}
+
 // --- КОМПОНЕНТ ДЕРЕВА КАТЕГОРІЙ ---
 function CategorySidebar({ activeCategory }: { activeCategory: string | null }) {
     const [categories, setCategories] = useState<Category[]>([]);
     const [openCategories, setOpenCategories] = useState<string[]>([]);
 
     useEffect(() => {
-        // Завантажуємо категорії і сортуємо
         supabase.from('categories').select('*').order('title').then(({ data }) => {
             if (data) {
                 const mapped = data.map(c => ({
                     id: c.id, 
-                    name: c.title || c.name || "Без назви", // Захист від пустих назв
+                    name: c.title || c.name || "Без назви",
                     parent_id: c.parent_id
                 }));
                 setCategories(mapped);
@@ -39,25 +50,21 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
         });
     }, []);
 
-    // Авто-розкриття при завантаженні
+    // Авто-розкриття
     useEffect(() => {
         if (activeCategory && categories.length > 0) {
-            // Шукаємо категорію нестрого (ігноруємо регістр)
             const activeItem = categories.find(c => c.name.toLowerCase() === activeCategory.toLowerCase());
             
             if (activeItem) {
                 const parentsToOpen: string[] = [];
-                
-                // Якщо це підкатегорія, відкриваємо батька
                 if (activeItem.parent_id) {
                     const parent = categories.find(p => p.id === activeItem.parent_id);
                     if (parent) parentsToOpen.push(parent.name);
                 }
-                // Відкриваємо саму категорію, якщо у неї є діти
                 const hasChildren = categories.some(c => c.parent_id === activeItem.id);
                 if (hasChildren) parentsToOpen.push(activeItem.name);
                 
-                setOpenCategories(prev => [...Array.from(new Set([...prev, ...parentsToOpen]))]);
+                setOpenCategories(prev => Array.from(new Set([...prev, ...parentsToOpen])));
             }
         }
     }, [activeCategory, categories]);
@@ -78,12 +85,11 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
                 {rootCategories.map(rootCat => {
                     const children = getChildren(rootCat.id);
                     const isOpen = openCategories.includes(rootCat.name);
-                    // Перевірка активності (case-insensitive)
                     const isActive = activeCategory?.toLowerCase() === rootCat.name.toLowerCase();
 
                     return (
                         <div key={rootCat.id} className="border-b border-white/5 last:border-0">
-                            <div className="flex items-center justify-between py-2 group hover:bg-white/5 px-2 rounded transition">
+                            <div className={`flex items-center justify-between py-2 px-2 rounded transition ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}>
                                 <Link 
                                     href={`/catalog?category=${rootCat.name}`}
                                     className={`text-sm font-bold uppercase transition flex-1 ${isActive ? 'text-blue-400' : 'text-gray-300 hover:text-white'}`}
@@ -141,7 +147,6 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
     if (newSelected.length > 0) current.set(paramName, newSelected.join(","));
     else current.delete(paramName);
     
-    // Скидаємо пагінацію при зміні фільтрів
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -219,37 +224,46 @@ function CatalogContent() {
     let request = supabase.from("products").select("*");
 
     // --- ФІЛЬТРАЦІЯ ---
-    if (query) request = request.ilike("title", `%${query}%`);
+    if (query) {
+        // Якщо є прямий пошук, шукаємо всюди
+        request = request.or(`title.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%`);
+    }
 
-    // 🔥 ВИПРАВЛЕНА ЛОГІКА КАТЕГОРІЙ
+    // 🔥 АГРЕСИВНИЙ ПОШУК ПО КАТЕГОРІЯХ (Fix 0 items)
     if (categoryParam) {
-        // 1. Шукаємо категорію в базі за назвою
+        // 1. Отримуємо ID та Назву поточної категорії
         const { data: catData } = await supabase.from('categories').select('id, title').ilike('title', categoryParam).maybeSingle();
         
-        // Список слів для пошуку (починаємо з самої назви категорії)
-        let searchTerms = [categoryParam];
+        // Масив слів для пошуку. Починаємо з поточного
+        let searchKeywords: string[] = [];
+        
+        // Додаємо варіанти поточної назви (Валізи -> Валіз)
+        searchKeywords.push(...getSearchStems(categoryParam));
 
         if (catData) {
-            // 2. Якщо знайшли категорію, шукаємо її дітей (підкатегорії)
+            // 2. Якщо категорія знайдена в базі, беремо всіх її дітей (підкатегорії)
             const { data: children } = await supabase.from('categories').select('title').eq('parent_id', catData.id);
             if (children && children.length > 0) {
-                // Додаємо назви підкатегорій до пошуку (наприклад: "Валізи", "Рюкзаки")
                 children.forEach(c => {
-                    if (c.title) searchTerms.push(c.title);
+                    if (c.title) {
+                        // Додаємо і назву, і її "корінь" (Рюкзаки -> Рюкзак)
+                        searchKeywords.push(...getSearchStems(c.title));
+                    }
                 });
             }
         }
 
-        // 3. Формуємо запит "OR": шукаємо або точний збіг по текстовому полю category, 
-        // або входження будь-якого зі слів у поле category
-        // Це дозволяє знайти товар "Дорожня валіза" якщо обрана категорія "Сумки" (а валіза є підкатегорією)
+        // Видаляємо дублікати ключових слів
+        searchKeywords = Array.from(new Set(searchKeywords));
+
+        // 3. Будуємо ВЕЛИКИЙ запит OR
+        // Шукаємо ці слова і в полі category (від постачальника), і в назві товару (title), і в описі (description)
+        // Це максимальне покриття.
+        const conditions = searchKeywords.map(term => 
+            `category.ilike.%${term}%,title.ilike.%${term}%,description.ilike.%${term}%`
+        );
         
-        const textConditions = searchTerms.map(term => `category.ilike.%${term}%`);
-        
-        // Можна додати пошук і в title, якщо структура категорій в товарі не заповнена
-        // const titleConditions = searchTerms.map(term => `title.ilike.%${term}%`);
-        
-        request = request.or(textConditions.join(','));
+        request = request.or(conditions.join(','));
     }
 
     if (colorParam) request = request.in('color', colorParam.split(","));
