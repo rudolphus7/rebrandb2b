@@ -1,51 +1,69 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { 
   Search, Filter, ChevronDown, ChevronUp, Check, 
-  Home as HomeIcon, X, ChevronRight, Menu, Loader2
+  Home as HomeIcon, X, Menu, Loader2, RefreshCcw
 } from "lucide-react";
 import ProductImage from "../components/ProductImage";
 import { useCart } from "../components/CartContext"; 
 import Header from "../components/Header";
 import CartDrawer from "../components/CartDrawer";
 
+// --- ТИПИ ---
+interface Category {
+  id: string;
+  name: string;
+  parent_id: string | null;
+}
+
 // --- КОМПОНЕНТ ДЕРЕВА КАТЕГОРІЙ ---
 function CategorySidebar({ activeCategory }: { activeCategory: string | null }) {
-    const [categories, setCategories] = useState<any[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [openCategories, setOpenCategories] = useState<string[]>([]);
 
     useEffect(() => {
-        // Завантажуємо категорії з бази
         supabase.from('categories').select('*').order('title').then(({ data }) => {
             if (data) {
-                // Адаптуємо, якщо в базі поле називається title, а не name
-                const mapped = data.map(c => ({...c, name: c.title || c.name}));
+                const mapped = data.map(c => ({
+                    id: c.id, 
+                    name: c.title || c.name, // Уніфікація поля назви
+                    parent_id: c.parent_id
+                }));
                 setCategories(mapped);
             }
         });
     }, []);
 
-    const rootCategories = categories.filter(c => !c.parent_id);
-    const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
-
-    // Авто-розкриття
+    // Логіка розкриття дерева при завантаженні
     useEffect(() => {
         if (activeCategory && categories.length > 0) {
             const activeItem = categories.find(c => c.name === activeCategory);
-            if (activeItem && activeItem.parent_id) {
-                const parent = categories.find(p => p.id === activeItem.parent_id);
-                if (parent) setOpenCategories(prev => [...prev, parent.name]);
-            } else if (activeItem) {
-                setOpenCategories(prev => [...prev, activeItem.name]);
+            if (activeItem) {
+                const parentsToOpen = [];
+                // Якщо це підкатегорія, відкриваємо батька
+                if (activeItem.parent_id) {
+                    const parent = categories.find(p => p.id === activeItem.parent_id);
+                    if (parent) parentsToOpen.push(parent.name);
+                }
+                // Відкриваємо саму категорію, якщо у неї є діти
+                const hasChildren = categories.some(c => c.parent_id === activeItem.id);
+                if (hasChildren) parentsToOpen.push(activeItem.name);
+                
+                setOpenCategories(prev => [...Array.from(new Set([...prev, ...parentsToOpen]))]);
             }
         }
     }, [activeCategory, categories]);
 
-    const toggleCategory = (name: string) => {
+    const rootCategories = categories.filter(c => !c.parent_id);
+    const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
+
+    const toggleCategory = (name: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
         setOpenCategories(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]);
     };
 
@@ -60,7 +78,7 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
 
                     return (
                         <div key={rootCat.id} className="border-b border-white/5 last:border-0">
-                            <div className="flex items-center justify-between py-2 group">
+                            <div className="flex items-center justify-between py-2 group hover:bg-white/5 px-2 rounded transition">
                                 <Link 
                                     href={`/catalog?category=${rootCat.name}`}
                                     className={`text-sm font-bold uppercase transition flex-1 ${isActive ? 'text-blue-400' : 'text-gray-300 hover:text-white'}`}
@@ -68,18 +86,18 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
                                     {rootCat.name}
                                 </Link>
                                 {children.length > 0 && (
-                                    <button onClick={() => toggleCategory(rootCat.name)} className="p-1 text-gray-500 hover:text-white transition">
+                                    <button onClick={(e) => toggleCategory(rootCat.name, e)} className="p-1 text-gray-500 hover:text-white transition">
                                         {isOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
                                     </button>
                                 )}
                             </div>
                             {isOpen && children.length > 0 && (
-                                <div className="pl-3 pb-2 space-y-1 border-l border-white/10 ml-1">
+                                <div className="pl-4 pb-2 space-y-1 border-l-2 border-white/10 ml-2 mt-1">
                                     {children.map(child => (
                                         <Link 
                                             key={child.id}
                                             href={`/catalog?category=${child.name}`}
-                                            className={`block text-xs py-1 transition ${activeCategory === child.name ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
+                                            className={`block text-xs py-1.5 transition ${activeCategory === child.name ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
                                         >
                                             {child.name}
                                         </Link>
@@ -105,17 +123,17 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
 
   const handleToggle = (item: string) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
+    // Скидаємо сторінку при зміні фільтру, щоб не застрягти
     let newSelected = [...selectedItems];
     if (newSelected.includes(item)) {
       newSelected = newSelected.filter(i => i !== item);
     } else {
       newSelected.push(item);
     }
-    if (newSelected.length > 0) {
-      current.set(paramName, newSelected.join(","));
-    } else {
-      current.delete(paramName);
-    }
+    
+    if (newSelected.length > 0) current.set(paramName, newSelected.join(","));
+    else current.delete(paramName);
+    
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -129,7 +147,6 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
           {items.length > 10 && (
              <div className="relative mb-3">
                 <input type="text" placeholder="Пошук..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#222] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-blue-500 outline-none"/>
-                <Search size={12} className="absolute right-2 top-1.5 text-gray-500"/>
              </div>
           )}
           <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
@@ -153,7 +170,8 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const ITEMS_PER_LOAD = 5000;
+  // --- КОНФІГУРАЦІЯ ---
+  const ITEMS_PER_PAGE = 100; // Вантажимо по 100 товарів за раз, а не 5000
   
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
@@ -163,40 +181,62 @@ function CatalogContent() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+
   const { addToCart, totalItems } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [totalLoaded, setTotalLoaded] = useState(0);
 
   const COLORS = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений", "Жовтий", "Оранжевий", "Коричневий", "Фіолетовий", "Бежевий", "Рожевий"];
   const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс", "Метал", "Пластик", "Кераміка", "Скло", "Дерево", "Шкіра"];
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
 
+  // Скидаємо товари при зміні фільтрів
   useEffect(() => {
-    fetchData();
+    setProducts([]);
+    setPage(0);
+    setHasMore(true);
+    fetchData(0, true);
   }, [query, categoryParam, colorParam, materialParam, genderParam]);
 
-  async function fetchData() {
-    setLoading(true);
+  // Функція нормалізації назви для групування
+  // Видаляє колір з кінця назви, щоб згрупувати "Футболка Червона" і "Футболка Синя"
+  const getCleanTitle = (title: string) => {
+      if (!title) return "unknown";
+      // Видаляємо слова, що означають колір (спрощено)
+      const colorRegex = new RegExp(`(${COLORS.join('|')}|Red|Blue|Black|White|Grey|Green|Yellow|Orange)`, 'gi');
+      return title.replace(colorRegex, '').trim();
+  };
+
+  async function fetchData(pageIndex: number, isNewSearch: boolean = false) {
+    if (isNewSearch) setLoading(true);
+    else setLoadingMore(true);
+
     let request = supabase.from("products").select("*");
 
+    // --- ФІЛЬТРАЦІЯ ---
     if (query) request = request.ilike("title", `%${query}%`);
 
     if (categoryParam) {
-        const { data: catData } = await supabase.from('categories').select('*').ilike('title', categoryParam).maybeSingle();
+        // Отримуємо ID поточної категорії
+        const { data: catData } = await supabase.from('categories').select('id').ilike('title', categoryParam).maybeSingle();
         
-        let conditions = [];
-        conditions.push(`category.ilike.%${categoryParam}%`);
+        const conditions = [`category.ilike.%${categoryParam}%`];
 
         if (catData) {
+            // Отримуємо ID всіх підкатегорій
             const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
             const ids = [catData.id, ...(children?.map(c => c.id) || [])];
+            // Шукаємо товари, які належать цій категорії АБО її дітям
             conditions.push(`category_external_id.in.(${ids.join(',')})`);
         }
-        
         request = request.or(conditions.join(','));
     }
 
     if (colorParam) request = request.in('color', colorParam.split(","));
+    
+    // Пошук за описом для матеріалу та статі
     if (materialParam) {
         const orQuery = materialParam.split(",").map(m => `description.ilike.%${m}%`).join(",");
         request = request.or(orQuery);
@@ -206,36 +246,78 @@ function CatalogContent() {
         request = request.or(orQuery);
     }
 
-    const { data, error } = await request.range(0, ITEMS_PER_LOAD - 1).order("created_at", { ascending: false });
+    // --- ПАГІНАЦІЯ ---
+    const from = pageIndex * ITEMS_PER_PAGE;
+    const to = from + ITEMS_PER_PAGE - 1;
+
+    // Сортуємо по ID, щоб дані перемішались стабільно, або по title, щоб було по алфавіту
+    // created_at призводить до того, що старі товари (Totobi) в кінці
+    const { data, error } = await request.range(from, to).order("id", { ascending: true });
 
     if (error) {
         console.error("Error fetching products:", error);
         setLoading(false);
+        setLoadingMore(false);
         return;
     }
 
-    if (!data) { setLoading(false); return; }
+    if (!data || data.length === 0) {
+        setHasMore(false);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+    }
 
-    setTotalLoaded(data.length);
+    if (data.length < ITEMS_PER_PAGE) {
+        setHasMore(false);
+    }
 
-    // 🔥 ВИПРАВЛЕНЕ ГРУПУВАННЯ ТОВАРІВ
+    processProducts(data, isNewSearch);
+  }
+
+  const processProducts = (newData: any[], isNewSearch: boolean) => {
+    // Якщо це не новий пошук, ми беремо попередні товари + нові, щоб перегрупувати все разом
+    // Це важливо, якщо варіанти розбиті між сторінками (рідкісний кейс, але можливий)
+    // Для оптимізації ми просто додаємо нові групи
+    
+    // 🔥 ОНОВЛЕНА ЛОГІКА ГРУПУВАННЯ
+    // Ми використовуємо Map, щоб об'єднати варіанти
+    const currentProducts = isNewSearch ? [] : products;
     const groupedMap = new Map();
-    data.forEach((item) => {
-        // 🔥 НОВА ЛОГІКА: Розділяємо SKU по пробілах, дефісах, точках тощо.
-        // Наприклад "ST8400 BLO" -> "ST8400"
-        // Наприклад "ST2000-RED" -> "ST2000"
-        const baseSku = item.sku 
-            ? item.sku.trim().split(/[\s\-_./\\]+/)[0] 
-            : null;
-            
-        // Якщо SKU немає, використовуємо назву, але це менш надійно
-        const groupKey = baseSku || item.title?.trim() || `unknown-${item.id}`;
+
+    // 1. Спочатку заповнюємо мапу існуючими даними (якщо це дозавантаження)
+    currentProducts.forEach(p => {
+        // Використовуємо унікальний ключ групи, який ми створили раніше
+        const key = p.groupKey;
+        groupedMap.set(key, { ...p }); // Клонуємо об'єкт
+    });
+
+    // 2. Обробляємо нові дані
+    newData.forEach((item) => {
+        // Спроба знайти базовий SKU (до першого спецсимволу або пробілу)
+        const rawSku = item.sku ? item.sku.trim() : "";
+        // Для TopTime часто SKU відрізняються лише цифрою в кінці або просто різні.
+        // Тому пробуємо брати перші 5-6 символів SKU як основу, якщо він довгий
+        let baseSku = rawSku.split(/[\s\-_./\\]+/)[0];
+        
+        // Якщо SKU немає, або він дуже короткий, використовуємо очищену назву
+        let groupKey = "";
+        if (baseSku && baseSku.length > 3) {
+             groupKey = baseSku;
+        } else {
+             // Фолбек: групуємо за назвою без кольору
+             groupKey = getCleanTitle(item.title);
+        }
+        
+        // Додаємо ID бренду або постачальника до ключа, щоб не змішати однакові футболки різних брендів
+        if (item.brand) groupKey += `-${item.brand}`;
 
         if (!groupedMap.has(groupKey)) {
+            // Створюємо нову групу
             groupedMap.set(groupKey, {
                 ...item,
-                // Залишаємо оригінальну назву першого товару
-                title: item.title || "Товар без назви",
+                groupKey: groupKey, // Зберігаємо ключ для майбутніх додавань
+                title: item.title, // Назва першого знайденого
                 variants: [item],
                 variant_images: item.image_url ? [item.image_url] : [],
                 stock_total: item.amount || 0,
@@ -244,33 +326,45 @@ function CatalogContent() {
                 in_stock: item.in_stock || false 
             });
         } else {
+            // Оновлюємо існуючу групу
             const group = groupedMap.get(groupKey);
-            group.variants.push(item);
             
-            // Додаємо фото варіанту, якщо воно нове
-            if (item.image_url && !group.variant_images.includes(item.image_url)) {
-                group.variant_images.push(item.image_url);
-            }
-            
-            // Сумуємо залишки
-            group.stock_total += (item.amount || 0);
-            group.stock_reserve += (item.reserve || 0);
-            
-            // Якщо хоча б один варіант (колір) є в наявності - весь товар "В наявності"
-            if (!group.in_stock && item.in_stock) {
-                group.in_stock = true;
+            // Перевіряємо дублікати за ID (на випадок якщо пагінація перетнеться)
+            if (!group.variants.find((v:any) => v.id === item.id)) {
+                group.variants.push(item);
+                
+                if (item.image_url && !group.variant_images.includes(item.image_url)) {
+                    group.variant_images.push(item.image_url);
+                }
+                
+                group.stock_total += (item.amount || 0);
+                group.stock_reserve += (item.reserve || 0);
+                
+                if (!group.in_stock && item.in_stock) {
+                    group.in_stock = true;
+                }
             }
         }
     });
 
-    setProducts(Array.from(groupedMap.values()).map(group => ({
+    // Перетворюємо назад в масив
+    const processed = Array.from(groupedMap.values()).map((group: any) => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
         article: group.sku ? group.sku.split(/[\s\-_./\\]+/)[0] : `ART-${group.id}`,
         brand: group.brand || "Partner" 
-    })));
+    }));
+
+    setProducts(processed);
     setLoading(false);
-  }
+    setLoadingMore(false);
+  };
+
+  const handleLoadMore = () => {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchData(nextPage, false);
+  };
 
   const handleAddToCart = (product: any) => {
     addToCart({
@@ -301,6 +395,7 @@ function CatalogContent() {
       </div>
 
       <main className="max-w-[1600px] mx-auto px-4 lg:px-8 pb-20 flex gap-8 items-start">
+        {/* SIDEBAR */}
         <aside className="w-64 flex-shrink-0 hidden lg:block bg-[#1a1a1a] rounded-xl border border-white/5 p-4 sticky top-24 h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
            {(categoryParam || query || colorParam || materialParam || genderParam) && (
               <Link href="/catalog" className="text-xs text-red-400 flex items-center gap-1 hover:underline mb-4 block"><X size={12}/> Скинути все</Link>
@@ -313,6 +408,7 @@ function CatalogContent() {
            <FilterGroup title="Стать" items={GENDER} paramName="gender" />
         </aside>
 
+        {/* PRODUCT GRID */}
         <div className="flex-1">
            <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-[#1a1a1a] p-3 rounded-xl border border-white/5">
               <div className="flex gap-1 text-sm font-bold overflow-x-auto w-full md:w-auto">
@@ -329,51 +425,64 @@ function CatalogContent() {
                    <Link href="/catalog" className="bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition">Показати всі товари</Link>
                </div>
            ) : (
-               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                 {loading ? [...Array(8)].map((_, i) => <div key={i} className="h-96 bg-[#1a1a1a] rounded-xl animate-pulse"></div>) : 
-                   products.map((item) => (
-                     <div key={item.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 hover:border-blue-500/30 hover:shadow-2xl transition group flex gap-3 h-full relative">
-                       <div className="flex flex-col gap-2 w-10 flex-shrink-0 pt-2 z-10">
-                          {item.variant_images.length > 0 ? (
-                             item.variant_images.slice(0, 6).map((img: string, idx: number) => (
-                             <div key={idx} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110">
-                                 <ProductImage src={img} alt="Color" fill />
-                             </div>
-                             ))
-                          ) : (
-                             <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[8px] text-zinc-500">N/A</div>
-                          )}
-                          {item.variant_images.length > 6 && <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 6}</div>}
+               <>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                     {loading ? [...Array(8)].map((_, i) => <div key={i} className="h-96 bg-[#1a1a1a] rounded-xl animate-pulse"></div>) : 
+                       products.map((item) => (
+                         <div key={item.groupKey || item.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 hover:border-blue-500/30 hover:shadow-2xl transition group flex gap-3 h-full relative">
+                           <div className="flex flex-col gap-2 w-10 flex-shrink-0 pt-2 z-10">
+                              {item.variant_images.length > 0 ? (
+                                 item.variant_images.slice(0, 6).map((img: string, idx: number) => (
+                                 <div key={idx} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110">
+                                     <ProductImage src={img} alt="Color" fill />
+                                 </div>
+                                 ))
+                              ) : (
+                                 <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[8px] text-zinc-500">N/A</div>
+                              )}
+                              {item.variant_images.length > 6 && <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 6}</div>}
+                           </div>
+                           <div className="flex-1 flex flex-col min-w-0">
+                              <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
+                                 <Link href={`/product/${item.id}`} className="block w-full h-full">
+                                   <ProductImage src={item.active_image || item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
+                                 </Link>
+                                 <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                                     {item.in_stock && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
+                                 </div>
+                              </div>
+                              <div className="mb-2">
+                                 <Link href={`/product/${item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>
+                                     {/* Відображаємо очищену назву, якщо це група */}
+                                     {item.variants.length > 1 ? getCleanTitle(item.title) : item.title}
+                                 </Link>
+                                 <div className="flex justify-between text-[10px] text-gray-500 mt-1"><span>Арт: {item.article}</span><span className="text-zinc-400">{item.brand}</span></div>
+                              </div>
+                              <div className="text-xl font-bold text-white mb-3">{item.price > 0 ? <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></> : <span className="text-sm text-blue-400">Ціна за запитом</span>}</div>
+                              <div className="mb-2 text-xs">
+                                {item.in_stock ? <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Є на складі</span> : <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Під замовлення</span>}
+                              </div>
+                              <button onClick={() => handleAddToCart(item)} className="mt-2 w-full bg-white text-black font-bold py-2 rounded hover:bg-blue-600 hover:text-white transition text-sm flex items-center justify-center gap-2">В кошик</button>
+                           </div>
+                         </div>
+                       ))
+                     }
+                   </div>
+                   
+                   {/* Load More Button */}
+                   {hasMore && !loading && (
+                       <div className="mt-8 flex justify-center">
+                           <button 
+                               onClick={handleLoadMore} 
+                               disabled={loadingMore}
+                               className="bg-[#222] border border-white/10 text-white px-8 py-3 rounded-xl font-bold hover:bg-white hover:text-black transition flex items-center gap-2 disabled:opacity-50"
+                           >
+                               {loadingMore ? <Loader2 className="animate-spin" size={20}/> : <RefreshCcw size={20}/>}
+                               {loadingMore ? "Завантаження..." : "Завантажити ще товари"}
+                           </button>
                        </div>
-                       <div className="flex-1 flex flex-col min-w-0">
-                          <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
-                             <Link href={`/product/${item.id}`} className="block w-full h-full">
-                               <ProductImage src={item.active_image || item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
-                             </Link>
-                             <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                                 {item.in_stock && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
-                             </div>
-                          </div>
-                          <div className="mb-2">
-                             <Link href={`/product/${item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>{item.title}</Link>
-                             <div className="flex justify-between text-[10px] text-gray-500 mt-1"><span>Арт: {item.article}</span><span className="text-zinc-400">{item.brand}</span></div>
-                          </div>
-                          <div className="text-xl font-bold text-white mb-3">{item.price > 0 ? <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></> : <span className="text-sm text-blue-400">Ціна за запитом</span>}</div>
-                          <div className="mb-2 text-xs">
-                            {item.in_stock ? <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Є на складі</span> : <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Під замовлення</span>}
-                          </div>
-                          <button onClick={() => handleAddToCart(item)} className="mt-2 w-full bg-white text-black font-bold py-2 rounded hover:bg-blue-600 hover:text-white transition text-sm flex items-center justify-center gap-2">В кошик</button>
-                       </div>
-                     </div>
-                   ))
-                 }
-               </div>
-           )}
-           
-           {!loading && totalLoaded >= ITEMS_PER_LOAD && (
-               <div className="mt-8 text-center">
-                   <p className="text-gray-500 text-sm mb-2">Завантажено перші {ITEMS_PER_LOAD} записів</p>
-               </div>
+                   )}
+               </>
            )}
         </div>
       </main>
