@@ -116,8 +116,6 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
     } else {
       current.delete(paramName);
     }
-    // Скидаємо сторінку при зміні фільтру
-    // current.set("page", "1"); 
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -155,7 +153,6 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  // Збільшив ліміт до 5000, щоб точно завантажити всі товари
   const ITEMS_PER_LOAD = 5000;
   
   const query = searchParams.get("q") || "";
@@ -185,23 +182,17 @@ function CatalogContent() {
     if (query) request = request.ilike("title", `%${query}%`);
 
     if (categoryParam) {
-        // 🔥 ПОКРАЩЕНА ЛОГІКА ПОШУКУ КАТЕГОРІЙ
-        // 1. Отримуємо ID категорії з бази
         const { data: catData } = await supabase.from('categories').select('*').ilike('title', categoryParam).maybeSingle();
         
         let conditions = [];
-        
-        // Додаємо умову пошуку за текстовим полем category (для нових товарів TopTime)
         conditions.push(`category.ilike.%${categoryParam}%`);
 
         if (catData) {
-            // Якщо знайшли ID, шукаємо і за ID
             const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
             const ids = [catData.id, ...(children?.map(c => c.id) || [])];
             conditions.push(`category_external_id.in.(${ids.join(',')})`);
         }
         
-        // Використовуємо OR, щоб знайти товар або за ID, або за назвою категорії
         request = request.or(conditions.join(','));
     }
 
@@ -215,8 +206,7 @@ function CatalogContent() {
         request = request.or(orQuery);
     }
 
-    // 🔥 ЗБІЛЬШЕНО ЛІМІТ: Беремо велику порцію, щоб охопити всі варіанти
-    const { data, error, count } = await request.range(0, ITEMS_PER_LOAD - 1).order("created_at", { ascending: false });
+    const { data, error } = await request.range(0, ITEMS_PER_LOAD - 1).order("created_at", { ascending: false });
 
     if (error) {
         console.error("Error fetching products:", error);
@@ -228,34 +218,45 @@ function CatalogContent() {
 
     setTotalLoaded(data.length);
 
-    // 🔥 ГРУПУВАННЯ ТОВАРІВ
+    // 🔥 ВИПРАВЛЕНЕ ГРУПУВАННЯ ТОВАРІВ
     const groupedMap = new Map();
     data.forEach((item) => {
-        // Використовуємо SKU як ключ для групування, якщо він є, інакше Title
-        // Обрізаємо SKU до дефісу (наприклад ST2000-XS -> ST2000) для групування розмірів
-        const baseSku = item.sku ? item.sku.split(/[-_]/)[0] : null;
+        // 🔥 НОВА ЛОГІКА: Розділяємо SKU по пробілах, дефісах, точках тощо.
+        // Наприклад "ST8400 BLO" -> "ST8400"
+        // Наприклад "ST2000-RED" -> "ST2000"
+        const baseSku = item.sku 
+            ? item.sku.trim().split(/[\s\-_./\\]+/)[0] 
+            : null;
+            
+        // Якщо SKU немає, використовуємо назву, але це менш надійно
         const groupKey = baseSku || item.title?.trim() || `unknown-${item.id}`;
 
         if (!groupedMap.has(groupKey)) {
             groupedMap.set(groupKey, {
                 ...item,
+                // Залишаємо оригінальну назву першого товару
                 title: item.title || "Товар без назви",
                 variants: [item],
                 variant_images: item.image_url ? [item.image_url] : [],
                 stock_total: item.amount || 0,
                 stock_reserve: item.reserve || 0,
-                active_image: item.image_url 
+                active_image: item.image_url,
+                in_stock: item.in_stock || false 
             });
         } else {
             const group = groupedMap.get(groupKey);
             group.variants.push(item);
+            
+            // Додаємо фото варіанту, якщо воно нове
             if (item.image_url && !group.variant_images.includes(item.image_url)) {
                 group.variant_images.push(item.image_url);
             }
+            
+            // Сумуємо залишки
             group.stock_total += (item.amount || 0);
             group.stock_reserve += (item.reserve || 0);
             
-            // Якщо у головного товара немає наявності, але у варіанта є - оновлюємо
+            // Якщо хоча б один варіант (колір) є в наявності - весь товар "В наявності"
             if (!group.in_stock && item.in_stock) {
                 group.in_stock = true;
             }
@@ -265,7 +266,7 @@ function CatalogContent() {
     setProducts(Array.from(groupedMap.values()).map(group => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
-        article: group.sku || `ART-${group.id}`,
+        article: group.sku ? group.sku.split(/[\s\-_./\\]+/)[0] : `ART-${group.id}`,
         brand: group.brand || "Partner" 
     })));
     setLoading(false);
@@ -372,7 +373,6 @@ function CatalogContent() {
            {!loading && totalLoaded >= ITEMS_PER_LOAD && (
                <div className="mt-8 text-center">
                    <p className="text-gray-500 text-sm mb-2">Завантажено перші {ITEMS_PER_LOAD} записів</p>
-                   {/* Тут можна додати кнопку Load More, якщо товарів буде більше 5000 */}
                </div>
            )}
         </div>
