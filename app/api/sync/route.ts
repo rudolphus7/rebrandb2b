@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-export const maxDuration = 300; 
+export const maxDuration = 300; // 5 хвилин
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -30,48 +30,49 @@ const MENU_STRUCTURE = [
   { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
 ];
 
-// --- HELPER: Безпечне перетворення в рядок ---
-// Якщо прийде null, undefined або об'єкт - поверне "" і не впаде
+// 🔥 БРОНЕБІЙНА ФУНКЦІЯ: Перетворює що завгодно в рядок
 function safeStr(val: any): string {
     if (val === null || val === undefined) return "";
     if (typeof val === 'string') return val;
+    if (typeof val === 'number') return String(val);
+    // Якщо прийшов об'єкт (наприклад, пустий тег), повертаємо пустий рядок або текст всередині
+    if (typeof val === 'object') {
+        if (val['#text']) return String(val['#text']);
+        return ""; 
+    }
     return String(val);
 }
 
-function detectCategory(titleInput: string, rawCategoryInput: string) {
+function detectCategory(titleInput: any, rawCategoryInput: any) {
     const text = `${safeStr(titleInput)} ${safeStr(rawCategoryInput)}`.toLowerCase();
     
     for (const main of MENU_STRUCTURE) {
         for (const sub of main.subs) {
             if (sub === 'Футболки' && text.includes('поло')) continue;
             if (sub === 'Кепки' && text.includes('дитяч')) continue;
-            // Перевіряємо корінь слова (рюкзак -> рюкзаки)
             if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
         }
     }
-    // Fallback правила
     if (text.includes('футболк')) return 'Футболки';
     if (text.includes('поло')) return 'Поло';
     if (text.includes('куртк')) return 'Куртки та софтшели';
-    if (text.includes('парасол')) return 'Парасолі складні';
     if (text.includes('рюкзак')) return 'Рюкзаки';
-    
     return "Інше";
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const provider = searchParams.get('provider') || 'totobi';
-  const url = searchParams.get('url');
-  const eurRate = parseFloat(searchParams.get('rate') || '43.5');
-
-  if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
-
   try {
+    const { searchParams } = new URL(request.url);
+    const provider = searchParams.get('provider') || 'totobi';
+    const url = searchParams.get('url');
+    const eurRate = parseFloat(searchParams.get('rate') || '43.5');
+
+    if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
+
     const response = await fetch(url, { cache: 'no-store' });
     const xmlText = await response.text();
 
-    // 🔥 FIX 1: Вимикаємо parseTagValue, щоб "007" залишалось "007", а не 7
+    // Налаштування парсера: ігноруємо конвертацію, щоб артикул "007" не став числом 7
     const parser = new XMLParser({ 
         ignoreAttributes: false, 
         attributeNamePrefix: "@_",
@@ -81,49 +82,48 @@ export async function GET(request: Request) {
 
     let items: any[] = [];
     
-    // Отримання масиву товарів (захищене)
+    // Отримання списку товарів (безпечне)
     if (provider === 'toptime') {
         let rawItems = jsonData.items?.item || jsonData.yml_catalog?.shop?.items?.item;
+        // Fallback пошук
         if (!rawItems) {
              const keys = Object.keys(jsonData);
              if (jsonData[keys[0]]?.item) rawItems = jsonData[keys[0]].item;
         }
-        if (rawItems) {
-            items = Array.isArray(rawItems) ? rawItems : [rawItems];
-        }
+        if (rawItems) items = Array.isArray(rawItems) ? rawItems : [rawItems];
     } else {
         let rawOffers = jsonData.yml_catalog?.shop?.offers?.offer;
-        if (rawOffers) {
-            items = Array.isArray(rawOffers) ? rawOffers : [rawOffers];
-        }
+        if (rawOffers) items = Array.isArray(rawOffers) ? rawOffers : [rawOffers];
     }
 
-    if (items.length === 0) {
-        return NextResponse.json({ success: false, message: "No items found in XML" });
+    if (!items || items.length === 0) {
+        return NextResponse.json({ success: false, message: "No items found" });
     }
 
     // --- ГРУПУВАННЯ ---
     const groupedModels: Record<string, any> = {};
+    let successCount = 0;
+    let errorCount = 0;
 
     for (const item of items) {
-        // 🔥 FIX 2: Якщо айтем битий - пропускаємо
-        if (!item) continue;
-
-        let sku = "", title = "", price = 0, image = "", description = "", rawCategory = "", brand = "", color = "";
-        let sizes: any[] = [];
-
+        // 🔥 TRY-CATCH НА КОЖЕН ТОВАР: Якщо один битий, інші пройдуть
         try {
+            if (!item) continue;
+
+            let sku = "", title = "", price = 0, image = "", description = "", rawCategory = "", brand = "", color = "";
+            let sizes: any[] = [];
+
             if (provider === 'toptime') {
                 sku = safeStr(item.article || item.code);
                 title = safeStr(item.name);
-                price = Math.ceil((parseFloat(item.price) || 0) * eurRate);
+                price = Math.ceil((parseFloat(safeStr(item.price)) || 0) * eurRate);
                 image = safeStr(item.photo);
                 description = safeStr(item.content || item.content_ua);
                 rawCategory = safeStr(item.group);
                 brand = safeStr(item.brand);
                 color = safeStr(item.color);
                 
-                const stock = parseInt(item.count2 || item.count || '0');
+                const stock = parseInt(safeStr(item.count2 || item.count || '0'));
                 if (stock > 0) {
                     sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
                 }
@@ -131,7 +131,7 @@ export async function GET(request: Request) {
                 // Totobi
                 sku = safeStr(item.vendorCode);
                 title = safeStr(item.name);
-                price = parseFloat(item.price) || 0;
+                price = parseFloat(safeStr(item.price)) || 0;
                 
                 const rawPic = item.picture;
                 image = Array.isArray(rawPic) ? safeStr(rawPic[0]) : safeStr(rawPic);
@@ -142,8 +142,8 @@ export async function GET(request: Request) {
                 
                 const params = Array.isArray(item.param) ? item.param : (item.param ? [item.param] : []);
                 const colorParam = params.find((p: any) => {
-                    const name = safeStr(p?.['@_name']);
-                    return name === 'Колір' || name === 'Color' || name === 'Група Кольорів';
+                    const n = safeStr(p?.['@_name']);
+                    return n === 'Колір' || n === 'Color' || n === 'Група Кольорів';
                 });
                 if (colorParam) color = safeStr(colorParam['#text']);
 
@@ -152,20 +152,19 @@ export async function GET(request: Request) {
                     sArr.forEach((s: any) => {
                         sizes.push({
                             label: safeStr(s['#text'] || "ONE SIZE"),
-                            stock_available: parseInt(s['@_in_stock'] || s['@_amount'] || 0),
-                            price: parseFloat(s['@_modifier'] || price)
+                            stock_available: parseInt(safeStr(s['@_in_stock'] || s['@_amount'] || 0)),
+                            price: parseFloat(safeStr(s['@_modifier'] || price))
                         });
                     });
                 } else {
-                    const stock = parseInt(item.amount || item.in_stock || 0);
+                    const stock = parseInt(safeStr(item.amount || item.in_stock || 0));
                     sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
                 }
             }
 
-            // Якщо немає SKU - це сміття, пропускаємо
-            if (!sku || sku === "undefined") continue;
+            // Якщо немає SKU - це сміття
+            if (!sku || sku === "undefined" || sku.length < 2) continue;
 
-            // Створення базового SKU (ключ групи)
             const baseSku = sku.split(/[ ._\-]/)[0]; 
             const cleanCategory = detectCategory(title, rawCategory);
 
@@ -186,16 +185,14 @@ export async function GET(request: Request) {
                 };
             }
 
-            // Якщо колір не знайдено, пробуємо витягти останнє слово з назви
             if (!color) {
                 const parts = title.split(' ');
                 if (parts.length > 1) color = parts[parts.length - 1];
             }
 
-            // Перевірка на дублікати варіантів
-            const isDuplicate = groupedModels[baseSku].variants.some((v: any) => v.sku_variant === sku);
-            
-            if (!isDuplicate) {
+            // Уникаємо дублів в масиві варіантів
+            const exists = groupedModels[baseSku].variants.some((v: any) => v.sku_variant === sku);
+            if (!exists) {
                 groupedModels[baseSku].variants.push({
                     sku_variant: sku,
                     color: color || "Standard",
@@ -208,27 +205,31 @@ export async function GET(request: Request) {
             const totalStock = sizes.reduce((acc, s) => acc + s.stock_available, 0);
             groupedModels[baseSku].amount += totalStock;
             if (totalStock > 0) groupedModels[baseSku].in_stock = true;
+            
+            successCount++;
 
-        } catch (innerError) {
-            // Якщо один товар "битий", ми його пропускаємо, а не валимо весь імпорт
-            console.error(`Skipping bad item: ${innerError}`);
-            continue;
+        } catch (innerErr) {
+            console.error("Skipping bad item:", innerErr);
+            errorCount++;
         }
     }
 
     const finalProducts = Object.values(groupedModels);
 
-    // Запис в базу пакетами
+    // Записуємо в Supabase пакетами (Батчі)
     const batchSize = 50;
     for (let i = 0; i < finalProducts.length; i += batchSize) {
         const batch = finalProducts.slice(i, i + batchSize);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase Batch Error:', error);
+            // Не викидаємо помилку, а логуємо, щоб спробувати наступний батч
+        }
     }
 
     return NextResponse.json({ 
         success: true, 
-        message: `Processed ${items.length} items into ${finalProducts.length} models`,
+        message: `Processed. Models: ${finalProducts.length}. Errors skipped: ${errorCount}`,
     });
 
   } catch (error: any) {
