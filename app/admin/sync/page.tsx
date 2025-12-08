@@ -2,24 +2,19 @@
 
 import { useState } from "react";
 import { 
-  RefreshCw, FileCode, Database, 
   UploadCloud, CheckCircle, Clock, 
-  Loader2, Euro, ShoppingCart
+  Loader2, Euro, ShoppingCart, AlertCircle
 } from "lucide-react";
 
 export default function AdminSync() {
   const [activeProvider, setActiveProvider] = useState<"totobi" | "toptime">("totobi");
   
-  // Стан процесу
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ processed: 0, total: 0 });
   const [syncStatus, setSyncStatus] = useState<string>("");
   
-  // Налаштування URL
   const [totobiUrl, setTotobiUrl] = useState("https://totobi.com.ua/index.php?dispatch=yml.get&access_key=lg3bjy2gvww");
   const [toptimeUrl, setToptimeUrl] = useState("https://toptime.com.ua/xml/toptime.xml");
-  
-  // Курс валют для TopTime (EUR -> UAH)
   const [eurRate, setEurRate] = useState(43.5);
 
   const handleSync = async () => {
@@ -31,46 +26,65 @@ export default function AdminSync() {
         let offset = 0;
         const limit = 50; 
         let done = false;
+        let consecutiveErrors = 0;
 
-        // Для TopTime ми робимо один запит (він не підтримує пагінацію так, як Totobi)
-        // Але наш API сам розбереться
-        
         while (!done) {
-            // Формуємо URL з параметрами
+            // Формуємо URL безпечно
             const apiUrl = new URL('/api/sync', window.location.href);
             apiUrl.searchParams.set('provider', activeProvider);
-            apiUrl.searchParams.set('offset', offset.toString());
-            apiUrl.searchParams.set('limit', limit.toString());
+            apiUrl.searchParams.set('offset', String(offset || 0)); // 🔥 FIX: Захист від undefined
+            apiUrl.searchParams.set('limit', String(limit));
             
             if (activeProvider === 'totobi') {
                 apiUrl.searchParams.set('url', totobiUrl);
             } else {
                 apiUrl.searchParams.set('url', toptimeUrl);
-                apiUrl.searchParams.set('rate', eurRate.toString());
+                apiUrl.searchParams.set('rate', String(eurRate || 43.5)); // 🔥 FIX
             }
 
             const res = await fetch(apiUrl.toString());
-            const data = await res.json();
+            
+            // Якщо сервер впав (500), пробуємо розпарсити помилку або кидаємо загальну
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                console.error("JSON Parse error:", e);
+                throw new Error(`Server returned ${res.status} ${res.statusText}`);
+            }
 
-            if (!res.ok) throw new Error(data.error || "Помилка сервера");
-
-            if (data.done) {
-                done = true;
-                setSyncStatus(`✅ Успішно! Оновлено товарів: ${data.total || data.processed}`);
-                setSyncProgress({ processed: data.total, total: data.total });
-            } else {
-                setSyncProgress({ processed: data.processed, total: data.total });
-                setSyncStatus(`Оброблено ${data.processed} з ${data.total || '?' }...`);
-                offset = data.nextOffset;
+            if (!res.ok || !data.success) {
+                console.error("Sync Error:", data?.error);
+                consecutiveErrors++;
+                if (consecutiveErrors > 3) throw new Error(data?.error || "Too many errors");
                 
-                // Якщо це TopTime, він зазвичай віддає done:true з першого разу, 
-                // бо ми парсимо весь XML одразу.
+                // Якщо помилка, але не критична, пробуємо пропустити батч (обережно)
+                setSyncStatus(`Помилка батчу (спроба ${consecutiveErrors})...`);
+                offset += limit; 
+                continue;
+            }
+
+            // Скидаємо лічильник помилок при успіху
+            consecutiveErrors = 0;
+
+            if (data.done || (data.processed === 0 && offset > 0)) {
+                done = true;
+                setSyncStatus(`✅ Успішно! Оброблено моделей: ${data.total || syncProgress.processed}`);
+                setSyncProgress({ processed: data.total || syncProgress.processed, total: data.total || syncProgress.processed });
+            } else {
+                // Оновлюємо прогрес
+                const processedNow = (data.processed || 0) + offset;
+                setSyncStatus(`Оброблено ~${processedNow}...`);
+                setSyncProgress({ processed: processedNow, total: data.total || 0 });
+                
+                // 🔥 FIX: Якщо nextOffset не прийшов, рухаємось вручну
+                offset = typeof data.nextOffset === 'number' ? data.nextOffset : offset + limit;
             }
         }
 
     } catch (error: any) {
         console.error(error);
-        setSyncStatus("❌ Помилка: " + error.message);
+        setSyncStatus(`❌ Помилка: ${error.message}`);
     } finally {
         setIsSyncing(false);
     }
@@ -80,12 +94,11 @@ export default function AdminSync() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Синхронізація складів</h1>
-        <p className="text-gray-400">Автоматичне оновлення товарів, цін та наявності від постачальників.</p>
+        <p className="text-gray-400">Створення карток товарів (1 модель = багато кольорів).</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* === ЛІВА КОЛОНКА: ВИБІР === */}
+        {/* ЛІВА КОЛОНКА */}
         <div className="lg:col-span-4 space-y-4">
             <button 
                 onClick={() => setActiveProvider("totobi")}
@@ -94,7 +107,7 @@ export default function AdminSync() {
                 <div className={`p-3 rounded-xl ${activeProvider === "totobi" ? "bg-blue-600 text-white" : "bg-[#222] text-gray-500"}`}><ShoppingCart size={24} /></div>
                 <div>
                     <h3 className="font-bold text-white text-lg">Totobi</h3>
-                    <p className="text-xs text-gray-500 mt-1">Одяг, YML Feed (UAH)</p>
+                    <p className="text-xs text-gray-500 mt-1">Одяг, YML Feed</p>
                 </div>
             </button>
 
@@ -110,17 +123,16 @@ export default function AdminSync() {
             </button>
         </div>
 
-        {/* === ПРАВА КОЛОНКА: НАЛАШТУВАННЯ === */}
+        {/* ПРАВА КОЛОНКА */}
         <div className="lg:col-span-8">
             <div className="bg-[#1a1a1a] border border-white/5 rounded-3xl p-8 min-h-[400px]">
-                
                 <div className="flex items-center gap-4 mb-8 pb-8 border-b border-white/5">
                     {activeProvider === 'totobi' ? <ShoppingCart className="text-blue-500" size={32}/> : <Clock className="text-emerald-500" size={32}/>}
                     <div>
                         <h2 className="text-2xl font-bold text-white">
                             {activeProvider === 'totobi' ? 'Налаштування Totobi' : 'Налаштування TopTime'}
                         </h2>
-                        <p className="text-sm text-gray-500">Перевірте посилання перед запуском</p>
+                        <p className="text-sm text-gray-500">Система автоматично об'єднає кольори в одну картку</p>
                     </div>
                 </div>
 
@@ -135,7 +147,6 @@ export default function AdminSync() {
                         />
                     </div>
 
-                    {/* Додаткове поле для TopTime: Курс валют */}
                     {activeProvider === 'toptime' && (
                         <div className="bg-[#111] p-4 rounded-xl border border-white/10 flex items-center gap-4">
                             <div className="p-2 bg-emerald-900/30 text-emerald-400 rounded-lg"><Euro size={20}/></div>
@@ -146,7 +157,7 @@ export default function AdminSync() {
                                     value={eurRate}
                                     onChange={(e) => setEurRate(parseFloat(e.target.value))}
                                     className="bg-transparent text-white font-bold text-lg outline-none w-full placeholder-gray-600"
-                                    placeholder="42.5"
+                                    placeholder="43.5"
                                 />
                             </div>
                         </div>
@@ -157,16 +168,10 @@ export default function AdminSync() {
                             <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-4">
                                 <div className="flex justify-between text-sm mb-2 text-white font-bold">
                                     <span>{syncStatus}</span>
-                                    {activeProvider === 'totobi' && <span>{syncProgress.processed} / {syncProgress.total}</span>}
                                 </div>
-                                {activeProvider === 'totobi' && (
-                                    <div className="w-full bg-black rounded-full h-2">
-                                        <div 
-                                            className="bg-blue-500 h-2 rounded-full transition-all duration-500" 
-                                            style={{ width: `${syncProgress.total ? (syncProgress.processed / syncProgress.total) * 100 : 0}%` }}
-                                        ></div>
-                                    </div>
-                                )}
+                                <div className="w-full bg-black rounded-full h-2 overflow-hidden">
+                                    <div className="bg-blue-500 h-2 rounded-full animate-pulse w-full"></div>
+                                </div>
                             </div>
                         )}
 
@@ -181,11 +186,10 @@ export default function AdminSync() {
                             `}
                         >
                             {isSyncing ? <Loader2 className="animate-spin"/> : <UploadCloud />}
-                            {isSyncing ? "Синхронізація..." : "Запустити імпорт"}
+                            {isSyncing ? "Обробка..." : "Запустити імпорт"}
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
       </div>
