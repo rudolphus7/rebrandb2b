@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-export const maxDuration = 60; // Збільшуємо час очікування
+export const maxDuration = 300; // 5 хвилин
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -12,6 +12,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
+// --- СТРУКТУРА МЕНЮ ---
 const MENU_STRUCTURE = [
   { name: 'Сумки', subs: ['Валізи', 'Косметички', 'Мішок спортивний', 'Рюкзаки', 'Сумки для ноутбуків', 'Сумки для покупок', 'Сумки дорожні та спортивні', 'Сумки на пояс', 'Термосумки'] },
   { name: 'Ручки', subs: ['Еко ручки', 'Металеві ручки', 'Олівці', 'Пластикові ручки'] },
@@ -29,11 +30,13 @@ const MENU_STRUCTURE = [
   { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
 ];
 
-function detectCategory(title: string, rawCategory: string) {
-    const text = `${title} ${rawCategory}`.toLowerCase();
+function detectCategory(titleInput: string, rawCategoryInput: string) {
+    const title = String(titleInput || "").toLowerCase();
+    const rawCategory = String(rawCategoryInput || "").toLowerCase();
+    const text = `${title} ${rawCategory}`;
+    
     for (const main of MENU_STRUCTURE) {
         for (const sub of main.subs) {
-            const keywords = sub.toLowerCase().split(/[\s,]+/);
             if (sub === 'Футболки' && text.includes('поло')) continue;
             if (sub === 'Кепки' && text.includes('дитяч')) continue;
             if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
@@ -47,36 +50,26 @@ function detectCategory(title: string, rawCategory: string) {
 }
 
 export async function GET(request: Request) {
-  console.log("🔥 [Sync] Start request"); // ЛОГ 1
-  
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get('provider') || 'totobi';
   const url = searchParams.get('url');
   const eurRate = parseFloat(searchParams.get('rate') || '43.5');
 
-  if (!url) {
-      console.error("❌ [Sync] No URL provided");
-      return NextResponse.json({ error: "No URL provided" }, { status: 400 });
-  }
+  if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
 
   try {
-    console.log(`📡 [Sync] Fetching ${provider} from ${url}...`); // ЛОГ 2
     const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
-    
     const xmlText = await response.text();
-    console.log(`📦 [Sync] XML fetched. Length: ${xmlText.length}`); // ЛОГ 3
-
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
 
     let items: any[] = [];
+    
     if (provider === 'toptime') {
         let rawItems = jsonData.items?.item || jsonData.yml_catalog?.shop?.items?.item;
+        // Fallback search
         if (!rawItems) {
-             // Fallback пошук для TopTime
              const keys = Object.keys(jsonData);
-             console.log("TopTime keys:", keys);
              if (jsonData[keys[0]]?.item) rawItems = jsonData[keys[0]].item;
         }
         if (!Array.isArray(rawItems)) rawItems = [rawItems];
@@ -87,42 +80,57 @@ export async function GET(request: Request) {
         items = rawOffers;
     }
 
-    console.log(`🧩 [Sync] Found ${items.length} items to process`); // ЛОГ 4
-
+    // --- ГРУПУВАННЯ ---
     const groupedModels: Record<string, any> = {};
 
     for (const item of items) {
-        let sku = "", title = "", price = 0, image = "", description = "", rawCategory = "", brand = "", color = "";
+        // 🔥 ЗАХИСТ: Примусове перетворення в String
+        let sku = "";
+        let title = "";
+        let price = 0;
+        let image = "";
+        let description = "";
         let sizes: any[] = [];
+        let rawCategory = "";
+        let brand = "";
+        let color = "";
 
         if (provider === 'toptime') {
-            sku = item.article?.toString() || item.code?.toString();
-            title = item.name;
+            sku = String(item.article || item.code || "");
+            title = String(item.name || "");
             price = Math.ceil((parseFloat(item.price) || 0) * eurRate);
-            image = item.photo;
-            description = item.content || item.content_ua || "";
-            rawCategory = item.group || "";
-            brand = item.brand;
-            color = item.color;
+            image = String(item.photo || "");
+            description = String(item.content || item.content_ua || "");
+            rawCategory = String(item.group || "");
+            brand = String(item.brand || "");
+            color = String(item.color || "");
+            
             const stock = parseInt(item.count2 || item.count || '0');
-            if (stock > 0) sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
+            if (stock > 0) {
+                sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
+            }
         } else {
-            sku = item.vendorCode;
-            title = item.name;
+            // Totobi
+            sku = String(item.vendorCode || "");
+            title = String(item.name || "");
             price = parseFloat(item.price) || 0;
-            image = Array.isArray(item.picture) ? item.picture[0] : item.picture;
-            description = item.description || "";
-            rawCategory = item.categoryId;
-            brand = item.vendor;
+            
+            const rawPic = item.picture;
+            image = Array.isArray(rawPic) ? String(rawPic[0]) : String(rawPic || "");
+            
+            description = String(item.description || "");
+            rawCategory = String(item.categoryId || "");
+            brand = String(item.vendor || "");
+            
             const params = Array.isArray(item.param) ? item.param : (item.param ? [item.param] : []);
-            const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Color' || p['@_name'] === 'Група Кольорів');
-            if (colorParam) color = colorParam['#text'];
+            const colorParam = params.find((p: any) => p?.['@_name'] === 'Колір' || p?.['@_name'] === 'Color' || p?.['@_name'] === 'Група Кольорів');
+            if (colorParam) color = String(colorParam['#text'] || "");
 
             if (item.sizes?.size) {
                 const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
                 sArr.forEach((s: any) => {
                     sizes.push({
-                        label: s['#text'],
+                        label: String(s['#text'] || "ONE SIZE"),
                         stock_available: parseInt(s['@_in_stock'] || s['@_amount'] || 0),
                         price: parseFloat(s['@_modifier'] || price)
                     });
@@ -133,16 +141,19 @@ export async function GET(request: Request) {
             }
         }
 
-        if (!sku) continue;
+        if (!sku || sku === "undefined") continue;
 
-        const baseSku = sku.split(/[ ._\-]/)[0];
+        // 1. СТВОРЮЄМО BASE SKU (Ключ групи)
+        // Тепер це безпечно, бо sku точно рядок
+        const baseSku = sku.split(/[ ._\-]/)[0]; 
+
         const cleanCategory = detectCategory(title, rawCategory);
 
         if (!groupedModels[baseSku]) {
             groupedModels[baseSku] = {
                 external_id: baseSku,
                 title: title.replace(color, '').trim(),
-                description: description.substring(0, 5000), // Обрізаємо опис, якщо задовгий
+                description: description.substring(0, 5000),
                 category: cleanCategory,
                 price: price,
                 image_url: image,
@@ -150,49 +161,54 @@ export async function GET(request: Request) {
                 brand: brand,
                 variants: [],
                 updated_at: new Date().toISOString(),
-                in_stock: false, // Оновлюємо нижче
-                amount: 0 // Для сумісності
+                in_stock: false,
+                amount: 0
             };
         }
 
+        if (!color) {
+             const parts = title.split(' ');
+             color = parts[parts.length - 1]; 
+        }
+
+        // Перевіряємо дублікатів варіантів
+        const isDuplicate = groupedModels[baseSku].variants.some((v: any) => v.sku_variant === sku);
+        
+        if (!isDuplicate) {
+            groupedModels[baseSku].variants.push({
+                sku_variant: sku,
+                color: color || "Standard",
+                image: image,
+                sizes: sizes,
+                price: price
+            });
+        }
+
         const totalStock = sizes.reduce((acc, s) => acc + s.stock_available, 0);
-
-        groupedModels[baseSku].variants.push({
-            sku_variant: sku,
-            color: color || "Standard",
-            image: image,
-            sizes: sizes,
-            price: price
-        });
-
-        // Оновлюємо загальні лічильники
         groupedModels[baseSku].amount += totalStock;
         if (totalStock > 0) groupedModels[baseSku].in_stock = true;
     }
 
     const finalProducts = Object.values(groupedModels);
-    console.log(`💾 [Sync] Preparing to upsert ${finalProducts.length} models...`); // ЛОГ 5
 
-    // Batch upsert
-    const batchSize = 50; // Зменшив розмір батчу для надійності
+    // Записуємо в Supabase
+    const batchSize = 50;
     for (let i = 0; i < finalProducts.length; i += batchSize) {
         const batch = finalProducts.slice(i, i + batchSize);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
-        
         if (error) {
-            console.error(`❌ [Sync] Batch error (Index ${i}):`, error.message);
-            throw error;
+            console.error('Supabase Batch Error:', error);
+            throw error; // Викидаємо помилку, щоб клієнт бачив 500 і знав про проблему
         }
     }
 
-    console.log("✅ [Sync] Success!"); // ЛОГ 6
     return NextResponse.json({ 
         success: true, 
         message: `Processed ${items.length} items into ${finalProducts.length} models`,
     });
 
   } catch (error: any) {
-    console.error("❌ [Sync] CRITICAL ERROR:", error);
+    console.error("Sync Critical Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
