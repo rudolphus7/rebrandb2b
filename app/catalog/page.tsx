@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { 
   Search, Filter, ChevronDown, ChevronUp, Check, 
-  Home as HomeIcon, X, ChevronRight, Menu
+  Home as HomeIcon, X, ChevronRight, Menu, Loader2
 } from "lucide-react";
 import ProductImage from "../components/ProductImage";
 import { useCart } from "../components/CartContext"; 
@@ -20,13 +20,16 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
 
     useEffect(() => {
         // Завантажуємо категорії з бази
-        supabase.from('categories').select('*').order('order').then(({ data }) => {
-            if (data) setCategories(data);
+        supabase.from('categories').select('*').order('title').then(({ data }) => {
+            if (data) {
+                // Адаптуємо, якщо в базі поле називається title, а не name
+                const mapped = data.map(c => ({...c, name: c.title || c.name}));
+                setCategories(mapped);
+            }
         });
     }, []);
 
-    // Логіка відкриття категорій
-    const rootCategories = categories.filter(c => !c.parent_id && !['270', '213', 'discount'].includes(c.id));
+    const rootCategories = categories.filter(c => !c.parent_id);
     const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
 
     // Авто-розкриття
@@ -113,7 +116,8 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
     } else {
       current.delete(paramName);
     }
-    current.set("page", "1");
+    // Скидаємо сторінку при зміні фільтру
+    // current.set("page", "1"); 
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -151,7 +155,9 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const page = parseInt(searchParams.get("page") || "1");
+  // Збільшив ліміт до 5000, щоб точно завантажити всі товари
+  const ITEMS_PER_LOAD = 5000;
+  
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
   const colorParam = searchParams.get("color");
@@ -162,27 +168,15 @@ function CatalogContent() {
   const [loading, setLoading] = useState(true);
   const { addToCart, totalItems } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [session, setSession] = useState<any>(null);
+  const [totalLoaded, setTotalLoaded] = useState(0);
 
-  // Статичні фільтри (можна теж винести в базу, але поки так)
   const COLORS = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений", "Жовтий", "Оранжевий", "Коричневий", "Фіолетовий", "Бежевий", "Рожевий"];
   const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс", "Метал", "Пластик", "Кераміка", "Скло", "Дерево", "Шкіра"];
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-    });
-  }, []);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/");
-  }
-
-  useEffect(() => {
     fetchData();
-  }, [page, query, categoryParam, colorParam, materialParam, genderParam]);
+  }, [query, categoryParam, colorParam, materialParam, genderParam]);
 
   async function fetchData() {
     setLoading(true);
@@ -191,20 +185,24 @@ function CatalogContent() {
     if (query) request = request.ilike("title", `%${query}%`);
 
     if (categoryParam) {
-        // Спочатку знаходимо категорію в базі, щоб отримати її ID
-        // Потім знаходимо всіх дітей цієї категорії
-        // І фільтруємо товари, у яких external_id входить в цей список
+        // 🔥 ПОКРАЩЕНА ЛОГІКА ПОШУКУ КАТЕГОРІЙ
+        // 1. Отримуємо ID категорії з бази
+        const { data: catData } = await supabase.from('categories').select('*').ilike('title', categoryParam).maybeSingle();
         
-        const { data: catData } = await supabase.from('categories').select('*').ilike('name', categoryParam).single();
+        let conditions = [];
         
+        // Додаємо умову пошуку за текстовим полем category (для нових товарів TopTime)
+        conditions.push(`category.ilike.%${categoryParam}%`);
+
         if (catData) {
-            // Знаходимо дітей
+            // Якщо знайшли ID, шукаємо і за ID
             const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
             const ids = [catData.id, ...(children?.map(c => c.id) || [])];
-            request = request.in("category_external_id", ids);
-        } else {
-            console.warn("Категорія не знайдена в БД");
+            conditions.push(`category_external_id.in.(${ids.join(',')})`);
         }
+        
+        // Використовуємо OR, щоб знайти товар або за ID, або за назвою категорії
+        request = request.or(conditions.join(','));
     }
 
     if (colorParam) request = request.in('color', colorParam.split(","));
@@ -217,20 +215,31 @@ function CatalogContent() {
         request = request.or(orQuery);
     }
 
-    const from = (page - 1) * 500; 
-    const to = from + 499;
-    const { data, error } = await request.range(from, to).order("id", { ascending: false });
+    // 🔥 ЗБІЛЬШЕНО ЛІМІТ: Беремо велику порцію, щоб охопити всі варіанти
+    const { data, error, count } = await request.range(0, ITEMS_PER_LOAD - 1).order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("Error fetching products:", error);
+        setLoading(false);
+        return;
+    }
 
     if (!data) { setLoading(false); return; }
 
+    setTotalLoaded(data.length);
+
+    // 🔥 ГРУПУВАННЯ ТОВАРІВ
     const groupedMap = new Map();
     data.forEach((item) => {
-        const rawTitle = item.title || item.description || "Товар без назви";
-        const groupKey = rawTitle.trim(); 
+        // Використовуємо SKU як ключ для групування, якщо він є, інакше Title
+        // Обрізаємо SKU до дефісу (наприклад ST2000-XS -> ST2000) для групування розмірів
+        const baseSku = item.sku ? item.sku.split(/[-_]/)[0] : null;
+        const groupKey = baseSku || item.title?.trim() || `unknown-${item.id}`;
+
         if (!groupedMap.has(groupKey)) {
             groupedMap.set(groupKey, {
                 ...item,
-                title: rawTitle,
+                title: item.title || "Товар без назви",
                 variants: [item],
                 variant_images: item.image_url ? [item.image_url] : [],
                 stock_total: item.amount || 0,
@@ -240,17 +249,24 @@ function CatalogContent() {
         } else {
             const group = groupedMap.get(groupKey);
             group.variants.push(item);
-            if (item.image_url && !group.variant_images.includes(item.image_url)) group.variant_images.push(item.image_url);
+            if (item.image_url && !group.variant_images.includes(item.image_url)) {
+                group.variant_images.push(item.image_url);
+            }
             group.stock_total += (item.amount || 0);
             group.stock_reserve += (item.reserve || 0);
+            
+            // Якщо у головного товара немає наявності, але у варіанта є - оновлюємо
+            if (!group.in_stock && item.in_stock) {
+                group.in_stock = true;
+            }
         }
     });
 
     setProducts(Array.from(groupedMap.values()).map(group => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
-        article: group.sku ? group.sku.split('-')[0] : `ART-${group.id}`,
-        brand: "Totobi Partner" 
+        article: group.sku || `ART-${group.id}`,
+        brand: group.brand || "Partner" 
     })));
     setLoading(false);
   }
@@ -268,7 +284,7 @@ function CatalogContent() {
 
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans">
-      <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} onLogout={handleLogout} />
+      <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} />
 
       <div className="max-w-[1600px] mx-auto px-4 lg:px-8 py-6">
          <div className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-4">
@@ -296,7 +312,7 @@ function CatalogContent() {
               <div className="flex gap-1 text-sm font-bold overflow-x-auto w-full md:w-auto">
                  <button onClick={() => router.push('/catalog')} className={`px-4 py-2 rounded-lg transition ${!categoryParam ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}>Всі товари</button>
               </div>
-              <span className="text-xs text-gray-500 uppercase tracking-widest mr-4">Знайдено {products.length} товарів</span>
+              <span className="text-xs text-gray-500 uppercase tracking-widest mr-4">Показано {products.length} моделей</span>
            </div>
 
            {products.length === 0 && !loading ? (
@@ -329,7 +345,7 @@ function CatalogContent() {
                                <ProductImage src={item.active_image || item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
                              </Link>
                              <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                                 {item.stock_free > 0 && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
+                                 {item.in_stock && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
                              </div>
                           </div>
                           <div className="mb-2">
@@ -338,13 +354,20 @@ function CatalogContent() {
                           </div>
                           <div className="text-xl font-bold text-white mb-3">{item.price > 0 ? <>{item.price} <span className="text-xs font-normal text-gray-400">ГРН</span></> : <span className="text-sm text-blue-400">Ціна за запитом</span>}</div>
                           <div className="mb-2 text-xs">
-                            {item.stock_free > 0 ? <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Вільний залишок: {item.stock_free} шт.</span> : <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Немає в наявності</span>}
+                            {item.in_stock ? <span className="text-green-400 font-bold flex items-center gap-1"><Check size={12}/> Є на складі</span> : <span className="text-red-400 font-bold flex items-center gap-1"><X size={12}/> Під замовлення</span>}
                           </div>
                           <button onClick={() => handleAddToCart(item)} className="mt-2 w-full bg-white text-black font-bold py-2 rounded hover:bg-blue-600 hover:text-white transition text-sm flex items-center justify-center gap-2">В кошик</button>
                        </div>
                      </div>
                    ))
                  }
+               </div>
+           )}
+           
+           {!loading && totalLoaded >= ITEMS_PER_LOAD && (
+               <div className="mt-8 text-center">
+                   <p className="text-gray-500 text-sm mb-2">Завантажено перші {ITEMS_PER_LOAD} записів</p>
+                   {/* Тут можна додати кнопку Load More, якщо товарів буде більше 5000 */}
                </div>
            )}
         </div>
@@ -356,7 +379,7 @@ function CatalogContent() {
 
 export default function CatalogPage() {
   return (
-    <Suspense fallback={<div className="bg-black min-h-screen text-white p-10 flex items-center justify-center">Завантаження каталогу...</div>}>
+    <Suspense fallback={<div className="bg-black min-h-screen text-white p-10 flex items-center justify-center"><Loader2 className="animate-spin mr-2"/> Завантаження каталогу...</div>}>
       <CatalogContent />
     </Suspense>
   );
