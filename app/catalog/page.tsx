@@ -282,9 +282,14 @@ function CatalogContent() {
     setIsCartOpen(true);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans">
-      <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} />
+      <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} onLogout={handleLogout} />
 
       <div className="max-w-[1600px] mx-auto px-4 lg:px-8 py-6">
          <div className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-4">
