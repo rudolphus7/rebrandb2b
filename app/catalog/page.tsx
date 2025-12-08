@@ -13,200 +13,60 @@ import { useCart } from "../components/CartContext";
 import Header from "../components/Header";
 import CartDrawer from "../components/CartDrawer";
 
-// --- 1. ВАША СТРУКТУРА МЕНЮ ТА ПРАВИЛА ПОШУКУ ---
-// keywords: слова, за якими ми визначаємо категорію.
-// exclude: слова, яких НЕ має бути (щоб Поло не потрапило у футболки).
-
-const CATEGORY_STRUCTURE = [
-  {
-    name: "Сумки",
-    subcategories: [
-      { name: "Валізи", keywords: ["валіза", "чемодан", "suitcase", "trolley"] },
-      { name: "Косметички", keywords: ["косметич", "несесер", "toiletry"] },
-      { name: "Мішок спортивний", keywords: ["мішок", "gymsac", "drawstring"] },
-      { name: "Рюкзаки", keywords: ["рюкзак", "backpack"] },
-      { name: "Сумки для ноутбуків", keywords: ["ноутбук", "laptop", "портфель", "document"] },
-      { name: "Сумки для покупок", keywords: ["шопер", "shopper", "покупок", "totebag", "tote"] },
-      { name: "Сумки дорожні та спортивні", keywords: ["дорожня", "спортивна", "duffel", "travel bag", "sport bag"] },
-      { name: "Сумки на пояс", keywords: ["пояс", "бананка", "waist", "belt bag"] },
-      { name: "Термосумки", keywords: ["термосумка", "холодильник", "cooler bag"] },
-    ]
-  },
-  {
-    name: "Ручки",
-    subcategories: [
-      { name: "Еко ручки", keywords: ["еко ручк", "папер", "бамбук", "дерев'ян", "eco pen", "bamboo"] },
-      { name: "Металеві ручки", keywords: ["метал", "metal pen", "алюмін"] },
-      { name: "Олівці", keywords: ["олівець", "pencil", "набір олівців"] },
-      { name: "Пластикові ручки", keywords: ["пластик", "plastic pen"], exclude: ["еко"] },
-    ]
-  },
-  {
-    name: "Подорож та відпочинок",
-    subcategories: [
-      { name: "Все для пікніка", keywords: ["пікнік", "picnic", "барбекю", "bbq"] },
-      { name: "Ліхтарики", keywords: ["ліхтар", "torch", "flashlight", "light"] },
-      { name: "Ланч бокси", keywords: ["ланч", "lunch", "контейнер", "box"] },
-      { name: "Лопати", keywords: ["лопата"] },
-      { name: "Пледи", keywords: ["плед", "blanket"] },
-      { name: "Пляшки для пиття", keywords: ["пляшка", "bottle", "бідон"] },
-      { name: "Подушки", keywords: ["подушк", "pillow"] },
-      { name: "Термоси та термокружки", keywords: ["термос", "thermos", "термокружк", "tumbler", "mug", "чашка"] },
-      { name: "Фляги", keywords: ["фляга", "hip flask"] },
-      { name: "Фрізбі", keywords: ["фрізбі", "frisbee", "літаюч"] },
-      { name: "Штопори", keywords: ["штопор", "відкривач", "opener", "corkscrew"] },
-    ]
-  },
-  {
-    name: "Парасолі",
-    subcategories: [
-      { name: "Парасолі складні", keywords: ["парасоля", "umbrella"], exclude: ["тростина", "golf", "stick"] },
-      { name: "Парасолі-тростини", keywords: ["тростина", "golf", "stick umbrella"] },
-    ]
-  },
+// --- 1. СТРУКТУРА ДЛЯ САЙДБАРУ (Тільки UI) ---
+// Ми прибрали keywords, бо категорія вже визначена в базі даних (api/sync)
+const SIDEBAR_STRUCTURE = [
   {
     name: "Одяг",
-    subcategories: [
-      { name: "Вітровки", keywords: ["вітровка", "windbreaker", "дощовик"] },
-      { name: "Рукавички", keywords: ["рукавич", "glove"] },
-      { name: "Спортивний одяг", keywords: ["спорт", "sport", "лосини", "легінси"] },
-      { name: "Поло", keywords: ["поло", "polo"] }, // Поло йде перед футболками, це важливо
-      { name: "Футболки", keywords: ["футболк", "t-shirt", "майка"], exclude: ["поло", "polo"] },
-      { name: "Дитячий одяг", keywords: ["дитяч", "kids", "kid"] },
-      { name: "Реглани, фліси", keywords: ["реглан", "фліс", "fleece", "худі", "hoodie", "світшот", "sweatshirt", "толстовка"] },
-      { name: "Жилети", keywords: ["жилет", "vest", "bodywarmer"] },
-      { name: "Куртки та софтшели", keywords: ["куртка", "jacket", "softshell", "софтшел", "парка"] },
-    ]
+    subcategories: ["Футболки", "Поло", "Реглани, фліси", "Куртки та софтшели", "Жилети", "Спортивний одяг", "Вітровки", "Рукавички", "Дитячий одяг"]
   },
   {
     name: "Головні убори",
-    subcategories: [
-      { name: "Дитяча кепка", keywords: ["дитяч", "kids"], extraCheck: "кепка" },
-      { name: "Панами", keywords: ["панама", "bucket"] },
-      { name: "Шапки", keywords: ["шапк", "beanie", "зим"] },
-      { name: "Кепки", keywords: ["кепка", "cap", "бейсболк"], exclude: ["дитяч", "kids"] },
-    ]
+    subcategories: ["Кепки", "Шапки", "Панами", "Дитяча кепка"]
   },
   {
-    name: "Інструменти",
-    subcategories: [
-      { name: "Викрутки", keywords: ["викрутк", "screwdriver"] },
-      { name: "Мультитули", keywords: ["мультитул", "multitool"] },
-      { name: "Набір інструментів", keywords: ["набір інструмент", "tool set"] },
-      { name: "Ножі", keywords: ["ніж", "knife"] },
-      { name: "Рулетки", keywords: ["рулетк", "tape"] },
-    ]
+    name: "Сумки",
+    subcategories: ["Рюкзаки", "Сумки для покупок", "Сумки дорожні та спортивні", "Сумки для ноутбуків", "Сумки на пояс", "Валізи", "Косметички", "Термосумки", "Мішок спортивний"]
+  },
+  {
+    name: "Ручки",
+    subcategories: ["Пластикові ручки", "Металеві ручки", "Еко ручки", "Олівці"]
+  },
+  {
+    name: "Подорож та відпочинок",
+    subcategories: ["Термоси та термокружки", "Пляшки для пиття", "Фляги", "Ліхтарики", "Пледи", "Все для пікніка", "Парасолі"]
   },
   {
     name: "Офіс",
-    subcategories: [
-      { name: "Записні книжки", keywords: ["блокнот", "notebook", "нотатник", "щоденник"] },
-      { name: "Календарі", keywords: ["календар"] },
-    ]
+    subcategories: ["Записні книжки", "Календарі", "Шнурки", "Запальнички"]
   },
   {
-    name: "Персональні аксессуари",
-    subcategories: [
-      { name: "Брелки", keywords: ["брелок", "keychain", "keyring"] },
-      { name: "Візитниці", keywords: ["візитниц", "card holder"] },
-      { name: "Дзеркала", keywords: ["дзеркал", "mirror"] },
-    ]
+    name: "Дім та Посуд",
+    subcategories: ["Горнятка", "Кухонне приладдя", "Рушники", "Свічки"]
   },
   {
     name: "Електроніка",
-    subcategories: [
-      { name: "Зарядні пристрої", keywords: ["повербанк", "powerbank", "зарядн", "charger", "cable", "кабель"] },
-      { name: "Зволожувачі повітря", keywords: ["зволожувач", "humidifier"] },
-      { name: "Лампи", keywords: ["лампа", "lamp"] },
-      { name: "Портативна акустика", keywords: ["колонка", "speaker", "навушники"] },
-      { name: "Аксесуари", keywords: ["usb", "hub", "хаб"] },
-      { name: "Годинники", keywords: ["годинник", "watch", "clock"] },
-    ]
-  },
-  {
-    name: "Дім",
-    subcategories: [
-      { name: "Дошки кухонні", keywords: ["дошка", "board"] },
-      { name: "Кухонне приладдя", keywords: ["кухонн", "kitchen", "фартух"] },
-      { name: "Млини для спецій", keywords: ["млин", "mill", "salt", "pepper"] },
-      { name: "Набори для сиру", keywords: ["сир", "cheese"] },
-      { name: "Рушники", keywords: ["рушник", "towel"] },
-      { name: "Свічки", keywords: ["свічк", "candle"] },
-      { name: "Сковорідки", keywords: ["сковорід", "pan"] },
-      { name: "Стакани", keywords: ["стакан", "glass"] },
-      { name: "Чайники", keywords: ["чайник", "teapot"] },
-      { name: "Годівнички", keywords: ["годівничк", "bird"] },
-    ]
-  },
-  {
-    name: "Посуд",
-    subcategories: [
-      { name: "Горнятка", keywords: ["горнятк", "mug", "чашка", "керамічн"], exclude: ["термо"] }, // Щоб термокружки не лізли сюди
-    ]
-  },
-  {
-    name: "Упаковка",
-    subcategories: [
-      { name: "Подарункова коробка", keywords: ["коробк", "box", "case"] },
-      { name: "Подарунковий пакет", keywords: ["пакет", "bag", "paper"] },
-    ]
-  },
-];
-
-// --- ДОПОМІЖНІ ФУНКЦІЇ ---
-
-// Функція, яка визначає категорію товару за його текстом
-const detectCategory = (item: any) => {
-  // Збираємо весь текст про товар в одну купу
-  const text = `${item.title} ${item.description || ''} ${item.category || ''}`.toLowerCase();
-  
-  for (const mainCat of CATEGORY_STRUCTURE) {
-    for (const subCat of mainCat.subcategories) {
-      // 1. Перевіряємо виключення (якщо є слово "поло", то це не "футболка")
-      if (subCat.exclude && subCat.exclude.some(badWord => text.includes(badWord))) {
-        continue; 
-      }
-      
-      // 2. Додаткова перевірка (для дитячих кепок: має бути і "дитяч", і "кепка")
-      if ((subCat as any).extraCheck && !text.includes((subCat as any).extraCheck)) {
-        continue;
-      }
-
-      // 3. Перевіряємо ключові слова
-      if (subCat.keywords.some(keyword => text.includes(keyword))) {
-        return { 
-          main: mainCat.name, 
-          sub: subCat.name 
-        };
-      }
-    }
+    subcategories: ["Зарядні пристрої", "Портативна акустика", "Годинники"]
   }
-  return { main: "Інше", sub: "Інше" };
-};
-
-const getCleanTitle = (title: string) => {
-    if (!title) return "unknown";
-    // Видаляємо кольори з назви для групування
-    const cleanup = title.replace(/\b(Red|Blue|Black|White|Grey|Green|Yellow|Orange|Purple|Pink|Navy|Royal|Apple|Lime|French|Classic|Ladies|Men|Kids)\b/gi, '').trim();
-    // Видаляємо зайві символи в кінці
-    return cleanup.replace(/[\s\-_]+$/, '');
-};
-
+];
 
 // --- UI КОМПОНЕНТИ ---
 
-function CategorySidebar({ activeMain, activeSub, onSelect }: { activeMain: string | null, activeSub: string | null, onSelect: (main: string, sub: string | null) => void }) {
+function CategorySidebar({ activeSub, onSelect }: { activeSub: string | null, onSelect: (sub: string | null) => void }) {
+    // Відкриваємо ті секції, де є активна підкатегорія
     const [openCategories, setOpenCategories] = useState<string[]>([]);
 
+    // Авто-розкриття групи при виборі підкатегорії
     useEffect(() => {
-        if (activeMain && !openCategories.includes(activeMain)) {
-            setOpenCategories(prev => [...prev, activeMain]);
+        if (activeSub) {
+            const parent = SIDEBAR_STRUCTURE.find(g => g.subcategories.includes(activeSub));
+            if (parent && !openCategories.includes(parent.name)) {
+                setOpenCategories(prev => [...prev, parent.name]);
+            }
         }
-    }, [activeMain]);
+    }, [activeSub]);
 
-    const toggleCategory = (name: string, e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+    const toggleCategory = (name: string) => {
         setOpenCategories(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]);
     };
 
@@ -214,44 +74,34 @@ function CategorySidebar({ activeMain, activeSub, onSelect }: { activeMain: stri
         <div className="mb-8">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Menu size={18}/> Категорії</h3>
             <div className="space-y-1">
-                {CATEGORY_STRUCTURE.map(rootCat => {
-                    const isOpen = openCategories.includes(rootCat.name);
-                    const isActive = activeMain === rootCat.name;
+                {SIDEBAR_STRUCTURE.map(group => {
+                    const isOpen = openCategories.includes(group.name);
+                    // Перевіряємо, чи активна підкатегорія знаходиться в цій групі
+                    const hasActiveChild = activeSub && group.subcategories.includes(activeSub);
 
                     return (
-                        <div key={rootCat.name} className="border-b border-white/5 last:border-0">
-                            <div 
-                                className={`flex items-center justify-between py-2 px-2 rounded cursor-pointer transition ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                                onClick={(e) => {
-                                   toggleCategory(rootCat.name, e);
-                                   // Якщо клікаємо на головну категорію - обираємо її
-                                   onSelect(rootCat.name, null); 
-                                }}
+                        <div key={group.name} className="border-b border-white/5 last:border-0">
+                            <button 
+                                className={`flex items-center justify-between w-full py-2 px-2 rounded cursor-pointer transition ${hasActiveChild ? 'text-blue-400' : 'text-gray-300 hover:bg-white/5'}`}
+                                onClick={() => toggleCategory(group.name)}
                             >
-                                <span className={`text-sm font-bold uppercase flex-1 ${isActive ? 'text-blue-400' : 'text-gray-300'}`}>
-                                    {rootCat.name}
-                                </span>
-                                <button className="p-1 text-gray-500 hover:text-white transition">
-                                    {isOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-                                </button>
-                            </div>
+                                <span className="text-sm font-bold uppercase text-left">{group.name}</span>
+                                {isOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                            </button>
                             
                             {isOpen && (
                                 <div className="pl-4 pb-2 space-y-1 border-l-2 border-white/10 ml-2 mt-1">
-                                    {rootCat.subcategories.map(child => {
-                                         const isChildActive = activeSub === child.name;
-                                         return (
-                                            <button 
-                                                key={child.name}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onSelect(rootCat.name, child.name);
-                                                }}
-                                                className={`block w-full text-left text-xs py-1.5 transition ${isChildActive ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
-                                            >
-                                                {child.name}
-                                            </button>
-                                         );
+                                    {group.subcategories.map(child => {
+                                       const isActive = activeSub === child;
+                                       return (
+                                          <button 
+                                              key={child}
+                                              onClick={() => onSelect(child)}
+                                              className={`block w-full text-left text-xs py-1.5 transition ${isActive ? 'text-blue-400 font-bold translate-x-1' : 'text-gray-500 hover:text-gray-300'}`}
+                                          >
+                                              {child}
+                                          </button>
+                                       );
                                     })}
                                 </div>
                             )}
@@ -294,18 +144,15 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  // Константи
+  // Константи фільтрів
   const COLORS = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений", "Жовтий", "Оранжевий", "Коричневий", "Фіолетовий", "Бежевий", "Рожевий"];
-  const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс", "Метал", "Пластик", "Кераміка", "Скло", "Дерево", "Шкіра"];
-  const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
-
+  
   // Стейт
   const [allProducts, setAllProducts] = useState<any[]>([]); // Всі завантажені
-  const [displayedProducts, setDisplayedProducts] = useState<any[]>([]); // Відфільтровані для показу
+  const [displayedProducts, setDisplayedProducts] = useState<any[]>([]); // Відфільтровані
   const [loading, setLoading] = useState(true);
   
-  // Фільтри стейт (локальний, щоб не дьоргати URL постійно)
-  const [selectedMainCat, setSelectedMainCat] = useState<string | null>(null);
+  // Фільтри
   const [selectedSubCat, setSelectedSubCat] = useState<string | null>(null);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -313,12 +160,20 @@ function CatalogContent() {
   const { addToCart, totalItems } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // 1. ЗАВАНТАЖЕННЯ ВСІХ ТОВАРІВ (Один раз при вході)
+  // Ініціалізація з URL (коли переходимо з Header)
+  useEffect(() => {
+    const catFromUrl = searchParams.get('category');
+    const qFromUrl = searchParams.get('q');
+    
+    if (catFromUrl) setSelectedSubCat(catFromUrl);
+    if (qFromUrl) setSearchQuery(qFromUrl);
+  }, [searchParams]);
+
+  // 1. ЗАВАНТАЖЕННЯ ВСІХ ТОВАРІВ
   useEffect(() => {
     async function loadAll() {
         setLoading(true);
-        // Вантажимо взагалі все. Так, це 4800 записів, але тексту там небагато, це буде десь 2-3Мб JSON.
-        // Зате ми зможемо ідеально посортувати на клієнті.
+        // Беремо всі товари. Оскільки sync route вже розклав категорії, ми довіряємо полю `category`
         const { data, error } = await supabase.from("products").select("*");
         
         if (error || !data) {
@@ -327,47 +182,39 @@ function CatalogContent() {
             return;
         }
 
-        // 2. ОБРОБКА ТА МАПІНГ (The Magic)
-        const processed = data.map((item: any) => {
-            // Визначаємо нашу "віртуальну" категорію
-            const { main, sub } = detectCategory(item);
-            
-            return {
-                ...item,
-                virtualMainCategory: main,
-                virtualSubCategory: sub,
-                // Підчищаємо для групування
-                cleanTitle: getCleanTitle(item.title),
-                baseSku: item.sku ? item.sku.split(/[\s\-_./\\]+/)[0] : `ID-${item.id}`
-            };
-        });
-
-        // 3. ГРУПУВАННЯ ПО КОЛЬОРАХ
+        // 2. ГРУПУВАННЯ ПО АРТИКУЛУ (Клієнтське)
+        // Це дозволяє злити "Футболка Червона" і "Футболка Синя" в одну картку
         const groupedMap = new Map();
-        processed.forEach((item: any) => {
-            // Ключ групи: SKU + Category (щоб не змішати різні товари з однаковим артикулом)
-            const groupKey = `${item.baseSku}-${item.virtualSubCategory}`;
+        
+        data.forEach((item: any) => {
+            // Створюємо базовий SKU (відрізаємо частину після крапки/дефісу)
+            // Наприклад: 5102.10 -> 5102
+            const baseSku = item.sku ? item.sku.split(/[.\-_]/)[0] : `ID-${item.id}`;
+            const cleanTitle = item.title.split(',')[0].trim(); // Прибираємо зайве з назви
+
+            // Ключ групи: SKU + Category (щоб різні товари з схожим SKU не злилися)
+            const groupKey = `${baseSku}-${item.category}`;
             
             if (!groupedMap.has(groupKey)) {
                 groupedMap.set(groupKey, {
                     ...item,
+                    title: cleanTitle, 
+                    groupKey,
+                    baseSku,
                     variants: [item],
+                    // Збираємо унікальні картинки
                     variant_images: item.image_url ? [item.image_url] : [],
                     stock_total: item.amount || 0,
-                    stock_reserve: item.reserve || 0,
+                    // Товар в наявності, якщо хоча б один варіант є
                     in_stock: (item.in_stock || false) || ((item.amount || 0) > 0)
                 });
             } else {
                 const group = groupedMap.get(groupKey);
-                // Додаємо варіант
                 group.variants.push(item);
-                // Додаємо картинку
                 if (item.image_url && !group.variant_images.includes(item.image_url)) {
                     group.variant_images.push(item.image_url);
                 }
-                // Сумуємо залишки
                 group.stock_total += (item.amount || 0);
-                group.stock_reserve += (item.reserve || 0);
                 if (item.in_stock || (item.amount > 0)) group.in_stock = true;
             }
         });
@@ -381,18 +228,15 @@ function CatalogContent() {
     loadAll();
   }, []);
 
-  // 4. ФІЛЬТРАЦІЯ НА ЛЬОТУ
+  // 3. ФІЛЬТРАЦІЯ
   useEffect(() => {
     if (loading) return;
 
     let result = allProducts;
 
-    // Фільтр по категоріях
-    if (selectedMainCat) {
-        result = result.filter(p => p.virtualMainCategory === selectedMainCat);
-    }
+    // Фільтр по категорії (порівнюємо з полем category в базі)
     if (selectedSubCat) {
-        result = result.filter(p => p.virtualSubCategory === selectedSubCat);
+        result = result.filter(p => p.category === selectedSubCat);
     }
 
     // Фільтр по пошуку
@@ -400,19 +244,23 @@ function CatalogContent() {
         const q = searchQuery.toLowerCase();
         result = result.filter(p => 
             p.title.toLowerCase().includes(q) || 
-            p.sku?.toLowerCase().includes(q) ||
-            p.description?.toLowerCase().includes(q)
+            p.baseSku?.toLowerCase().includes(q)
         );
     }
 
-    // Фільтр по кольорах
+    // Фільтр по кольорах (перевіряємо чи є такий колір хоча б в одного варіанта групи)
     if (selectedColors.length > 0) {
-        result = result.filter(p => selectedColors.includes(p.color));
+        result = result.filter(p => {
+             // Перевіряємо колір головного товару або його варіантів
+             const productColors = p.variants.map((v: any) => v.color).filter(Boolean);
+             // Якщо хоча б один вибраний колір є в списку кольорів товару
+             return selectedColors.some(c => productColors.includes(c));
+        });
     }
 
     setDisplayedProducts(result);
 
-  }, [selectedMainCat, selectedSubCat, searchQuery, selectedColors, allProducts, loading]);
+  }, [selectedSubCat, searchQuery, selectedColors, allProducts, loading]);
 
 
   const handleAddToCart = (product: any) => {
@@ -431,10 +279,14 @@ function CatalogContent() {
     router.push("/");
   };
 
-  const handleSelectCategory = (main: string, sub: string | null) => {
-      setSelectedMainCat(main);
+  const handleSelectCategory = (sub: string | null) => {
       setSelectedSubCat(sub);
-      // Скрол вгору при виборі категорії
+      // Оновлюємо URL без перезавантаження
+      if (sub) {
+        router.push(`/catalog?category=${sub}`, { scroll: false });
+      } else {
+        router.push(`/catalog`, { scroll: false });
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -444,6 +296,13 @@ function CatalogContent() {
       );
   };
 
+  const handleResetFilters = () => {
+      setSelectedSubCat(null);
+      setSearchQuery("");
+      setSelectedColors([]);
+      router.push('/catalog', { scroll: false });
+  };
+
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans">
       <Header onCartClick={() => setIsCartOpen(true)} cartCount={totalItems} onLogout={handleLogout} />
@@ -451,15 +310,14 @@ function CatalogContent() {
       <div className="max-w-[1600px] mx-auto px-4 lg:px-8 py-6">
          <div className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-4">
              <Link href="/" className="hover:text-white">Головна</Link> / 
-             <span className="text-white cursor-pointer" onClick={() => {setSelectedMainCat(null); setSelectedSubCat(null);}}>Каталог</span>
-             {selectedMainCat && <> / <span className="text-blue-400">{selectedMainCat}</span></>}
-             {selectedSubCat && <> / <span className="text-gray-300">{selectedSubCat}</span></>}
+             <span className="text-white cursor-pointer" onClick={handleResetFilters}>Каталог</span>
+             {selectedSubCat && <> / <span className="text-blue-400">{selectedSubCat}</span></>}
          </div>
          
          {/* Пошук зверху */}
          <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-6">
              <h1 className="text-3xl font-black uppercase text-white">
-                 {selectedSubCat || selectedMainCat || "Всі товари"}
+                 {selectedSubCat || "Всі товари"}
              </h1>
              <div className="relative w-full md:w-96">
                 <input 
@@ -477,16 +335,16 @@ function CatalogContent() {
       <main className="max-w-[1600px] mx-auto px-4 lg:px-8 pb-20 flex gap-8 items-start">
         {/* SIDEBAR */}
         <aside className="w-64 flex-shrink-0 hidden lg:block bg-[#1a1a1a] rounded-xl border border-white/5 p-4 sticky top-24 h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
-           {(selectedMainCat || searchQuery || selectedColors.length > 0) && (
+           {(selectedSubCat || searchQuery || selectedColors.length > 0) && (
               <button 
-                onClick={() => {setSelectedMainCat(null); setSelectedSubCat(null); setSearchQuery(""); setSelectedColors([]);}} 
+                onClick={handleResetFilters} 
                 className="text-xs text-red-400 flex items-center gap-1 hover:underline mb-4 w-full text-left"
               >
                   <X size={12}/> Скинути фільтри
               </button>
            )}
            
-           <CategorySidebar activeMain={selectedMainCat} activeSub={selectedSubCat} onSelect={handleSelectCategory} />
+           <CategorySidebar activeSub={selectedSubCat} onSelect={handleSelectCategory} />
            
            <div className="w-full h-[1px] bg-white/10 my-6"></div>
            <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Filter size={18}/> Фільтри</h3>
@@ -504,6 +362,7 @@ function CatalogContent() {
                    <div className="inline-flex bg-white/5 p-4 rounded-full mb-4"><Search size={32} className="text-gray-500"/></div>
                    <h3 className="text-xl font-bold mb-2">Товарів не знайдено</h3>
                    <p className="text-gray-400 mb-6">Спробуйте змінити категорію або пошуковий запит</p>
+                   <button onClick={handleResetFilters} className="text-blue-400 hover:underline">Показати всі товари</button>
                </div>
            ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
@@ -515,10 +374,10 @@ function CatalogContent() {
                  ) : (
                    displayedProducts.map((item) => (
                      <div key={item.groupKey || item.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 hover:border-blue-500/30 hover:shadow-2xl transition group flex gap-3 h-full relative">
-                       {/* Color Dots */}
+                       {/* Color Dots (Left Side) */}
                        <div className="flex flex-col gap-2 w-10 flex-shrink-0 pt-2 z-10">
                           {item.variant_images.length > 0 ? (
-                             item.variant_images.slice(0, 6).map((img: string, idx: number) => (
+                             item.variant_images.slice(0, 5).map((img: string, idx: number) => (
                              <div key={idx} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white cursor-pointer relative bg-black transition hover:scale-110">
                                  <ProductImage src={img} alt="Color" fill />
                              </div>
@@ -526,21 +385,21 @@ function CatalogContent() {
                           ) : (
                              <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[8px] text-zinc-500">N/A</div>
                           )}
-                          {item.variant_images.length > 6 && <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 6}</div>}
+                          {item.variant_images.length > 5 && <div className="text-[10px] text-gray-500 text-center font-bold">+{item.variant_images.length - 5}</div>}
                        </div>
                        
-                       {/* Info */}
+                       {/* Main Content */}
                        <div className="flex-1 flex flex-col min-w-0">
                           <div className="aspect-[3/4] bg-black rounded-lg overflow-hidden mb-3 relative">
-                             <Link href={`/product/${item.id}`} className="block w-full h-full">
-                               <ProductImage src={item.active_image || item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
+                             <Link href={`/product/${item.external_id || item.id}`} className="block w-full h-full">
+                               <ProductImage src={item.image_url} alt={item.title} fill className="group-hover:scale-105 transition duration-500"/>
                              </Link>
                              <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                  {item.in_stock && <div className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">В наявності</div>}
                              </div>
                           </div>
                           <div className="mb-2">
-                             <Link href={`/product/${item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>
+                             <Link href={`/product/${item.external_id || item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>
                                  {item.title}
                              </Link>
                              <div className="flex justify-between text-[10px] text-gray-500 mt-1">

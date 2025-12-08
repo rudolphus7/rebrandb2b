@@ -6,10 +6,50 @@ import { useRouter } from "next/navigation";
 import { 
   Search, ShoppingBag, LogOut, User, X,
   Menu, LayoutGrid, Sparkles, Flame, Percent, ChevronRight,
-  Home, Heart
+  Heart
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabaseClient";
+
+// --- КОНФІГУРАЦІЯ МЕНЮ (Має збігатися з API Sync) ---
+const MENU_STRUCTURE = [
+  {
+    id: 'clothes',
+    label: 'Одяг',
+    items: [
+      { name: 'Футболки', dbValue: 'Футболки' },
+      { name: 'Поло', dbValue: 'Поло' },
+      { name: 'Реглани та фліси', dbValue: 'Реглани, фліси' },
+      { name: 'Куртки та жилети', dbValue: 'Куртки та софтшели' },
+      { name: 'Кепки та панами', dbValue: 'Кепки' },
+      { name: 'Шапки', dbValue: 'Шапки' },
+    ]
+  },
+  {
+    id: 'bags',
+    label: 'Сумки та Рюкзаки',
+    items: [
+      { name: 'Рюкзаки', dbValue: 'Рюкзаки' },
+      { name: 'Шопери та еко-сумки', dbValue: 'Сумки для покупок' },
+      { name: 'Дорожні сумки', dbValue: 'Сумки дорожні та спортивні' },
+    ]
+  },
+  {
+    id: 'office',
+    label: 'Офіс та Канцтовари',
+    items: [
+      { name: 'Ручки', dbValue: 'Ручки' },
+      { name: 'Запальнички', dbValue: 'Запальнички' },
+      { name: 'Шнурки для бейджів', dbValue: 'Шнурки' },
+    ]
+  },
+  {
+    id: 'accessories',
+    label: 'Аксесуари',
+    items: [
+      { name: 'Парасолі', dbValue: 'Парасолі' },
+    ]
+  }
+];
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -26,30 +66,8 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   
-  // Categories from DB
-  const [categories, setCategories] = useState<any[]>([]);
-
   const router = useRouter();
   const mobileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- FETCH CATEGORIES ---
-  useEffect(() => {
-    async function fetchCategories() {
-      const { data } = await supabase
-        .from('categories')
-        .select('*')
-        .order('order', { ascending: true });
-      
-      if (data) {
-        setCategories(data);
-      }
-    }
-    fetchCategories();
-  }, []);
-
-  // Filter categories for menu tree
-  const rootCategories = categories.filter(c => !c.parent_id && !['270', '213', 'discount'].includes(c.id));
-  const getChildren = (parentId: string) => categories.filter(c => c.parent_id === parentId);
 
   // --- HANDLERS ---
   const handleLinkClick = (path: string) => {
@@ -60,15 +78,15 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-        router.push(`/catalog?q=${searchQuery}`);
+        router.push(`/catalog?q=${encodeURIComponent(searchQuery)}`);
         setIsCatalogOpen(false);
         setIsMobileSearchOpen(false);
         setIsMobileMenuOpen(false);
     }
   };
 
-  const toggleCategory = (categoryName: string) => {
-    setExpandedCategory(expandedCategory === categoryName ? null : categoryName);
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
   };
 
   // Focus mobile search input when opened
@@ -234,19 +252,24 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                       </div>
                     </div>
 
-                    {/* Right Column (Categories from DB) */}
+                    {/* Right Column (Categories Structured) */}
                     <div className="flex-1 p-6 overflow-y-auto custom-scrollbar overscroll-contain">
-                      <div className="grid grid-cols-5 gap-x-6 gap-y-8">
-                          {rootCategories.map((root) => (
-                            <div key={root.id} className="break-inside-avoid">
-                              <h3 className="font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1 flex items-center justify-between group cursor-pointer hover:text-blue-400 transition text-xs">
-                                <Link href={`/catalog?category=${root.name}`} onClick={() => setIsCatalogOpen(false)}>{root.name}</Link> 
-                                <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition"/>
+                      <div className="grid grid-cols-4 gap-x-6 gap-y-8">
+                          {MENU_STRUCTURE.map((group) => (
+                            <div key={group.id} className="break-inside-avoid">
+                              <h3 className="font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1 flex items-center justify-between group text-xs">
+                                <span>{group.label}</span>
                               </h3>
                               <ul className="space-y-1">
-                                {getChildren(root.id).map((child) => (
-                                  <li key={child.id}>
-                                    <Link href={`/catalog?category=${child.name}`} onClick={() => setIsCatalogOpen(false)} className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5">{child.name}</Link>
+                                {group.items.map((item, idx) => (
+                                  <li key={idx}>
+                                    <Link 
+                                        href={`/catalog?category=${item.dbValue}`} 
+                                        onClick={() => setIsCatalogOpen(false)} 
+                                        className="text-xs text-gray-400 hover:text-white hover:translate-x-1 transition-all inline-block py-0.5"
+                                    >
+                                        {item.name}
+                                    </Link>
                                   </li>
                                 ))}
                               </ul>
@@ -320,16 +343,16 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                   <div className="h-[1px] bg-gray-200 mx-4 my-2"></div>
 
                   <div className="px-4">
-                      {rootCategories.map((root) => {
-                          const isExpanded = expandedCategory === root.name;
+                      {MENU_STRUCTURE.map((group) => {
+                          const isExpanded = expandedCategory === group.id;
                           return (
-                              <div key={root.id} className="border-b border-gray-100 last:border-0">
+                              <div key={group.id} className="border-b border-gray-100 last:border-0">
                                   <button 
-                                    onClick={() => toggleCategory(root.name)}
+                                    onClick={() => toggleCategory(group.id)}
                                     className="w-full flex items-center justify-between py-3 text-left font-medium text-lg"
                                   >
-                                      {root.name}
-                                      <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
+                                    {group.label}
+                                    <ChevronRight size={20} className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
                                   </button>
                                   
                                   <AnimatePresence>
@@ -341,19 +364,13 @@ export default function Header({ onCartClick, cartCount, onLogout }: HeaderProps
                                             className="overflow-hidden"
                                           >
                                               <div className="pl-4 pb-4 space-y-3">
-                                                  <div 
-                                                    onClick={() => handleLinkClick(`/catalog?category=${root.name}`)} 
-                                                    className="block text-blue-600 font-bold text-sm cursor-pointer"
-                                                  >
-                                                      Всі товари категорії
-                                                  </div>
-                                                  {getChildren(root.id).map((child) => (
+                                                  {group.items.map((item, idx) => (
                                                       <div 
-                                                        key={child.id} 
-                                                        onClick={() => handleLinkClick(`/catalog?category=${child.name}`)} 
+                                                        key={idx} 
+                                                        onClick={() => handleLinkClick(`/catalog?category=${item.dbValue}`)} 
                                                         className="block text-gray-600 text-sm cursor-pointer hover:text-black"
                                                       >
-                                                          {child.name}
+                                                          {item.name}
                                                       </div>
                                                   ))}
                                               </div>
