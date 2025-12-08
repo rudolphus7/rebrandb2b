@@ -26,11 +26,12 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
     const [openCategories, setOpenCategories] = useState<string[]>([]);
 
     useEffect(() => {
+        // Завантажуємо категорії і сортуємо
         supabase.from('categories').select('*').order('title').then(({ data }) => {
             if (data) {
                 const mapped = data.map(c => ({
                     id: c.id, 
-                    name: c.title || c.name, // Уніфікація поля назви
+                    name: c.title || c.name || "Без назви", // Захист від пустих назв
                     parent_id: c.parent_id
                 }));
                 setCategories(mapped);
@@ -38,12 +39,13 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
         });
     }, []);
 
-    // Логіка розкриття дерева при завантаженні
+    // Авто-розкриття при завантаженні
     useEffect(() => {
         if (activeCategory && categories.length > 0) {
-            const activeItem = categories.find(c => c.name === activeCategory);
+            // Шукаємо категорію нестрого (ігноруємо регістр)
+            const activeItem = categories.find(c => c.name.toLowerCase() === activeCategory.toLowerCase());
+            
             if (activeItem) {
-                // ВИПРАВЛЕННЯ ТУТ: явно вказуємо тип масиву string[]
                 const parentsToOpen: string[] = [];
                 
                 // Якщо це підкатегорія, відкриваємо батька
@@ -76,7 +78,8 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
                 {rootCategories.map(rootCat => {
                     const children = getChildren(rootCat.id);
                     const isOpen = openCategories.includes(rootCat.name);
-                    const isActive = activeCategory === rootCat.name;
+                    // Перевірка активності (case-insensitive)
+                    const isActive = activeCategory?.toLowerCase() === rootCat.name.toLowerCase();
 
                     return (
                         <div key={rootCat.id} className="border-b border-white/5 last:border-0">
@@ -95,15 +98,18 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
                             </div>
                             {isOpen && children.length > 0 && (
                                 <div className="pl-4 pb-2 space-y-1 border-l-2 border-white/10 ml-2 mt-1">
-                                    {children.map(child => (
-                                        <Link 
-                                            key={child.id}
-                                            href={`/catalog?category=${child.name}`}
-                                            className={`block text-xs py-1.5 transition ${activeCategory === child.name ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
-                                        >
-                                            {child.name}
-                                        </Link>
-                                    ))}
+                                    {children.map(child => {
+                                         const isChildActive = activeCategory?.toLowerCase() === child.name.toLowerCase();
+                                         return (
+                                            <Link 
+                                                key={child.id}
+                                                href={`/catalog?category=${child.name}`}
+                                                className={`block text-xs py-1.5 transition ${isChildActive ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
+                                            >
+                                                {child.name}
+                                            </Link>
+                                         );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -125,7 +131,6 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
 
   const handleToggle = (item: string) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
-    // Скидаємо сторінку при зміні фільтру, щоб не застрягти
     let newSelected = [...selectedItems];
     if (newSelected.includes(item)) {
       newSelected = newSelected.filter(i => i !== item);
@@ -136,6 +141,7 @@ function FilterGroup({ title, items, paramName, isOpenDefault = false }: { title
     if (newSelected.length > 0) current.set(paramName, newSelected.join(","));
     else current.delete(paramName);
     
+    // Скидаємо пагінацію при зміні фільтрів
     router.push(`/catalog?${current.toString()}`);
   };
 
@@ -172,8 +178,7 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  // --- КОНФІГУРАЦІЯ ---
-  const ITEMS_PER_PAGE = 100; // Вантажимо по 100 товарів за раз
+  const ITEMS_PER_PAGE = 100;
   
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
@@ -194,7 +199,6 @@ function CatalogContent() {
   const MATERIALS = ["Бавовна", "Поліестер", "Еластан", "Фліс", "Метал", "Пластик", "Кераміка", "Скло", "Дерево", "Шкіра"];
   const GENDER = ["Чоловічий", "Жіночий", "Унісекс", "Дитячий"];
 
-  // Скидаємо товари при зміні фільтрів
   useEffect(() => {
     setProducts([]);
     setPage(0);
@@ -202,7 +206,6 @@ function CatalogContent() {
     fetchData(0, true);
   }, [query, categoryParam, colorParam, materialParam, genderParam]);
 
-  // Функція нормалізації назви для групування
   const getCleanTitle = (title: string) => {
       if (!title) return "unknown";
       const colorRegex = new RegExp(`(${COLORS.join('|')}|Red|Blue|Black|White|Grey|Green|Yellow|Orange)`, 'gi');
@@ -218,17 +221,35 @@ function CatalogContent() {
     // --- ФІЛЬТРАЦІЯ ---
     if (query) request = request.ilike("title", `%${query}%`);
 
+    // 🔥 ВИПРАВЛЕНА ЛОГІКА КАТЕГОРІЙ
     if (categoryParam) {
-        const { data: catData } = await supabase.from('categories').select('id').ilike('title', categoryParam).maybeSingle();
+        // 1. Шукаємо категорію в базі за назвою
+        const { data: catData } = await supabase.from('categories').select('id, title').ilike('title', categoryParam).maybeSingle();
         
-        const conditions = [`category.ilike.%${categoryParam}%`];
+        // Список слів для пошуку (починаємо з самої назви категорії)
+        let searchTerms = [categoryParam];
 
         if (catData) {
-            const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
-            const ids = [catData.id, ...(children?.map(c => c.id) || [])];
-            conditions.push(`category_external_id.in.(${ids.join(',')})`);
+            // 2. Якщо знайшли категорію, шукаємо її дітей (підкатегорії)
+            const { data: children } = await supabase.from('categories').select('title').eq('parent_id', catData.id);
+            if (children && children.length > 0) {
+                // Додаємо назви підкатегорій до пошуку (наприклад: "Валізи", "Рюкзаки")
+                children.forEach(c => {
+                    if (c.title) searchTerms.push(c.title);
+                });
+            }
         }
-        request = request.or(conditions.join(','));
+
+        // 3. Формуємо запит "OR": шукаємо або точний збіг по текстовому полю category, 
+        // або входження будь-якого зі слів у поле category
+        // Це дозволяє знайти товар "Дорожня валіза" якщо обрана категорія "Сумки" (а валіза є підкатегорією)
+        
+        const textConditions = searchTerms.map(term => `category.ilike.%${term}%`);
+        
+        // Можна додати пошук і в title, якщо структура категорій в товарі не заповнена
+        // const titleConditions = searchTerms.map(term => `title.ilike.%${term}%`);
+        
+        request = request.or(textConditions.join(','));
     }
 
     if (colorParam) request = request.in('color', colorParam.split(","));
@@ -246,7 +267,6 @@ function CatalogContent() {
     const from = pageIndex * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // Сортуємо по ID для стабільності
     const { data, error } = await request.range(from, to).order("id", { ascending: true });
 
     if (error) {
@@ -271,17 +291,14 @@ function CatalogContent() {
   }
 
   const processProducts = (newData: any[], isNewSearch: boolean) => {
-    // ТИПІЗАЦІЯ Map
     const currentProducts = isNewSearch ? [] : products;
     const groupedMap = new Map<string, any>();
 
-    // 1. Заповнюємо мапу існуючими даними
     currentProducts.forEach(p => {
         const key = p.groupKey;
         groupedMap.set(key, { ...p });
     });
 
-    // 2. Обробляємо нові дані
     newData.forEach((item) => {
         const rawSku = item.sku ? item.sku.trim() : "";
         let baseSku = rawSku.split(/[\s\-_./\\]+/)[0];
@@ -309,17 +326,13 @@ function CatalogContent() {
             });
         } else {
             const group = groupedMap.get(groupKey);
-            
             if (!group.variants.find((v:any) => v.id === item.id)) {
                 group.variants.push(item);
-                
                 if (item.image_url && !group.variant_images.includes(item.image_url)) {
                     group.variant_images.push(item.image_url);
                 }
-                
                 group.stock_total += (item.amount || 0);
                 group.stock_reserve += (item.reserve || 0);
-                
                 if (!group.in_stock && item.in_stock) {
                     group.in_stock = true;
                 }
