@@ -43,7 +43,9 @@ function CategorySidebar({ activeCategory }: { activeCategory: string | null }) 
         if (activeCategory && categories.length > 0) {
             const activeItem = categories.find(c => c.name === activeCategory);
             if (activeItem) {
-                const parentsToOpen = [];
+                // ВИПРАВЛЕННЯ ТУТ: явно вказуємо тип масиву string[]
+                const parentsToOpen: string[] = [];
+                
                 // Якщо це підкатегорія, відкриваємо батька
                 if (activeItem.parent_id) {
                     const parent = categories.find(p => p.id === activeItem.parent_id);
@@ -171,7 +173,7 @@ function CatalogContent() {
   const router = useRouter();
   
   // --- КОНФІГУРАЦІЯ ---
-  const ITEMS_PER_PAGE = 100; // Вантажимо по 100 товарів за раз, а не 5000
+  const ITEMS_PER_PAGE = 100; // Вантажимо по 100 товарів за раз
   
   const query = searchParams.get("q") || "";
   const categoryParam = searchParams.get("category"); 
@@ -201,10 +203,8 @@ function CatalogContent() {
   }, [query, categoryParam, colorParam, materialParam, genderParam]);
 
   // Функція нормалізації назви для групування
-  // Видаляє колір з кінця назви, щоб згрупувати "Футболка Червона" і "Футболка Синя"
   const getCleanTitle = (title: string) => {
       if (!title) return "unknown";
-      // Видаляємо слова, що означають колір (спрощено)
       const colorRegex = new RegExp(`(${COLORS.join('|')}|Red|Blue|Black|White|Grey|Green|Yellow|Orange)`, 'gi');
       return title.replace(colorRegex, '').trim();
   };
@@ -219,16 +219,13 @@ function CatalogContent() {
     if (query) request = request.ilike("title", `%${query}%`);
 
     if (categoryParam) {
-        // Отримуємо ID поточної категорії
         const { data: catData } = await supabase.from('categories').select('id').ilike('title', categoryParam).maybeSingle();
         
         const conditions = [`category.ilike.%${categoryParam}%`];
 
         if (catData) {
-            // Отримуємо ID всіх підкатегорій
             const { data: children } = await supabase.from('categories').select('id').eq('parent_id', catData.id);
             const ids = [catData.id, ...(children?.map(c => c.id) || [])];
-            // Шукаємо товари, які належать цій категорії АБО її дітям
             conditions.push(`category_external_id.in.(${ids.join(',')})`);
         }
         request = request.or(conditions.join(','));
@@ -236,7 +233,6 @@ function CatalogContent() {
 
     if (colorParam) request = request.in('color', colorParam.split(","));
     
-    // Пошук за описом для матеріалу та статі
     if (materialParam) {
         const orQuery = materialParam.split(",").map(m => `description.ilike.%${m}%`).join(",");
         request = request.or(orQuery);
@@ -250,8 +246,7 @@ function CatalogContent() {
     const from = pageIndex * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // Сортуємо по ID, щоб дані перемішались стабільно, або по title, щоб було по алфавіту
-    // created_at призводить до того, що старі товари (Totobi) в кінці
+    // Сортуємо по ID для стабільності
     const { data, error } = await request.range(from, to).order("id", { ascending: true });
 
     if (error) {
@@ -276,48 +271,35 @@ function CatalogContent() {
   }
 
   const processProducts = (newData: any[], isNewSearch: boolean) => {
-    // Якщо це не новий пошук, ми беремо попередні товари + нові, щоб перегрупувати все разом
-    // Це важливо, якщо варіанти розбиті між сторінками (рідкісний кейс, але можливий)
-    // Для оптимізації ми просто додаємо нові групи
-    
-    // 🔥 ОНОВЛЕНА ЛОГІКА ГРУПУВАННЯ
-    // Ми використовуємо Map, щоб об'єднати варіанти
+    // ТИПІЗАЦІЯ Map
     const currentProducts = isNewSearch ? [] : products;
-    const groupedMap = new Map();
+    const groupedMap = new Map<string, any>();
 
-    // 1. Спочатку заповнюємо мапу існуючими даними (якщо це дозавантаження)
+    // 1. Заповнюємо мапу існуючими даними
     currentProducts.forEach(p => {
-        // Використовуємо унікальний ключ групи, який ми створили раніше
         const key = p.groupKey;
-        groupedMap.set(key, { ...p }); // Клонуємо об'єкт
+        groupedMap.set(key, { ...p });
     });
 
     // 2. Обробляємо нові дані
     newData.forEach((item) => {
-        // Спроба знайти базовий SKU (до першого спецсимволу або пробілу)
         const rawSku = item.sku ? item.sku.trim() : "";
-        // Для TopTime часто SKU відрізняються лише цифрою в кінці або просто різні.
-        // Тому пробуємо брати перші 5-6 символів SKU як основу, якщо він довгий
         let baseSku = rawSku.split(/[\s\-_./\\]+/)[0];
         
-        // Якщо SKU немає, або він дуже короткий, використовуємо очищену назву
         let groupKey = "";
         if (baseSku && baseSku.length > 3) {
              groupKey = baseSku;
         } else {
-             // Фолбек: групуємо за назвою без кольору
              groupKey = getCleanTitle(item.title);
         }
         
-        // Додаємо ID бренду або постачальника до ключа, щоб не змішати однакові футболки різних брендів
         if (item.brand) groupKey += `-${item.brand}`;
 
         if (!groupedMap.has(groupKey)) {
-            // Створюємо нову групу
             groupedMap.set(groupKey, {
                 ...item,
-                groupKey: groupKey, // Зберігаємо ключ для майбутніх додавань
-                title: item.title, // Назва першого знайденого
+                groupKey: groupKey, 
+                title: item.title, 
                 variants: [item],
                 variant_images: item.image_url ? [item.image_url] : [],
                 stock_total: item.amount || 0,
@@ -326,10 +308,8 @@ function CatalogContent() {
                 in_stock: item.in_stock || false 
             });
         } else {
-            // Оновлюємо існуючу групу
             const group = groupedMap.get(groupKey);
             
-            // Перевіряємо дублікати за ID (на випадок якщо пагінація перетнеться)
             if (!group.variants.find((v:any) => v.id === item.id)) {
                 group.variants.push(item);
                 
@@ -347,7 +327,6 @@ function CatalogContent() {
         }
     });
 
-    // Перетворюємо назад в масив
     const processed = Array.from(groupedMap.values()).map((group: any) => ({
         ...group,
         stock_free: group.stock_total - group.stock_reserve,
@@ -453,7 +432,6 @@ function CatalogContent() {
                               </div>
                               <div className="mb-2">
                                  <Link href={`/product/${item.id}`} className="font-bold text-sm leading-tight text-gray-100 hover:text-blue-400 transition line-clamp-2 mb-1" title={item.title}>
-                                     {/* Відображаємо очищену назву, якщо це група */}
                                      {item.variants.length > 1 ? getCleanTitle(item.title) : item.title}
                                  </Link>
                                  <div className="flex justify-between text-[10px] text-gray-500 mt-1"><span>Арт: {item.article}</span><span className="text-zinc-400">{item.brand}</span></div>
