@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
-import crypto from 'crypto'; // Для генерації стабільного ID
 
+// Налаштування
 export const maxDuration = 300; 
 export const dynamic = 'force-dynamic';
 
@@ -13,260 +13,217 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-// --- СТРУКТУРА МЕНЮ ---
-const MENU_STRUCTURE = [
-  { name: 'Сумки', subs: ['Валізи', 'Косметички', 'Мішок спортивний', 'Рюкзаки', 'Сумки для ноутбуків', 'Сумки для покупок', 'Сумки дорожні та спортивні', 'Сумки на пояс', 'Термосумки'] },
-  { name: 'Ручки', subs: ['Еко ручки', 'Металеві ручки', 'Олівці', 'Пластикові ручки'] },
-  { name: 'Подорож та відпочинок', subs: ['Все для пікніка', 'Ліхтарики', 'Ланч бокси', 'Лопати', 'Пледи', 'Пляшки для пиття', 'Подушки', 'Термоси та термокружки', 'Фляги', 'Фрізбі', 'Штопори'] },
-  { name: 'Парасолі', subs: ['Парасолі складні', 'Парасолі-тростини'] },
-  { name: 'Одяг', subs: ['Вітровки', 'Рукавички', 'Спортивний одяг', 'Футболки', 'Поло', 'Дитячий одяг', 'Реглани, фліси', 'Жилети', 'Куртки та софтшели'] },
-  { name: 'Головні убори', subs: ['Дитяча кепка', 'Панами', 'Шапки', 'Кепки'] },
-  { name: 'Інструменти', subs: ['Викрутки', 'Мультитули', 'Набір інструментів', 'Ножі', 'Рулетки'] },
-  { name: 'Офіс', subs: ['Записні книжки', 'Календарі'] },
-  { name: 'Персональні аксессуари', subs: ['Брелки', 'Візитниці', 'Дзеркала'] },
-  { name: 'Для професіоналів', subs: ['Опадоміри'] },
-  { name: 'Електроніка', subs: ['Аксесуари', 'Годинники', 'Зарядні пристрої', 'Зволожувачі повітря', 'Лампи', 'Портативна акустика'] },
-  { name: 'Дім', subs: ['Дошки кухонні', 'Кухонне приладдя', 'Млини для спецій', 'Набори для сиру', 'Рушники', 'Свічки', 'Сковорідки', 'Стакани', 'Чайники', 'Годівнички'] },
-  { name: 'Посуд', subs: ['Горнятка'] },
-  { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
-];
+// --- HELPER: Очищення рядків (замість crypto) ---
+// Робить з "Футболка Valueweight Червона" -> "futbolka-valueweight"
+function generateSlugId(text: string): string {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яіїєґ]+/g, '-') // Замінюємо спецсимволи на дефіс
+        .replace(/^-+|-+$/g, '') // Прибираємо дефіси по краях
+        .substring(0, 50); // Обрізаємо, щоб не було гігантських ID
+}
 
-// --- HELPERS ---
-
-// 1. Безпечний рядок (вирішує toString of undefined)
+// --- HELPER: Безпечний текст ---
 function safeStr(val: any): string {
     if (val === null || val === undefined) return "";
-    if (typeof val === 'object' && val !== null) {
-        // Якщо це масив або об'єкт, пробуємо знайти текст всередині або повертаємо пустий рядок
-        if (val['#text']) return String(val['#text']);
-        return ""; 
-    }
+    if (typeof val === 'object') return val['#text'] ? String(val['#text']) : "";
     return String(val).trim();
 }
 
-// 2. Генерація ID на основі назви моделі (наш власний артикул)
-function generateModelId(cleanTitle: string): string {
-    // Створюємо хеш з назви, щоб він був завжди однаковий для однієї моделі
-    const hash = crypto.createHash('md5').update(cleanTitle.toLowerCase()).digest('hex').substring(0, 10);
-    return `RBR-${hash.toUpperCase()}`; // RBR - Rebrand
-}
-
-// 3. Очищення назви від кольору (щоб згрупувати "Футболка Red" і "Футболка Blue")
-function cleanModelName(title: string, color: string): string {
-    if (!color) return title;
-    // Видаляємо колір з назви (case-insensitive)
-    const regex = new RegExp(`\\b${color}\\b`, 'gi');
-    return title.replace(regex, '').replace(/\s+/g, ' ').trim();
-}
-
-function detectCategory(titleInput: any, rawCategoryInput: any) {
-    const text = `${safeStr(titleInput)} ${safeStr(rawCategoryInput)}`.toLowerCase();
+// --- ВИЗНАЧЕННЯ КАТЕГОРІЙ (Спрощено) ---
+function detectCategory(title: string, rawCat: string) {
+    const t = (title + " " + rawCat).toLowerCase();
     
-    for (const main of MENU_STRUCTURE) {
-        for (const sub of main.subs) {
-            if (sub === 'Футболки' && text.includes('поло')) continue;
-            if (sub === 'Кепки' && text.includes('дитяч')) continue;
-            if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
-        }
-    }
-    if (text.includes('футболк')) return 'Футболки';
-    if (text.includes('поло')) return 'Поло';
-    if (text.includes('куртк')) return 'Куртки та софтшели';
-    if (text.includes('рюкзак')) return 'Рюкзаки';
+    if (t.includes('сумк') || t.includes('рюкзак') || t.includes('шопер')) return 'Сумки';
+    if (t.includes('ручк') || t.includes('олівц')) return 'Ручки';
+    if (t.includes('парасол')) return 'Парасолі';
+    if (t.includes('футболк')) return 'Футболки';
+    if (t.includes('поло')) return 'Поло';
+    if (t.includes('кепк') || t.includes('шапк')) return 'Головні убори';
+    if (t.includes('куртк') || t.includes('жилет') || t.includes('фліс')) return 'Одяг';
+    if (t.includes('чашк') || t.includes('термос')) return 'Посуд';
+    
     return "Інше";
 }
 
 export async function GET(request: Request) {
+  const logs: string[] = [];
+  const log = (msg: string) => logs.push(msg);
+
   try {
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get('provider') || 'totobi';
     const url = searchParams.get('url');
-    const eurRate = parseFloat(searchParams.get('rate') || '43.5');
+    const eurRate = 43.5;
 
-    if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
+    if (!url) throw new Error("URL is missing");
 
+    log(`1. Start fetching ${provider}...`);
+    
     const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     const xmlText = await response.text();
+    
+    log(`2. XML received. Length: ${xmlText.length}`);
 
-    const parser = new XMLParser({ 
-        ignoreAttributes: false, 
-        attributeNamePrefix: "@_",
-        parseTagValue: false 
-    });
+    const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });
     const jsonData = parser.parse(xmlText);
 
+    // --- ОТРИМАННЯ МАСИВУ ТОВАРІВ ---
     let items: any[] = [];
     
-    // Отримання списку (з додатковими перевірками на undefined)
-    if (provider === 'toptime') {
-        let rawItems = jsonData?.items?.item || jsonData?.yml_catalog?.shop?.items?.item;
-        if (!rawItems && jsonData) {
-             const keys = Object.keys(jsonData);
-             if (keys.length > 0 && jsonData[keys[0]]?.item) rawItems = jsonData[keys[0]].item;
-        }
-        if (rawItems) items = Array.isArray(rawItems) ? rawItems : [rawItems];
+    // Шукаємо масив items де завгодно
+    if (jsonData?.yml_catalog?.shop?.offers?.offer) {
+        items = jsonData.yml_catalog.shop.offers.offer;
+    } else if (jsonData?.items?.item) {
+        items = jsonData.items.item;
+    } else if (jsonData?.yml_catalog?.shop?.items?.item) {
+        items = jsonData.yml_catalog.shop.items.item;
     } else {
-        let rawOffers = jsonData?.yml_catalog?.shop?.offers?.offer;
-        if (rawOffers) items = Array.isArray(rawOffers) ? rawOffers : [rawOffers];
+        // Fallback: шукаємо перший масив в об'єкті
+        const findArray = (obj: any): any[] => {
+            for (const key in obj) {
+                if (Array.isArray(obj[key])) return obj[key];
+                if (typeof obj[key] === 'object') {
+                    const found = findArray(obj[key]);
+                    if (found.length) return found;
+                }
+            }
+            return [];
+        };
+        items = findArray(jsonData);
     }
 
-    if (!items || items.length === 0) {
-        return NextResponse.json({ success: false, message: "No items found or XML structure mismatch" });
-    }
+    if (!Array.isArray(items)) items = [items];
+    
+    log(`3. Found ${items.length} items. Processing...`);
 
-    // --- ГРУПУВАННЯ ---
-    const groupedModels: Record<string, any> = {};
-    let skippedCount = 0;
+    // --- ОБРОБКА ---
+    const models: Record<string, any> = {};
 
     for (const item of items) {
-        try {
-            if (!item) continue;
+        if (!item) continue;
 
-            // --- ВИТЯГУВАННЯ ДАНИХ (БЕЗПЕЧНО) ---
-            let supplierSku = "", title = "", price = 0, image = "", description = "", rawCategory = "", brand = "", color = "";
-            let sizes: any[] = [];
+        // Витягуємо дані максимально безпечно
+        let title = safeStr(item.name || item.title);
+        let sku = safeStr(item.vendorCode || item.article || item.code);
+        let price = parseFloat(safeStr(item.price).replace(',', '.')) || 0;
+        let image = "";
+        let color = "";
+        
+        // Картинка
+        if (item.picture) image = Array.isArray(item.picture) ? safeStr(item.picture[0]) : safeStr(item.picture);
+        else if (item.photo) image = safeStr(item.photo);
 
-            if (provider === 'toptime') {
-                supplierSku = safeStr(item.article || item.code);
-                title = safeStr(item.name);
-                const p = parseFloat(safeStr(item.price).replace(',', '.'));
-                price = Math.ceil((isNaN(p) ? 0 : p) * eurRate);
-                image = safeStr(item.photo);
-                description = safeStr(item.content || item.content_ua);
-                rawCategory = safeStr(item.group);
-                brand = safeStr(item.brand);
-                color = safeStr(item.color);
-                
-                const stock = parseInt(safeStr(item.count2 || item.count || '0').replace(/\D/g, '')) || 0;
-                if (stock > 0) {
-                    sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
-                }
-            } else {
-                // Totobi
-                supplierSku = safeStr(item.vendorCode);
-                title = safeStr(item.name);
-                const p = parseFloat(safeStr(item.price).replace(',', '.'));
-                price = isNaN(p) ? 0 : p;
-                
-                const rawPic = item.picture;
-                image = Array.isArray(rawPic) ? safeStr(rawPic[0]) : safeStr(rawPic);
-                
-                description = safeStr(item.description);
-                rawCategory = safeStr(item.categoryId);
-                brand = safeStr(item.vendor);
-                
-                const params = Array.isArray(item.param) ? item.param : (item.param ? [item.param] : []);
-                const colorParam = params.find((p: any) => {
-                    const n = safeStr(p?.['@_name']);
-                    return n === 'Колір' || n === 'Color' || n === 'Група Кольорів';
+        // Опис
+        let desc = safeStr(item.description || item.content || item.content_ua).substring(0, 2000);
+
+        // Колір (з параметрів або поля)
+        if (item.color) color = safeStr(item.color);
+        if (!color && item.param) {
+            const params = Array.isArray(item.param) ? item.param : [item.param];
+            const c = params.find((p: any) => safeStr(p?.['@_name']).toLowerCase().includes('колір'));
+            if (c) color = safeStr(c['#text']);
+        }
+        
+        // Якщо немає кольору, пробуємо взяти останнє слово назви
+        if (!color) {
+            const parts = title.split(' ');
+            if (parts.length > 2) color = parts[parts.length - 1];
+        }
+
+        // Чистимо назву від кольору (щоб отримати назву моделі)
+        let modelName = title;
+        if (color) {
+            modelName = title.replace(new RegExp(color, 'gi'), '').trim();
+            // Також прибираємо зайві символи в кінці
+            modelName = modelName.replace(/[-_.,]+$/, '').trim();
+        }
+
+        if (modelName.length < 3) modelName = title; // Якщо зрізали зайве
+
+        // ГЕНЕРУЄМО ВЛАСНИЙ ID (RBR-slug)
+        const myId = `RBR-${generateSlugId(modelName)}`;
+
+        // Ініціалізація моделі
+        if (!models[myId]) {
+            models[myId] = {
+                external_id: myId,
+                title: modelName,
+                description: desc,
+                category: detectCategory(title, safeStr(item.categoryId || item.group)),
+                price: provider === 'toptime' ? Math.ceil(price * eurRate) : price,
+                image_url: image,
+                sku: myId, // Наш артикул
+                base_sku: myId,
+                variants: [],
+                updated_at: new Date().toISOString(),
+                in_stock: false,
+                amount: 0
+            };
+        }
+
+        // Додаємо варіант
+        // Визначаємо наявність
+        let stock = 0;
+        let variantSizes: any[] = [];
+
+        // Логіка розмірів
+        if (item.sizes?.size) {
+            const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
+            sArr.forEach((s: any) => {
+                const qty = parseInt(safeStr(s['@_in_stock'] || s['@_amount']).replace(/\D/g, '')) || 0;
+                const modPrice = parseFloat(safeStr(s['@_modifier'])) || models[myId].price;
+                stock += qty;
+                variantSizes.push({
+                    label: safeStr(s['#text'] || "STD"),
+                    stock_available: qty,
+                    price: modPrice
                 });
-                if (colorParam) color = safeStr(colorParam['#text']);
+            });
+        } else {
+            stock = parseInt(safeStr(item.amount || item.count || item.count2 || item.in_stock).replace(/\D/g, '')) || 0;
+            variantSizes.push({ 
+                label: "ONE SIZE", 
+                stock_available: stock, 
+                price: models[myId].price 
+            });
+        }
 
-                if (item.sizes?.size) {
-                    const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
-                    sArr.forEach((s: any) => {
-                        const stockVal = parseInt(safeStr(s['@_in_stock'] || s['@_amount']).replace(/\D/g, '')) || 0;
-                        const modPrice = parseFloat(safeStr(s['@_modifier']).replace(',', '.'));
-                        
-                        sizes.push({
-                            label: safeStr(s['#text'] || "ONE SIZE"),
-                            stock_available: stockVal,
-                            price: isNaN(modPrice) ? price : modPrice
-                        });
-                    });
-                } else {
-                    const stock = parseInt(safeStr(item.amount || item.in_stock).replace(/\D/g, '')) || 0;
-                    sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
-                }
-            }
-
-            // Якщо немає назви або ціни - це сміття
-            if (!title) {
-                skippedCount++;
-                continue;
-            }
-
-            // --- НАША ВЛАСНА ЛОГІКА (ГЕНЕРАЦІЯ ID) ---
-            
-            // 1. Пробуємо знайти колір в назві, якщо його немає
-            if (!color) {
-                const parts = title.split(' ');
-                // Примітивна евристика: останнє слово часто колір
-                if (parts.length > 2) color = parts[parts.length - 1]; 
-            }
-
-            // 2. Очищаємо назву від кольору, щоб отримати "Модель"
-            // Наприклад: "Футболка Valueweight Червона" -> "Футболка Valueweight"
-            const modelName = cleanModelName(title, color);
-
-            // 3. Генеруємо НАШ власний ID для цієї моделі
-            const myInternalId = generateModelId(modelName);
-
-            const cleanCategory = detectCategory(title, rawCategory);
-
-            // 4. Створюємо або оновлюємо модель
-            if (!groupedModels[myInternalId]) {
-                groupedModels[myInternalId] = {
-                    external_id: myInternalId, // ТЕПЕР ЦЕ НАШ RBR-XXXX
-                    title: modelName,
-                    description: description.substring(0, 5000),
-                    category: cleanCategory,
-                    price: price, // Базова ціна
-                    image_url: image,
-                    sku: myInternalId, // Наш артикул
-                    base_sku: myInternalId, // Для сумісності з фронтом
-                    brand: brand,
-                    variants: [],
-                    updated_at: new Date().toISOString(),
-                    in_stock: false,
-                    amount: 0
-                };
-            }
-
-            // 5. Додаємо варіант (колір)
-            const isDuplicate = groupedModels[myInternalId].variants.some((v: any) => v.supplier_sku === supplierSku);
-            
-            if (!isDuplicate) {
-                groupedModels[myInternalId].variants.push({
-                    supplier_sku: supplierSku, // Зберігаємо артикул постачальника для замовлень
-                    color: color || "Standard",
-                    image: image,
-                    sizes: sizes,
-                    price: price
-                });
-            }
-
-            // Оновлюємо загальний сток
-            const totalStock = sizes.reduce((acc, s) => acc + s.stock_available, 0);
-            groupedModels[myInternalId].amount += totalStock;
-            if (totalStock > 0) groupedModels[myInternalId].in_stock = true;
-
-        } catch (innerErr) {
-            console.error("Skipping bad item:", innerErr);
-            skippedCount++;
+        // Уникаємо дублів
+        const isDup = models[myId].variants.some((v: any) => v.sku_variant === sku);
+        if (!isDup) {
+            models[myId].variants.push({
+                sku_variant: sku, // Артикул постачальника
+                color: color || "Standard",
+                image: image,
+                sizes: variantSizes,
+                price: models[myId].price
+            });
+            models[myId].amount += stock;
+            if (stock > 0) models[myId].in_stock = true;
         }
     }
 
-    const finalProducts = Object.values(groupedModels);
+    const finalData = Object.values(models);
+    log(`4. Grouped into ${finalData.length} unique models.`);
 
-    // Запис в базу
-    const batchSize = 50;
-    for (let i = 0; i < finalProducts.length; i += batchSize) {
-        const batch = finalProducts.slice(i, i + batchSize);
+    // --- ЗАПИС В БАЗУ (Пакетами) ---
+    const batchSize = 20; 
+    for (let i = 0; i < finalData.length; i += batchSize) {
+        const batch = finalData.slice(i, i + batchSize);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
         if (error) {
-            console.error('Supabase Batch Error:', error);
-            // Не кидаємо помилку, а йдемо далі
+            log(`❌ Error batch ${i}: ${error.message}`);
+            // Продовжуємо, не падаємо
         }
     }
 
-    return NextResponse.json({ 
-        success: true, 
-        message: `Processed. Models created: ${finalProducts.length}. Bad items skipped: ${skippedCount}`,
-    });
+    log("5. Sync Complete!");
+
+    return NextResponse.json({ success: true, logs: logs });
 
   } catch (error: any) {
-    console.error("Sync Critical Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message, logs: logs }, { status: 500 });
   }
 }
