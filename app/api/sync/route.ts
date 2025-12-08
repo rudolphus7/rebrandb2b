@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-export const maxDuration = 300; // 5 хвилин на виконання
+export const maxDuration = 60; // Збільшуємо час очікування
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -12,7 +12,6 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-// --- ВАША СТРУКТУРА МЕНЮ (Джерело істини) ---
 const MENU_STRUCTURE = [
   { name: 'Сумки', subs: ['Валізи', 'Косметички', 'Мішок спортивний', 'Рюкзаки', 'Сумки для ноутбуків', 'Сумки для покупок', 'Сумки дорожні та спортивні', 'Сумки на пояс', 'Термосумки'] },
   { name: 'Ручки', subs: ['Еко ручки', 'Металеві ручки', 'Олівці', 'Пластикові ручки'] },
@@ -30,119 +29,102 @@ const MENU_STRUCTURE = [
   { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
 ];
 
-// Функція яка знаходить правильну категорію
 function detectCategory(title: string, rawCategory: string) {
     const text = `${title} ${rawCategory}`.toLowerCase();
-    
     for (const main of MENU_STRUCTURE) {
         for (const sub of main.subs) {
-            // Перевіряємо точне входження підкатегорії
-            // Можна додати синоніми, але поки перевіримо пряме входження
-            const keywords = sub.toLowerCase().split(/[\s,]+/); // "Сумки для ноутбуків" -> ["сумки", "для", "ноутбуків"]
-            
-            // Проста логіка: якщо ключове слово підкатегорії є в тексті
-            // Для "Футболки" треба виключити "Поло"
+            const keywords = sub.toLowerCase().split(/[\s,]+/);
             if (sub === 'Футболки' && text.includes('поло')) continue;
-            if (sub === 'Кепки' && text.includes('дитяч')) continue; // Щоб дитячі не лізли в дорослі
-
-            // Шукаємо по ключових словах (спрощено)
-            if (text.includes(sub.toLowerCase().slice(0, -1))) { // slice - щоб знайти "рюкзак" в "рюкзаки"
-                return sub;
-            }
+            if (sub === 'Кепки' && text.includes('дитяч')) continue;
+            if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
         }
     }
-    // Fallback: якщо не знайшли, пробуємо мапити стандартні слова
     if (text.includes('футболк')) return 'Футболки';
     if (text.includes('поло')) return 'Поло';
     if (text.includes('куртк')) return 'Куртки та софтшели';
     if (text.includes('рюкзак')) return 'Рюкзаки';
-    if (text.includes('парасол')) return 'Парасолі складні';
-    if (text.includes('чашк') || text.includes('кружк') || text.includes('mug')) return 'Горнятка';
-    
     return "Інше";
 }
 
 export async function GET(request: Request) {
+  console.log("🔥 [Sync] Start request"); // ЛОГ 1
+  
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get('provider') || 'totobi';
   const url = searchParams.get('url');
   const eurRate = parseFloat(searchParams.get('rate') || '43.5');
 
-  if (!url) return NextResponse.json({ error: "No URL provided" }, { status: 400 });
+  if (!url) {
+      console.error("❌ [Sync] No URL provided");
+      return NextResponse.json({ error: "No URL provided" }, { status: 400 });
+  }
 
   try {
+    console.log(`📡 [Sync] Fetching ${provider} from ${url}...`); // ЛОГ 2
     const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+    
     const xmlText = await response.text();
+    console.log(`📦 [Sync] XML fetched. Length: ${xmlText.length}`); // ЛОГ 3
+
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
     const jsonData = parser.parse(xmlText);
 
     let items: any[] = [];
-    
-    // Нормалізація вхідних даних (Totobi vs TopTime)
     if (provider === 'toptime') {
-        // TopTime XML structure
         let rawItems = jsonData.items?.item || jsonData.yml_catalog?.shop?.items?.item;
+        if (!rawItems) {
+             // Fallback пошук для TopTime
+             const keys = Object.keys(jsonData);
+             console.log("TopTime keys:", keys);
+             if (jsonData[keys[0]]?.item) rawItems = jsonData[keys[0]].item;
+        }
         if (!Array.isArray(rawItems)) rawItems = [rawItems];
         items = rawItems;
     } else {
-        // Totobi YML structure
         let rawOffers = jsonData.yml_catalog?.shop?.offers?.offer;
         if (!Array.isArray(rawOffers)) rawOffers = [rawOffers];
         items = rawOffers;
     }
 
-    // --- ГОЛОВНА МАГІЯ: ГРУПУВАННЯ ---
+    console.log(`🧩 [Sync] Found ${items.length} items to process`); // ЛОГ 4
+
     const groupedModels: Record<string, any> = {};
 
     for (const item of items) {
-        let sku = "";
-        let title = "";
-        let price = 0;
-        let image = "";
-        let description = "";
+        let sku = "", title = "", price = 0, image = "", description = "", rawCategory = "", brand = "", color = "";
         let sizes: any[] = [];
-        let rawCategory = "";
-        let brand = "";
-        let color = "";
 
         if (provider === 'toptime') {
             sku = item.article?.toString() || item.code?.toString();
             title = item.name;
             price = Math.ceil((parseFloat(item.price) || 0) * eurRate);
             image = item.photo;
-            description = item.content || item.content_ua;
-            rawCategory = item.group || ""; // TopTime categories usually in group
+            description = item.content || item.content_ua || "";
+            rawCategory = item.group || "";
             brand = item.brand;
             color = item.color;
-            // TopTime sizes/stock logic
             const stock = parseInt(item.count2 || item.count || '0');
-            if (stock > 0) {
-                // TopTime sizes logic is complex, usually in name or code. Assuming One Size if not specified
-                sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
-            }
+            if (stock > 0) sizes.push({ label: "ONE SIZE", stock_available: stock, price: price });
         } else {
-            // Totobi
             sku = item.vendorCode;
             title = item.name;
             price = parseFloat(item.price) || 0;
             image = Array.isArray(item.picture) ? item.picture[0] : item.picture;
-            description = item.description;
-            rawCategory = item.categoryId; // Need to map ID to Name if possible, or use title
+            description = item.description || "";
+            rawCategory = item.categoryId;
             brand = item.vendor;
-            
-            // Extract Color from params
             const params = Array.isArray(item.param) ? item.param : (item.param ? [item.param] : []);
-            const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Color');
+            const colorParam = params.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Color' || p['@_name'] === 'Група Кольорів');
             if (colorParam) color = colorParam['#text'];
 
-            // Sizes
             if (item.sizes?.size) {
                 const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
                 sArr.forEach((s: any) => {
                     sizes.push({
                         label: s['#text'],
                         stock_available: parseInt(s['@_in_stock'] || s['@_amount'] || 0),
-                        price: parseFloat(s['@_modifier'] || price) // Sometimes price is in modifier
+                        price: parseFloat(s['@_modifier'] || price)
                     });
                 });
             } else {
@@ -153,69 +135,64 @@ export async function GET(request: Request) {
 
         if (!sku) continue;
 
-        // 1. СТВОРЮЄМО BASE SKU (Ключ групи)
-        // Логіка: ST2100 SUN -> ST2100.  5102.30 -> 5102.
-        const baseSku = sku.split(/[ ._\-]/)[0]; // Беремо першу частину до пробілу, крапки або дефісу
-
-        // 2. Визначаємо правильну категорію
+        const baseSku = sku.split(/[ ._\-]/)[0];
         const cleanCategory = detectCategory(title, rawCategory);
 
-        // 3. Ініціалізуємо групу, якщо немає
         if (!groupedModels[baseSku]) {
             groupedModels[baseSku] = {
-                external_id: baseSku, // ID товару буде базовим артикулом!
-                title: title.replace(color, '').trim(), // Видаляємо колір з назви головного товару
-                description: description,
+                external_id: baseSku,
+                title: title.replace(color, '').trim(),
+                description: description.substring(0, 5000), // Обрізаємо опис, якщо задовгий
                 category: cleanCategory,
-                price: price, // Базова ціна
+                price: price,
                 image_url: image,
-                sku: baseSku, // Зберігаємо базовий SKU
+                sku: baseSku,
                 brand: brand,
-                variants: [], // Сюди будемо пхати варіанти
+                variants: [],
                 updated_at: new Date().toISOString(),
-                in_stock: false
+                in_stock: false, // Оновлюємо нижче
+                amount: 0 // Для сумісності
             };
         }
 
-        // 4. Додаємо цей конкретний айтем як ВАРІАНТ в групу
-        // Якщо колір не вказано, пробуємо витягти з назви
-        if (!color) {
-             const parts = title.split(' ');
-             color = parts[parts.length - 1]; // Часто колір останній
-        }
+        const totalStock = sizes.reduce((acc, s) => acc + s.stock_available, 0);
 
         groupedModels[baseSku].variants.push({
             sku_variant: sku,
             color: color || "Standard",
             image: image,
-            sizes: sizes, // Масив розмірів з їх залишками
+            sizes: sizes,
             price: price
         });
 
-        // 5. Оновлюємо загальний статус наявності
-        const hasStock = sizes.some(s => s.stock_available > 0);
-        if (hasStock) {
-            groupedModels[baseSku].in_stock = true;
-        }
+        // Оновлюємо загальні лічильники
+        groupedModels[baseSku].amount += totalStock;
+        if (totalStock > 0) groupedModels[baseSku].in_stock = true;
     }
 
     const finalProducts = Object.values(groupedModels);
+    console.log(`💾 [Sync] Preparing to upsert ${finalProducts.length} models...`); // ЛОГ 5
 
-    // Записуємо в Supabase пакетами
-    const batchSize = 100;
+    // Batch upsert
+    const batchSize = 50; // Зменшив розмір батчу для надійності
     for (let i = 0; i < finalProducts.length; i += batchSize) {
         const batch = finalProducts.slice(i, i + batchSize);
         const { error } = await supabaseAdmin.from('products').upsert(batch, { onConflict: 'external_id' });
-        if (error) console.error('Supabase Error:', error);
+        
+        if (error) {
+            console.error(`❌ [Sync] Batch error (Index ${i}):`, error.message);
+            throw error;
+        }
     }
 
+    console.log("✅ [Sync] Success!"); // ЛОГ 6
     return NextResponse.json({ 
         success: true, 
         message: `Processed ${items.length} items into ${finalProducts.length} models`,
-        sample: finalProducts[0] 
     });
 
   } catch (error: any) {
+    console.error("❌ [Sync] CRITICAL ERROR:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
