@@ -29,9 +29,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const page = parseInt(params.page || '1');
   const queryText = params.q || '';
   
-  // --- ФІКС ПОМИЛКИ ---
-  // Видаляємо коми та інші спецсимволи, щоб не ламати запит Supabase
-  // "Реглани, фліси" перетвориться на "Реглани  фліси"
+  // 1. Очищаємо пошуковий запит від спецсимволів
   const safeQueryText = queryText.replace(/[,%()]/g, ' ').trim();
 
   const categorySlug = params.category;
@@ -42,22 +40,24 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // 2. ОТРИМУЄМО ДАНІ ДЛЯ САЙДБАРУ
+  // 2. ОТРИМУЄМО ДАНІ ДЛЯ САЙДБАРУ (Категорії + Кольори)
   const [categoriesRes, colorsRes] = await Promise.all([
     supabase
       .from('categories')
-      .select('id, name, slug, parent_id')
+      .select('id, name, slug, parent_id') // Важливо для дерева категорій
       .order('name'),
     
     supabase
       .from('product_variants')
-      .select('color')
-      .neq('color', 'N/A')
+      .select('general_color') // Використовуємо general_color для фільтрів
+      .neq('general_color', 'Other')
+      .neq('general_color', null)
       .limit(2000) 
   ]);
 
   const categories = categoriesRes.data || [];
-  const availableColors = Array.from(new Set(colorsRes.data?.map(i => i.color))).sort();
+  // Збираємо унікальні загальні кольори
+  const availableColors = Array.from(new Set(colorsRes.data?.map(i => i.general_color))).sort();
 
   // 3. БУДУЄМО ЗАПИТ НА ТОВАРИ
   let selectQuery = `
@@ -65,6 +65,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     categories (slug),
     product_variants (
       color,
+      general_color,
       price,
       stock,
       available,
@@ -72,12 +73,14 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     )
   `;
 
+  // Якщо є фільтр кольору, використовуємо inner join
   if (selectedColors.length > 0) {
      selectQuery = `
         *,
         categories (slug),
         product_variants!inner (
           color,
+          general_color,
           price,
           stock,
           available,
@@ -94,20 +97,22 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   // --- ФІЛЬТРИ ---
   
-  // Пошук (ВИПРАВЛЕНО)
+  // Пошук
   if (safeQueryText) {
     query = query.or(`title.ilike.%${safeQueryText}%,vendor_article.ilike.%${safeQueryText}%`);
   }
 
-  // Категорія
+  // Категорія (пошук по ID через slug)
   if (categorySlug) {
     const { data: currentCat } = await supabase.from('categories').select('id').eq('slug', categorySlug).single();
     
     if (currentCat) {
+       // Знаходимо категорію ТА всі її підкатегорії
        const { data: subCats } = await supabase.from('categories').select('id').eq('parent_id', currentCat.id);
        const idsToFilter = [currentCat.id, ...(subCats?.map(c => c.id) || [])];
        query = query.in('category_id', idsToFilter);
     } else {
+       // Якщо категорію не знайдено, нічого не показуємо
        query = query.eq('category_id', '00000000-0000-0000-0000-000000000000'); 
     }
   }
@@ -116,9 +121,9 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   if (minPrice > 0) query = query.gte('base_price', minPrice);
   if (params.maxPrice) query = query.lte('base_price', maxPrice);
 
-  // Колір
+  // Колір (по general_color)
   if (selectedColors.length > 0) {
-    query = query.in('product_variants.color', selectedColors);
+    query = query.in('product_variants.general_color', selectedColors);
   }
 
   // ВИКОНАННЯ ЗАПИТУ
@@ -129,13 +134,15 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     return <div className="p-10 text-red-500 text-center">Помилка завантаження: {error.message}</div>;
   }
 
-  // 4. POST-PROCESSING
+  // 4. ОБРОБКА ДАНИХ ДЛЯ ВІДОБРАЖЕННЯ
   const products = rawProducts?.map((product: any) => {
+    // Рахуємо залишки
     const totalAvailable = product.product_variants?.reduce(
       (sum: number, variant: any) => sum + (variant.available ?? variant.stock ?? 0), 
       0
     );
 
+    // Групуємо варіанти для міні-фото (унікальні по кольору)
     const uniqueVariantsMap = new Map();
     product.product_variants?.forEach((v: any) => {
        if (v.color && v.color !== 'N/A' && v.image_url) {
@@ -212,7 +219,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
                         <Filter size={24} className="text-gray-500" />
                     </div>
                     <p className="text-white font-bold text-lg">Товарів не знайдено</p>
-                    <p className="text-sm text-gray-500 mt-1">Спробуйте змінити параметри пошуку</p>
+                    <p className="text-sm text-gray-500 mt-1">Спробуйте змінити параметри пошуку або категорію</p>
                     <Link href="/catalog" className="mt-4 text-blue-500 font-bold text-sm hover:underline">
                         Скинути всі фільтри
                     </Link>

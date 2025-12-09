@@ -29,9 +29,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const specificSupplier = searchParams.get('supplier');
 
-    console.log('--- START FINAL SYNC (TYPES FIXED) ---');
+    console.log('--- START SYNC WITH COLOR NORMALIZATION ---');
 
-    // 1. Завантажуємо категорії для авто-сортування
     const { data: allCategories } = await supabase
         .from('categories')
         .select('id, match_keywords');
@@ -67,7 +66,6 @@ export async function GET(req: NextRequest) {
       const xmlData = parser.parse(textData);
       
       let processedCount = 0;
-      let timedOut = false;
 
       // ==========================================
       // TOTOBI
@@ -85,26 +83,20 @@ export async function GET(req: NextRequest) {
         });
 
         const groups = Object.values(groupedOffers);
-        console.log(`Totobi: ${groups.length} groups prepared.`);
 
         for (let i = 0; i < groups.length; i += BATCH_SIZE) {
-          if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
-
+          if (Date.now() - startTime > TIME_LIMIT) { break; }
           const chunk = groups.slice(i, i + BATCH_SIZE);
           
           await Promise.all(chunk.map(async (group) => {
             try {
                 const mainOffer = group[0]; 
-                
-                // --- ВИПРАВЛЕННЯ ТУТ ---
-                // Явно вказуємо тип: string | null
                 let finalCatId: string | null = manualCategoryMap[mainOffer.categoryId] || null;
-                
-                if (!finalCatId && allCategories) {
-                    finalCatId = detectCategory(mainOffer.name, allCategories);
-                }
-                // -----------------------------------
 
+// 2. Якщо немає ручного правила, пробуємо авто-детект
+if (!finalCatId && allCategories) {
+    finalCatId = detectCategory(mainOffer.name, allCategories);
+}
                 const { material, specs, brandParam } = extractTotobiParams(mainOffer.param);
                 const mainImage = Array.isArray(mainOffer.picture) ? mainOffer.picture[0] : mainOffer.picture;
 
@@ -141,6 +133,9 @@ export async function GET(req: NextRequest) {
                   const variantsData: any[] = [];
                   for (const offer of group) {
                       const color = extractColor(offer.param);
+                      // ВИЗНАЧАЄМО ЗАГАЛЬНИЙ КОЛІР
+                      const generalColor = detectGeneralColor(color);
+                      
                       const variantImage = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
                       
                       if (offer.sizes && offer.sizes.size) {
@@ -154,6 +149,7 @@ export async function GET(req: NextRequest) {
                              supplier_sku: sizeObj['@_product_code'],
                              size: sizeObj['#text'],
                              color: color,
+                             general_color: generalColor, // <-- НОВЕ ПОЛЕ
                              price: Math.ceil(vPrice),
                              stock: parseInt(sizeObj['@_amount'] || '0'),
                              available: Math.max(0, parseInt(sizeObj['@_amount'] || '0') - parseInt(sizeObj['@_reserve'] || '0')),
@@ -170,6 +166,7 @@ export async function GET(req: NextRequest) {
                             supplier_sku: offer.vendorCode,
                             size: 'One Size',
                             color: color,
+                            general_color: generalColor, // <-- НОВЕ ПОЛЕ
                             price: Math.ceil(vPrice),
                             stock: parseInt(offer.amount || '0'),
                             available: Math.max(0, parseInt(offer.amount || '0') - parseInt(offer.reserve || '0')),
@@ -204,11 +201,9 @@ export async function GET(req: NextRequest) {
         });
 
         const groupsArray = Object.entries(groupedItems);
-        console.log(`TopTime: ${groupsArray.length} groups prepared.`);
 
         for (let i = 0; i < groupsArray.length; i += BATCH_SIZE) {
-            if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
-
+            if (Date.now() - startTime > TIME_LIMIT) { break; }
             const chunk = groupsArray.slice(i, i + BATCH_SIZE);
 
             await Promise.all(chunk.map(async ([modelKey, variants]) => {
@@ -216,13 +211,10 @@ export async function GET(req: NextRequest) {
                     const firstVariant = (variants as any[])[0];
                     const cleanTitle = `${firstVariant.brand} ${firstVariant.name.split(',')[0]}`.trim();
 
-                    // --- ВИПРАВЛЕННЯ ТУТ ТАКОЖ ---
                     let finalCatId: string | null = manualCategoryMap[firstVariant.id_category] || null;
-                    
                     if (!finalCatId && allCategories) {
                         finalCatId = detectCategory(cleanTitle + ' ' + (firstVariant.category_name || ''), allCategories);
                     }
-                    // -----------------------------------
 
                     const basePriceEur = safeFloat(firstVariant.price);
                     const rate = Number(supplier.rate) || 1;
@@ -252,11 +244,17 @@ export async function GET(req: NextRequest) {
                         const variantsData = (variants as any[]).map(v => {
                             const stockUA = parseInt(v.count3 || '0');
                             const availableUA = parseInt(v.count2 || '0');
+                            
+                            // ВИЗНАЧАЄМО ЗАГАЛЬНИЙ КОЛІР (TopTime має поле 'color')
+                            const color = v.color || 'Standard';
+                            const generalColor = detectGeneralColor(color);
+
                             return {
                                 product_id: product.id,
                                 supplier_sku: v.code,
                                 size: v.size || 'One Size',
-                                color: v.color || 'Standard',
+                                color: color,
+                                general_color: generalColor, // <-- НОВЕ ПОЛЕ
                                 price: finalPriceUAH,
                                 stock: stockUA,
                                 available: availableUA,
@@ -272,12 +270,8 @@ export async function GET(req: NextRequest) {
         }
       }
       
-      results.push({ 
-          supplier: supplier.name, 
-          processed: processedCount, 
-          status: timedOut ? 'partial_success_timeout' : 'full_success' 
-      });
-      console.log(`✅ ${timedOut ? 'PAUSED' : 'FINISHED'} ${supplier.name}. Processed: ${processedCount}`);
+      results.push({ supplier: supplier.name, processed: processedCount });
+      console.log(`✅ Finished ${supplier.name}. Processed: ${processedCount}`);
     }
 
     return NextResponse.json({ success: true, results });
@@ -286,15 +280,40 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// --- ХЕЛПЕРИ ---
+// --- НОВА ФУНКЦІЯ: ВИЗНАЧЕННЯ ЗАГАЛЬНОГО КОЛЬОРУ ---
+function detectGeneralColor(specificColor: string): string {
+    if (!specificColor || specificColor === 'N/A') return 'Other';
+    
+    const lower = specificColor.toLowerCase();
+    
+    const MAP: Record<string, string[]> = {
+        'Black': ['black', 'чорн', 'anthra', 'dark grey', 'charcoal', 'graphite', 'ebony'],
+        'White': ['white', 'біл', 'milk', 'snow', 'ivory', 'cream', 'antique white'],
+        'Grey': ['grey', 'gray', 'сір', 'ash', 'silver', 'steel', 'zinc', 'melange', 'heather'],
+        'Blue': ['blue', 'синій', 'блакит', 'navy', 'azure', 'royal', 'sky', 'indigo', 'denim', 'aqua', 'cyan', 'turquoise', 'teal', 'mint', 'petrol'],
+        'Red': ['red', 'червон', 'burgundy', 'maroon', 'cherry', 'brick', 'wine', 'bordeaux', 'cardinal', 'crimson'],
+        'Green': ['green', 'зелен', 'olive', 'lime', 'khaki', 'military', 'forest', 'bottle', 'emerald', 'army', 'camou', 'fern', 'kelly', 'moss', 'sage'],
+        'Yellow': ['yellow', 'жовт', 'gold', 'lemon', 'mustard', 'amber', 'maiz', 'sun'],
+        'Orange': ['orange', 'помаранч', 'оранж', 'coral', 'peach', 'terracotta', 'rust', 'burnt'],
+        'Purple': ['purple', 'фіолет', 'violet', 'lavender', 'lilac', 'plum', 'magenta', 'berry'],
+        'Pink': ['pink', 'рожев', 'rose', 'fuchsia', 'coral', 'salmon', 'blush', 'raspberry'],
+        'Brown': ['brown', 'коричн', 'beige', 'sand', 'chocolate', 'coffee', 'camel', 'mocha', 'tan', 'taupe', 'khaki', 'wood', 'nut'],
+        'Metal': ['metal', 'silver', 'gold', 'chrome', 'copper', 'bronze', 'inox', 'alu']
+    };
 
+    for (const [general, keywords] of Object.entries(MAP)) {
+        if (keywords.some(k => lower.includes(k))) return general;
+    }
+
+    return 'Other'; // Якщо не знайшли
+}
+
+// --- ІНШІ ХЕЛПЕРИ ---
 function detectCategory(productName: string, categories: any[]): string | null {
     if (!productName) return null;
-    
     const cleanedName = productName.toLowerCase().replace(/[^a-zа-яіїєґ\s]/g, '');
     let bestMatchId = null;
     let bestMatchLength = 0;
-
     for (const cat of categories) {
         if (cat.match_keywords && Array.isArray(cat.match_keywords)) {
             for (const keyword of cat.match_keywords) {
