@@ -43,8 +43,6 @@ const DEFAULT_SLIDES = [
 
 export default function Home() {
   const router = useRouter();
-  
-  // ВИПРАВЛЕНО: беремо addItem замість addToCart
   const { addItem } = useCart();
   
   const [session, setSession] = useState<any>(null);
@@ -106,16 +104,15 @@ export default function Home() {
 
   // --- ОБРОБНИКИ ПОДІЙ ---
   const handleAddToCart = (product: any) => {
-    // ВИПРАВЛЕНО: addItem приймає об'єкт CartItem
     addItem({
-        id: product.vendor_article, // Тимчасовий ID для швидкого додавання
+        id: product.vendor_article, 
         productId: product.id,
         title: product.title || product.description,
         price: product.base_price,
         image: product.image_url,
-        quantity: 1,
-        color: 'Standard', // Дефолтне значення, бо з головної ми не вибираємо колір
-        size: 'One Size',  // Дефолтне значення
+        // quantity: 1,  <-- ВИДАЛЕНО, бо addItem додає це автоматично
+        color: 'Standard', 
+        size: 'One Size',  
         vendorArticle: product.vendor_article
     });
   };
