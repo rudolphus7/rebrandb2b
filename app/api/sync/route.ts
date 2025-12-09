@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const specificSupplier = searchParams.get('supplier');
 
-    console.log('--- START FINAL SYNC (MAX NORMALIZATION) ---');
+    console.log('--- START FINAL SYNC (TYPES FIXED) ---');
 
     // 1. Завантажуємо категорії для авто-сортування
     const { data: allCategories } = await supabase
@@ -96,8 +96,10 @@ export async function GET(req: NextRequest) {
             try {
                 const mainOffer = group[0]; 
                 
-                // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ ---
-                let finalCatId = manualCategoryMap[mainOffer.categoryId];
+                // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ (ВИПРАВЛЕНО ТИПІЗАЦІЮ) ---
+                // Явно вказуємо тип: string | null
+                let finalCatId: string | null = manualCategoryMap[mainOffer.categoryId] || null;
+                
                 if (!finalCatId && allCategories) {
                     finalCatId = detectCategory(mainOffer.name, allCategories);
                 }
@@ -214,8 +216,10 @@ export async function GET(req: NextRequest) {
                     const firstVariant = (variants as any[])[0];
                     const cleanTitle = `${firstVariant.brand} ${firstVariant.name.split(',')[0]}`.trim();
 
-                    // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ ---
-                    let finalCatId = manualCategoryMap[firstVariant.id_category];
+                    // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ (ВИПРАВЛЕНО ТИПІЗАЦІЮ) ---
+                    // Явно вказуємо тип: string | null
+                    let finalCatId: string | null = manualCategoryMap[firstVariant.id_category] || null;
+                    
                     if (!finalCatId && allCategories) {
                         finalCatId = detectCategory(cleanTitle + ' ' + (firstVariant.category_name || ''), allCategories);
                     }
@@ -283,22 +287,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// --- ХЕЛПЕР АВТО-КАТЕГОРІЗАЦІЇ (ЕНХАНСЕНО) ---
+// --- ХЕЛПЕРИ ---
+
 function detectCategory(productName: string, categories: any[]): string | null {
     if (!productName) return null;
     
-    // ГЛИБОКА НОРМАЛІЗАЦІЯ: видаляємо всі символи, цифри та розділові знаки
     const cleanedName = productName.toLowerCase().replace(/[^a-zа-яіїєґ\s]/g, '');
-
     let bestMatchId = null;
-    let bestMatchLength = 0; // Пріоритет довшому ключовому слову (більша точність)
+    let bestMatchLength = 0;
 
     for (const cat of categories) {
         if (cat.match_keywords && Array.isArray(cat.match_keywords)) {
             for (const keyword of cat.match_keywords) {
                 const lowerKeyword = keyword.toLowerCase();
-                
-                // Перевіряємо, чи міститься ключове слово в очищеній назві
                 if (cleanedName.includes(lowerKeyword)) { 
                     if (lowerKeyword.length > bestMatchLength) {
                         bestMatchLength = lowerKeyword.length;
@@ -311,7 +312,6 @@ function detectCategory(productName: string, categories: any[]): string | null {
     return bestMatchId;
 }
 
-// Інші хелпери без змін...
 function slugify(text: string) {
     if (!text) return 'unknown-' + Math.random().toString(36).substr(2, 9);
     return text.toString().toLowerCase().replace(/[\s\/\\]+/g, '-').replace(/[^\w\-а-яіїєґ]+/g, '').replace(/\-\-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
