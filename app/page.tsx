@@ -17,7 +17,6 @@ import CartDrawer from "@/components/CartDrawer";
 import ProductImage from "@/components/ProductImage";
 import LoginPage from "@/components/LoginPage";
 
-// --- КОНСТАНТИ (Можна винести в окремий файл пізніше) ---
 const VISUAL_CATEGORIES = [
   { id: "clothing", title: "Одяг", slug: "clothing", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
   { id: "office", title: "Офіс", slug: "office", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto-format&fit=crop", icon: Briefcase },
@@ -44,7 +43,9 @@ const DEFAULT_SLIDES = [
 
 export default function Home() {
   const router = useRouter();
-  const { addToCart } = useCart();
+  
+  // ВИПРАВЛЕНО: беремо addItem замість addToCart
+  const { addItem } = useCart();
   
   const [session, setSession] = useState<any>(null);
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
@@ -91,31 +92,30 @@ export default function Home() {
 
   // --- ЗАВАНТАЖЕННЯ КОНТЕНТУ ---
   async function fetchContent() {
-    // Завантажуємо Хіти (товари)
     const { data: prodData } = await supabase
         .from("products")
-        .select("id, title, base_price, image_url, description, vendor_article")
-        .order('created_at', { ascending: false }) // Спочатку нові
+        .select("id, title, base_price, image_url, description, vendor_article, slug")
+        .order('created_at', { ascending: false }) 
         .limit(8);
 
     if (prodData) setProducts(prodData);
 
-    // Завантажуємо Банери (якщо є в базі)
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
     if (bannerData && bannerData.length > 0) setBanners(bannerData);
   }
 
   // --- ОБРОБНИКИ ПОДІЙ ---
   const handleAddToCart = (product: any) => {
-    addToCart({
-        id: product.vendor_article, // Використовуємо артикул як ID за замовчуванням
+    // ВИПРАВЛЕНО: addItem приймає об'єкт CartItem
+    addItem({
+        id: product.vendor_article, // Тимчасовий ID для швидкого додавання
         productId: product.id,
         title: product.title || product.description,
         price: product.base_price,
         image: product.image_url,
         quantity: 1,
-        color: 'Standard',
-        size: 'One Size',
+        color: 'Standard', // Дефолтне значення, бо з головної ми не вибираємо колір
+        size: 'One Size',  // Дефолтне значення
         vendorArticle: product.vendor_article
     });
   };
@@ -130,7 +130,7 @@ export default function Home() {
     setIsVerified(null);
   };
 
-  // --- РЕНДЕРИНГ ЕКРАНІВ (Логін / Очікування / Головна) ---
+  // --- РЕНДЕРИНГ ЕКРАНІВ ---
 
   if (!session) return <LoginPage onLogin={handleLogin} />;
 
@@ -155,7 +155,6 @@ export default function Home() {
       );
   }
 
-  // --- ГОЛОВНИЙ ЕКРАН ---
   const currentBanner = banners[currentSlide];
 
   return (
@@ -232,10 +231,8 @@ export default function Home() {
             {products.map((product) => (
               <div key={product.id} className="bg-[#1a1a1a] rounded-2xl p-4 hover:shadow-2xl hover:-translate-y-1 transition duration-300 group border border-white/5 flex flex-col relative overflow-hidden">
                 
-                {/* Бейджик */}
                 <div className="absolute top-4 left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-2 py-1 rounded-md uppercase">New</div>
                 
-                {/* Фото */}
                 <div className="aspect-[4/5] bg-black rounded-xl overflow-hidden mb-4 relative">
                   <Link href={`/product/${product.slug || product.id}`} className="block w-full h-full">
                     <ProductImage 
@@ -247,7 +244,6 @@ export default function Home() {
                   <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition bg-black/50 p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100"><Heart size={18} /></button>
                 </div>
 
-                {/* Інфо */}
                 <div className="flex-1 flex flex-col">
                   <Link href={`/product/${product.slug || product.id}`}>
                     <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-100 hover:text-blue-400 transition cursor-pointer h-[50px]">{product.title}</h3>
@@ -274,7 +270,6 @@ export default function Home() {
           </div>
       </footer>
 
-      {/* Глобальний кошик завжди присутній завдяки CartProvider у layout.tsx, але ми можемо додати його і сюди, якщо треба */}
       <CartDrawer />
     </div>
   );
