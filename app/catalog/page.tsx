@@ -1,4 +1,4 @@
-import Header from "@/components/Header";
+
 import ProductCard from '@/components/ProductCard';
 import { CatalogSidebar } from '@/components/CatalogSidebar';
 import { createClient } from '@supabase/supabase-js';

@@ -12,7 +12,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/components/CartContext";
 
-import Header from "@/components/Header";
+
 import CartDrawer from "@/components/CartDrawer";
 import ProductImage from "@/components/ProductImage";
 import LoginPage from "@/components/LoginPage";

@@ -1,5 +1,5 @@
 'use client';
-import Header from "@/components/Header";
+
 import { useState, useMemo, useEffect } from 'react';
 import { useCart } from '@/components/CartContext';
 import { 
