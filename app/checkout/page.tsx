@@ -19,8 +19,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { useCart } from "@/components/CartContext"; // Виправлений імпорт
-// Увага: переконайтеся, що файл loyaltyUtils існує, або створіть його (код нижче)
+import { useCart } from "@/components/CartContext"; 
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
 
 const CITIES = ["Київ", "Львів", "Одеса", "Дніпро", "Харків", "Івано-Франківськ", "Калуш"];
@@ -34,8 +33,13 @@ const WAREHOUSES = (city: string) => [
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, totalPrice, clearCart, items } = useCart(); // items використовується для totalItems
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
+  
+  // --- ВИПРАВЛЕННЯ ТУТ ---
+  // Ми беремо 'items' з контексту, але перейменовуємо його в 'cart', 
+  // щоб не переписувати весь файл знизу.
+  const { items: cart, totalPrice, clearCart } = useCart(); 
+  
+  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
   
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +47,6 @@ export default function CheckoutPage() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // --- Зберігаємо ЄДРПОУ для CRM ---
   const [userEdrpou, setUserEdrpou] = useState("");
 
   const [bonusesToUse, setBonusesToUse] = useState(0);
@@ -70,7 +73,6 @@ export default function CheckoutPage() {
         setUserId(session.user.id);
         setFormData((prev) => ({ ...prev, email: session.user.email || "" }));
 
-        // Завантаження профілю
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
@@ -84,11 +86,9 @@ export default function CheckoutPage() {
             phone: profile.phone || "",
             companyName: profile.company_name || "",
           }));
-          // Зберігаємо ЄДРПОУ, якщо є
           if (profile.edrpou) setUserEdrpou(profile.edrpou);
         }
 
-        // Завантаження балансу бонусів
         const { data: logs } = await supabase
           .from("loyalty_logs")
           .select("*")
@@ -99,7 +99,6 @@ export default function CheckoutPage() {
           : 0;
         setUserBalance(balance);
 
-        // Завантаження суми витрат
         const { data: orders } = await supabase
           .from("orders")
           .select("total_price")
@@ -195,7 +194,7 @@ export default function CheckoutPage() {
       }
     }
 
-    // 3. --- СИНХРОНІЗАЦІЯ З CRM ---
+    // 3. CRM Sync
     try {
       const crmPayload = {
         externalId: `ORD-${newOrder.id}`,
@@ -206,7 +205,7 @@ export default function CheckoutPage() {
           edrpou: userEdrpou || "",
         },
         items: cart.map((item) => ({
-          name: item.title + (item.size !== 'One Size' ? ` (${item.size})` : ""),
+          name: item.title + (item.size && item.size !== 'One Size' ? ` (${item.size})` : ""),
           qty: item.quantity,
           price: item.price,
         })),
@@ -218,7 +217,6 @@ export default function CheckoutPage() {
         isPaid: false,
       };
 
-      // Відправляємо на наш внутрішній API (потрібно створити цей роут)
       await fetch("/api/crm/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
