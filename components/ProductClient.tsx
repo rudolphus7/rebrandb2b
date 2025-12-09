@@ -128,7 +128,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
   return (
     <div className="bg-[#FAFAFA] min-h-screen py-10 font-sans text-[#111] antialiased">
-      <Header />
+      
       <div className="container mx-auto px-4 py-8"></div>
       <div className="container mx-auto px-4 max-w-[1440px]">
         
