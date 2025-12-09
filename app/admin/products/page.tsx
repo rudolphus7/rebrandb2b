@@ -93,7 +93,14 @@ export default function AdminProducts() {
     // Пошук
     if (search) {
         const searchLower = search.toLowerCase();
-        query = query.or(`title.ilike.%${searchLower}%,vendor_article.ilike.%${searchLower}%`);
+        
+        // ВАЖЛИВО: Видаляємо коми, бо вони ламають синтаксис .or() в Supabase
+        // "Реглани, фліси" -> "реглани фліси"
+        const safeSearch = searchLower.replace(/,/g, ' ').trim();
+
+        if (safeSearch) {
+             query = query.or(`title.ilike.%${safeSearch}%,vendor_article.ilike.%${safeSearch}%`);
+        }
     }
 
     // Фільтр по постачальнику
