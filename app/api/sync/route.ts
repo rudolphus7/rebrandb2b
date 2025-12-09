@@ -24,7 +24,21 @@ const TIME_LIMIT = 50000;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
+const authHeader = req.headers.get('authorization');
+  const { searchParams } = new URL(req.url);
+  const manualKey = searchParams.get('key'); // Для ручного запуску через браузер
 
+  // Перевірка: Це Cron Job? АБО Це ручний запуск з правильним ключем?
+  const isAuthorized = 
+      authHeader === `Bearer ${process.env.CRON_SECRET}` || 
+      manualKey === process.env.CRON_SECRET;
+
+  // Якщо ми в режимі розробки (localhost), дозволяємо без ключа
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!isAuthorized && !isDev) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const specificSupplier = searchParams.get('supplier');
