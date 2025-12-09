@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
-import ProductImage from "../components/ProductImage"; // Виправлено шлях
+import ProductImage from "@/components/ProductImage"; // Виправлено шлях
 import { LOYALTY_TIERS, getCurrentTier, getNextTier } from "@/lib/loyaltyUtils";
 
 // --- КАСТОМІЗАЦІЯ РІВНІВ (FIX: Додано поле shadow) ---
@@ -468,7 +468,11 @@ export default function UserProfile() {
                                                       return (
                                                           <div key={i} className="flex gap-4 bg-zinc-800/50 p-2 rounded-lg">
                                                               <div className="w-12 h-12 bg-black rounded overflow-hidden relative flex-shrink-0">
-                                                                  <ProductImage src={item.image_url || ''} alt={item.title || 'Товар'} fill/>
+                                                                  <ProductImage 
+         src={item.image_url || item.image || ''} 
+         alt={item.title || 'Товар'} 
+         className="w-full h-full object-cover" 
+     />
                                                               </div>
                                                               <div className="flex-1 min-w-0 flex justify-between items-center">
                                                                   <div>
