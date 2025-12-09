@@ -79,66 +79,63 @@ export default function AdminProducts() {
   }
 
   async function fetchProducts() {
-    setLoading(true);
-    
-    let query = supabase
-      .from("products")
-      .select(`
-            *,
-            suppliers (name),
-            categories (name),
-            product_variants!left (stock)
-        `, { count: "exact" }); 
+    setLoading(true);
+    
+    let query = supabase
+      .from("products")
+      .select(`
+            *,
+            suppliers (name),
+            categories (name),
+            product_variants!left (stock)
+        `, { count: "exact" }); 
 
-    // Пошук
-    if (search) {
-        const searchLower = search.toLowerCase();
+    // --- ВИПРАВЛЕННЯ ПОШУКУ ---
+    if (search) {
+        // 1. Видаляємо коми, дужки та проценти, замінюючи їх на пробіли
+        // "Реглани, фліси" -> "Реглани  фліси"
+        const cleanSearch = search.replace(/[,%()]/g, ' ').trim();
         
-        // ВАЖЛИВО: Видаляємо коми, бо вони ламають синтаксис .or() в Supabase
-        // "Реглани, фліси" -> "реглани фліси"
-        const safeSearch = searchLower.replace(/,/g, ' ').trim();
-
-        if (safeSearch) {
-             query = query.or(`title.ilike.%${safeSearch}%,vendor_article.ilike.%${safeSearch}%`);
+        if (cleanSearch) {
+            const searchLower = cleanSearch.toLowerCase();
+            query = query.or(`title.ilike.%${searchLower}%,vendor_article.ilike.%${searchLower}%`);
         }
-    }
+    }
+    
+    // --- ПАГІНАЦІЯ ---
+    const from = (page - 1) * ITEMS_PER_PAGE;
+    const to = from + ITEMS_PER_PAGE - 1;
 
-    // Фільтр по постачальнику
-    if (selectedSupplierId !== "all") {
-        query = query.eq('supplier_id', selectedSupplierId);
-    }
-    
-    // Пагінація
-    const from = (page - 1) * ITEMS_PER_PAGE;
-    const to = from + ITEMS_PER_PAGE - 1;
+    const { data, count, error } = await query
+      .range(from, to)
+      .order("id", { ascending: false });
 
-    const { data, count, error } = await query
-      .range(from, to)
-      .order("id", { ascending: false });
+    if (error) {
+        console.error("Error fetching products:", error);
+    } else {
+        // --- ОБРОБКА ДАНИХ ---
+        const processedData = (data || []).map((p: any) => {
+            const totalStock = p.product_variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
 
-    if (error) {
-        console.error("Error fetching products:", error);
-    } else {
-        const processedData = (data || []).map((p: any) => {
-            const totalStock = p.product_variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-            return {
-                ...p,
-                id: p.id,
-                title: p.title,
-                vendor_article: p.vendor_article,
-                base_price: p.base_price,
-                image_url: p.image_url,
-                supplier_id: p.supplier_id,
-                total_stock: totalStock,
-                supplier_name: p.suppliers?.name || 'N/A',
-                category_name: p.categories?.name || 'Без категорії',
-            } as Product;
-        });
-        setProducts(processedData);
-        setTotal(count || 0);
-    }
-    setLoading(false);
-  }
+            return {
+                ...p,
+                id: p.id,
+                title: p.title,
+                vendor_article: p.vendor_article,
+                base_price: p.base_price,
+                image_url: p.image_url,
+                supplier_id: p.supplier_id,
+                total_stock: totalStock,
+                supplier_name: p.suppliers?.name || 'N/A',
+                category_name: p.categories?.name || 'Без категорії',
+            } as Product;
+        });
+
+        setProducts(processedData);
+        setTotal(count || 0);
+    }
+    setLoading(false);
+  }
 
   // --- ЛОГІКА ВИДІЛЕННЯ ---
   const handleSelectAll = () => {
