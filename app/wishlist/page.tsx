@@ -4,11 +4,11 @@ import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { ArrowLeft, Heart, ShoppingBag, Loader2 } from "lucide-react";
-import ProductImage from "../components/ProductImage";
-import Header from "../components/Header";
-import CartDrawer from "../components/CartDrawer";
-import { useCart } from "../components/CartContext";
-import WishlistButton from "../components/WishlistButton";
+import ProductImage from "@/components/ProductImage";
+import Header from "@/components/Header";
+import CartDrawer from "@/components/CartDrawer";
+import { useCart } from "@/components/CartContext";
+
 
 function WishlistContent() {
   const [products, setProducts] = useState<any[]>([]);
