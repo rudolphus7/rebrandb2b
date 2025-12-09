@@ -40,7 +40,7 @@ const authHeader = req.headers.get('authorization');
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const { searchParams } = new URL(req.url);
+    
     const specificSupplier = searchParams.get('supplier');
 
     console.log('--- START SYNC WITH COLOR NORMALIZATION ---');
