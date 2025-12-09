@@ -18,6 +18,7 @@ interface ProductData {
     category_id: string;
     code: string;
     is_manual_category?: boolean;
+    is_manual_title?: boolean;
     label: string | null; // НОВЕ ПОЛЕ
 }
 
@@ -135,7 +136,8 @@ export default function AdminProductForm({ initialData, isNew }: AdminProductFor
             base_price: parseFloat(formData.base_price.toFixed(2)),
             old_price: formData.old_price ? parseFloat(formData.old_price.toFixed(2)) : null,
             updated_at: new Date().toISOString(),
-            is_manual_category: true 
+            is_manual_category: true,
+            is_manual_title: true 
         };
 
         let error: any;
