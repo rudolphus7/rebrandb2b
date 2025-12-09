@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import AdminProductForm from "@/components/AdminProductForm";
+import AdminProductForm from "../../AdminProductForm";
 import { notFound } from "next/navigation";
 
 const supabase = createClient(
