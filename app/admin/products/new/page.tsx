@@ -1,7 +1,9 @@
-"use client";
-
-import AdminProductForm from "../../../components/AdminProductForm";
+import AdminProductForm from "@/components/AdminProductForm";
 
 export default function NewProductPage() {
-  return <AdminProductForm isNew={true} />;
+    return (
+        <div className="p-8">
+            <AdminProductForm isNew={true} />
+        </div>
+    );
 }

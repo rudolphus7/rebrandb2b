@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-// 1. Імпортуємо провайдер
-import { CartProvider } from "./components/CartContext"; 
+import { CartProvider } from "@/components/CartContext"; // Імпорт 1
+import CartDrawer from "@/components/CartDrawer"; // Імпорт 2
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "REBRAND B2B",
-  description: "Простір вашого бренду",
+  title: "B2B Portal",
+  description: "Wholesale portal",
 };
 
 export default function RootLayout({
@@ -19,9 +19,9 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <body className={inter.className}>
-        {/* 2. Обгортаємо children у CartProvider */}
-        <CartProvider>
+        <CartProvider> {/* Обгортка */}
           {children}
+          <CartDrawer /> {/* Сам кошик */}
         </CartProvider>
       </body>
     </html>

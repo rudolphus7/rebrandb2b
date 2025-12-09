@@ -1,240 +1,338 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-export const maxDuration = 300; 
-export const dynamic = 'force-dynamic';
+export const maxDuration = 60; 
+export const dynamic = 'force-dynamic'; 
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: { persistSession: false },
+    db: { schema: 'public' }
+  }
+);
 
-const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
 });
 
-// --- СТРУКТУРА МЕНЮ (Твоя) ---
-const MENU_STRUCTURE = [
-  { name: 'Сумки', subs: ['Валізи', 'Косметички', 'Мішок спортивний', 'Рюкзаки', 'Сумки для ноутбуків', 'Сумки для покупок', 'Сумки дорожні та спортивні', 'Сумки на пояс', 'Термосумки'] },
-  { name: 'Ручки', subs: ['Еко ручки', 'Металеві ручки', 'Олівці', 'Пластикові ручки'] },
-  { name: 'Подорож та відпочинок', subs: ['Все для пікніка', 'Ліхтарики', 'Ланч бокси', 'Лопати', 'Пледи', 'Пляшки для пиття', 'Подушки', 'Термоси та термокружки', 'Фляги', 'Фрізбі', 'Штопори'] },
-  { name: 'Парасолі', subs: ['Парасолі складні', 'Парасолі-тростини'] },
-  { name: 'Одяг', subs: ['Вітровки', 'Рукавички', 'Спортивний одяг', 'Футболки', 'Поло', 'Дитячий одяг', 'Реглани, фліси', 'Жилети', 'Куртки та софтшели'] },
-  { name: 'Головні убори', subs: ['Дитяча кепка', 'Панами', 'Шапки', 'Кепки'] },
-  { name: 'Інструменти', subs: ['Викрутки', 'Мультитули', 'Набір інструментів', 'Ножі', 'Рулетки'] },
-  { name: 'Офіс', subs: ['Записні книжки', 'Календарі'] },
-  { name: 'Персональні аксессуари', subs: ['Брелки', 'Візитниці', 'Дзеркала'] },
-  { name: 'Для професіоналів', subs: ['Опадоміри'] },
-  { name: 'Електроніка', subs: ['Аксесуари', 'Годинники', 'Зарядні пристрої', 'Зволожувачі повітря', 'Лампи', 'Портативна акустика'] },
-  { name: 'Дім', subs: ['Дошки кухонні', 'Кухонне приладдя', 'Млини для спецій', 'Набори для сиру', 'Рушники', 'Свічки', 'Сковорідки', 'Стакани', 'Чайники', 'Годівнички'] },
-  { name: 'Посуд', subs: ['Горнятка'] },
-  { name: 'Упаковка', subs: ['Подарункова коробка', 'Подарунковий пакет'] },
-];
+const BATCH_SIZE = 10;
+const TIME_LIMIT = 50000; 
 
-function safeStr(val: any): string {
-    if (val === null || val === undefined) return "";
-    if (typeof val === 'string') return val.trim();
-    if (typeof val === 'number') return String(val);
-    if (typeof val === 'object') {
-        if (Array.isArray(val)) return safeStr(val[0]);
-        if (val['#text']) return String(val['#text']).trim();
-        return "";
-    }
-    return String(val).trim();
-}
+export async function GET(req: NextRequest) {
+  const startTime = Date.now();
 
-function generateSlugId(text: string): string {
-    const safeText = safeStr(text);
-    if (!safeText) return "RBR-" + Math.random().toString(36).substr(2, 8).toUpperCase();
-    
-    return "RBR-" + safeText
-        .toLowerCase()
-        .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .substring(0, 40)
-        .toUpperCase();
-}
-
-function detectCategory(title: string, rawCat: string) {
-    const text = `${safeStr(title)} ${safeStr(rawCat)}`.toLowerCase();
-    for (const main of MENU_STRUCTURE) {
-        for (const sub of main.subs) {
-            if (sub === 'Футболки' && text.includes('поло')) continue;
-            if (sub === 'Кепки' && text.includes('дитяч')) continue;
-            if (text.includes(sub.toLowerCase().slice(0, -1))) return sub;
-        }
-    }
-    if (text.includes('футболк')) return 'Футболки';
-    if (text.includes('поло')) return 'Поло';
-    if (text.includes('куртк')) return 'Куртки та софтшели';
-    if (text.includes('рюкзак')) return 'Рюкзаки';
-    return "Інше";
-}
-
-export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const provider = searchParams.get('provider') || 'totobi';
-    const url = searchParams.get('url');
-    // Безпечне читання параметрів
-    const offset = parseInt(searchParams.get('offset') || '0');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const eurRate = parseFloat(searchParams.get('rate') || '43.5');
+    const { searchParams } = new URL(req.url);
+    const specificSupplier = searchParams.get('supplier');
 
-    if (!url) return NextResponse.json({ success: false, error: "URL is empty" }, { status: 400 });
+    console.log('--- START FINAL SYNC (MAX NORMALIZATION) ---');
 
-    const response = await fetch(url, { cache: 'no-store' });
-    const xmlText = await response.text();
+    // 1. Завантажуємо категорії для авто-сортування
+    const { data: allCategories } = await supabase
+        .from('categories')
+        .select('id, match_keywords');
 
-    const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });
-    const jsonData = parser.parse(xmlText);
-
-    let items: any[] = [];
-    if (provider === 'toptime') {
-        let raw = jsonData?.items?.item || jsonData?.yml_catalog?.shop?.items?.item;
-        if (!raw && jsonData) {
-             const keys = Object.keys(jsonData);
-             if (keys.length > 0 && jsonData[keys[0]]?.item) raw = jsonData[keys[0]].item;
-        }
-        items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-    } else {
-        let raw = jsonData?.yml_catalog?.shop?.offers?.offer;
-        items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-    }
-
-    if (!items || items.length === 0) {
-        return NextResponse.json({ success: false, error: "XML is empty or bad format" });
-    }
-
-    // Пагінація на стороні отримання масиву (щоб не обробляти все відразу)
-    // АЛЕ: Для групування нам бажано бачити все. 
-    // Компроміс: Ми обробляємо весь XML в пам'яті (Node.js це витримає для 5-10к товарів), 
-    // але пишемо в базу батчами. Клієнтська пагінація тут для відображення прогресу.
+    let query = supabase.from('suppliers').select('*').eq('is_active', true);
+    if (specificSupplier) query = query.eq('name', specificSupplier);
     
-    // --- ГРУПУВАННЯ ---
-    const models: Record<string, any> = {};
+    const { data: suppliers, error: supplierError } = await query;
+    if (supplierError || !suppliers) throw new Error('Failed to fetch suppliers');
 
-    for (const item of items) {
-        if (!item) continue;
+    const results = [];
 
-        let title = safeStr(item.name || item.title);
-        let sku = safeStr(item.vendorCode || item.article || item.code);
-        let color = "";
+    for (const supplier of suppliers) {
+      if (Date.now() - startTime > TIME_LIMIT) {
+          results.push({ supplier: supplier.name, status: 'skipped_timeout' });
+          break; 
+      }
+
+      console.log(`\n🚀 Starting sync for: ${supplier.name}`);
+      
+      const { data: rules } = await supabase.from('sync_rules').select('*').eq('supplier_id', supplier.id);
+      const manualCategoryMap: Record<string, string> = {};
+      rules?.forEach(r => { manualCategoryMap[r.external_category_id] = r.internal_category_id; });
+
+      const response = await fetch(supplier.url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Bot/1.0)' },
+          signal: AbortSignal.timeout(40000) 
+      });
+
+      if (!response.ok) { console.error(`❌ Failed to fetch ${supplier.name}`); continue; }
+
+      const textData = await response.text();
+      const xmlData = parser.parse(textData);
+      
+      let processedCount = 0;
+      let timedOut = false;
+
+      // ==========================================
+      // TOTOBI
+      // ==========================================
+      if (supplier.name === 'Totobi') {
+        const offers = xmlData.yml_catalog?.shop?.offers?.offer || [];
+        const offersArray = Array.isArray(offers) ? offers : [offers];
         
-        // Шукаємо колір
-        if (item.color) color = safeStr(item.color);
-        if (!color && item.param) {
-            const params = Array.isArray(item.param) ? item.param : [item.param];
-            const c = params.find((p: any) => safeStr(p?.['@_name']).toLowerCase().includes('колір'));
-            if (c) color = safeStr(c['#text']);
-        }
-        // Fallback кольору з назви
-        if (!color) {
-            const parts = title.split(' ');
-            if (parts.length > 2) color = parts[parts.length - 1];
-        }
+        const groupedOffers: Record<string, any[]> = {};
+        offersArray.forEach((offer: any) => {
+            if (!offer.name) return;
+            const groupKey = offer.name.trim();
+            if (!groupedOffers[groupKey]) groupedOffers[groupKey] = [];
+            groupedOffers[groupKey].push(offer);
+        });
 
-        // --- ВЛАСНИЙ ID (Групуємо по назві без кольору) ---
-        let modelName = title;
-        if (color) {
-            // Вирізаємо колір з назви
+        const groups = Object.values(groupedOffers);
+        console.log(`Totobi: ${groups.length} groups prepared.`);
+
+        for (let i = 0; i < groups.length; i += BATCH_SIZE) {
+          if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
+
+          const chunk = groups.slice(i, i + BATCH_SIZE);
+          
+          await Promise.all(chunk.map(async (group) => {
             try {
-                modelName = title.replace(new RegExp(color.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi'), '').trim();
-                modelName = modelName.replace(/[-_.,]+$/, '').trim();
-            } catch (e) {
-                modelName = title;
-            }
+                const mainOffer = group[0]; 
+                
+                // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ ---
+                let finalCatId = manualCategoryMap[mainOffer.categoryId];
+                if (!finalCatId && allCategories) {
+                    finalCatId = detectCategory(mainOffer.name, allCategories);
+                }
+                // -----------------------------------
+
+                const { material, specs, brandParam } = extractTotobiParams(mainOffer.param);
+                const mainImage = Array.isArray(mainOffer.picture) ? mainOffer.picture[0] : mainOffer.picture;
+
+                let rawPrice = safeFloat(mainOffer.price);
+                if (rawPrice === 0 && mainOffer.sizes && mainOffer.sizes.size) {
+                    const sizes = Array.isArray(mainOffer.sizes.size) ? mainOffer.sizes.size : [mainOffer.sizes.size];
+                    const prices = sizes.map((s: any) => safeFloat(s['@_modifier'])).filter((p: number) => p > 0);
+                    if (prices.length > 0) rawPrice = Math.min(...prices);
+                }
+                const finalBasePrice = Math.ceil(rawPrice);
+                const finalOldPrice = safeFloat(mainOffer.oldprice) > 0 ? Math.ceil(safeFloat(mainOffer.oldprice)) : null;
+
+                const { data: product } = await supabase
+                  .from('products')
+                  .upsert({
+                    title: mainOffer.name,
+                    slug: slugify(mainOffer.name),
+                    description: mainOffer.description,
+                    base_price: finalBasePrice,
+                    old_price: finalOldPrice,
+                    category_id: finalCatId,
+                    vendor_article: mainOffer.vendorCode,
+                    brand: brandParam || mainOffer.vendor,
+                    material: material,
+                    specifications: specs,
+                    image_url: mainImage,
+                    supplier_id: supplier.id,
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'slug' })
+                  .select('id')
+                  .single();
+
+                if (product) {
+                  const variantsData: any[] = [];
+                  for (const offer of group) {
+                      const color = extractColor(offer.param);
+                      const variantImage = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
+                      
+                      if (offer.sizes && offer.sizes.size) {
+                        const sizes = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
+                        for (const sizeObj of sizes) {
+                           let vPrice = safeFloat(sizeObj['@_modifier'] || offer.price);
+                           if (vPrice === 0) vPrice = finalBasePrice;
+                           
+                           variantsData.push({
+                             product_id: product.id,
+                             supplier_sku: sizeObj['@_product_code'],
+                             size: sizeObj['#text'],
+                             color: color,
+                             price: Math.ceil(vPrice),
+                             stock: parseInt(sizeObj['@_amount'] || '0'),
+                             available: Math.max(0, parseInt(sizeObj['@_amount'] || '0') - parseInt(sizeObj['@_reserve'] || '0')),
+                             image_url: variantImage,
+                             sku: sizeObj['@_product_code']
+                           });
+                        }
+                      } else {
+                         let vPrice = safeFloat(offer.price);
+                         if (vPrice === 0) vPrice = finalBasePrice;
+
+                         variantsData.push({
+                            product_id: product.id,
+                            supplier_sku: offer.vendorCode,
+                            size: 'One Size',
+                            color: color,
+                            price: Math.ceil(vPrice),
+                            stock: parseInt(offer.amount || '0'),
+                            available: Math.max(0, parseInt(offer.amount || '0') - parseInt(offer.reserve || '0')),
+                            image_url: variantImage,
+                            sku: offer.vendorCode
+                         });
+                      }
+                  }
+                  if (variantsData.length > 0) {
+                    await supabase.from('product_variants').upsert(variantsData, { onConflict: 'supplier_sku' });
+                  }
+                }
+            } catch (e: any) { console.error(e); }
+          }));
+          processedCount += chunk.length;
         }
-        if (modelName.length < 3) modelName = title; // Якщо випадково стерли все
+      }
 
-        const myId = generateSlugId(modelName); // Наш унікальний ID (RBR-futbolka-...)
+      // ==========================================
+      // TOPTIME
+      // ==========================================
+      else if (supplier.name === 'TopTime') {
+        const items = xmlData.items?.item || xmlData.catalog?.items?.item || []; 
+        const itemsArray = Array.isArray(items) ? items : [items];
+        
+        const groupedItems: Record<string, any[]> = {};
+        itemsArray.forEach((item: any) => {
+           if (!item.article) return;
+           const modelKey = item.article.split(' ')[0]; 
+           if (!groupedItems[modelKey]) groupedItems[modelKey] = [];
+           groupedItems[modelKey].push(item);
+        });
 
-        // Створюємо модель
-        if (!models[myId]) {
-            let price = parseFloat(safeStr(item.price).replace(',', '.')) || 0;
-            if (provider === 'toptime') price = Math.ceil(price * eurRate);
+        const groupsArray = Object.entries(groupedItems);
+        console.log(`TopTime: ${groupsArray.length} groups prepared.`);
 
-            let image = "";
-            if (item.picture) image = Array.isArray(item.picture) ? safeStr(item.picture[0]) : safeStr(item.picture);
-            else if (item.photo) image = safeStr(item.photo);
+        for (let i = 0; i < groupsArray.length; i += BATCH_SIZE) {
+            if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
 
-            models[myId] = {
-                external_id: myId,
-                title: modelName,
-                description: safeStr(item.description || item.content || item.content_ua).substring(0, 5000),
-                category: detectCategory(title, safeStr(item.categoryId || item.group)),
-                price: price,
-                image_url: image,
-                sku: myId, // Наш внутрішній артикул
-                base_sku: myId,
-                brand: safeStr(item.brand || item.vendor),
-                variants: [],
-                updated_at: new Date().toISOString(),
-                in_stock: false,
-                amount: 0
-            };
+            const chunk = groupsArray.slice(i, i + BATCH_SIZE);
+
+            await Promise.all(chunk.map(async ([modelKey, variants]) => {
+                try {
+                    const firstVariant = (variants as any[])[0];
+                    const cleanTitle = `${firstVariant.brand} ${firstVariant.name.split(',')[0]}`.trim();
+
+                    // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ ---
+                    let finalCatId = manualCategoryMap[firstVariant.id_category];
+                    if (!finalCatId && allCategories) {
+                        finalCatId = detectCategory(cleanTitle + ' ' + (firstVariant.category_name || ''), allCategories);
+                    }
+                    // -----------------------------------
+
+                    const basePriceEur = safeFloat(firstVariant.price);
+                    const rate = Number(supplier.rate) || 1;
+                    const markup = Number(supplier.markup_percent) || 0;
+                    const finalPriceUAH = Math.ceil(basePriceEur * rate * (1 + markup / 100));
+
+                    const specs: Record<string, string> = {};
+                    if (firstVariant.density_ua) specs['Щільність'] = firstVariant.density_ua;
+                    if (firstVariant.sex_ua) specs['Стать'] = firstVariant.sex_ua;
+
+                    const { data: product } = await supabase.from('products').upsert({
+                        title: cleanTitle.substring(0, 255),
+                        slug: slugify(`${firstVariant.brand}-${modelKey}`),
+                        description: firstVariant.content_ua || firstVariant.content,
+                        base_price: finalPriceUAH,
+                        category_id: finalCatId,
+                        brand: firstVariant.brand,
+                        material: firstVariant.material_ua,
+                        specifications: specs,
+                        vendor_article: modelKey,
+                        image_url: firstVariant.photo,
+                        supplier_id: supplier.id,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'slug' }).select('id').single();
+
+                    if (product) {
+                        const variantsData = (variants as any[]).map(v => {
+                            const stock = parseInt(v.count3 || '0') + parseInt(v.count4 || '0');
+                            const avail = parseInt(v.count2 || '0') + parseInt(v.count4 || '0');
+                            return {
+                                product_id: product.id,
+                                supplier_sku: v.code,
+                                size: v.size || 'One Size',
+                                color: v.color || 'Standard',
+                                price: finalPriceUAH,
+                                stock: stock,
+                                available: avail,
+                                image_url: v.photo,
+                                sku: v.code
+                            };
+                        });
+                        await supabase.from('product_variants').upsert(variantsData, { onConflict: 'supplier_sku' });
+                    }
+                } catch (e: any) { console.error(e); }
+            }));
+            processedCount += chunk.length;
         }
-
-        // Обробка розмірів
-        let sizes: any[] = [];
-        let stock = 0;
-        let itemPrice = models[myId].price;
-
-        if (item.sizes?.size) {
-            const sArr = Array.isArray(item.sizes.size) ? item.sizes.size : [item.sizes.size];
-            sArr.forEach((s: any) => {
-                const qty = parseInt(safeStr(s['@_in_stock'] || s['@_amount']).replace(/\D/g, '')) || 0;
-                const modP = parseFloat(safeStr(s['@_modifier']));
-                sizes.push({
-                    label: safeStr(s['#text'] || "STD"),
-                    stock_available: qty,
-                    price: isNaN(modP) ? itemPrice : modP
-                });
-                stock += qty;
-            });
-        } else {
-            stock = parseInt(safeStr(item.amount || item.count || item.count2 || item.in_stock).replace(/\D/g, '')) || 0;
-            sizes.push({ label: "ONE SIZE", stock_available: stock, price: itemPrice });
-        }
-
-        // Додаємо варіант
-        const isDup = models[myId].variants.some((v: any) => v.sku_variant === sku);
-        if (!isDup) {
-            models[myId].variants.push({
-                sku_variant: sku, // Артикул постачальника
-                color: color || "Standard",
-                image: models[myId].image_url, // Поки беремо головну
-                sizes: sizes,
-                price: itemPrice
-            });
-            models[myId].amount += stock;
-            if (stock > 0) models[myId].in_stock = true;
-        }
+      }
+      
+      results.push({ 
+          supplier: supplier.name, 
+          processed: processedCount, 
+          status: timedOut ? 'partial_success_timeout' : 'full_success' 
+      });
+      console.log(`✅ ${timedOut ? 'PAUSED' : 'FINISHED'} ${supplier.name}. Processed: ${processedCount}`);
     }
 
-    const finalProducts = Object.values(models);
-    
-    // Пагінація для клієнта (щоб не вантажити базу за раз)
-    // Ми беремо шматочок з уже згрупованого масиву
-    const pagedData = finalProducts.slice(offset, offset + limit);
-    
-    if (pagedData.length > 0) {
-        const { error } = await supabaseAdmin.from('products').upsert(pagedData, { onConflict: 'external_id' });
-        if (error) throw error;
-    }
-
-    // Повертаємо done: true тільки коли offset перевищить кількість моделей
-    const isDone = (offset + limit) >= finalProducts.length;
-
-    return NextResponse.json({ 
-        success: true, 
-        done: isDone,
-        processed: pagedData.length,
-        total: finalProducts.length,
-        nextOffset: offset + limit
-    });
-
+    return NextResponse.json({ success: true, results });
   } catch (error: any) {
-    console.error("Critical Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+}
+
+// --- ХЕЛПЕР АВТО-КАТЕГОРІЗАЦІЇ (ЕНХАНСЕНО) ---
+function detectCategory(productName: string, categories: any[]): string | null {
+    if (!productName) return null;
+    
+    // ГЛИБОКА НОРМАЛІЗАЦІЯ: видаляємо всі символи, цифри та розділові знаки
+    const cleanedName = productName.toLowerCase().replace(/[^a-zа-яіїєґ\s]/g, '');
+
+    let bestMatchId = null;
+    let bestMatchLength = 0; // Пріоритет довшому ключовому слову (більша точність)
+
+    for (const cat of categories) {
+        if (cat.match_keywords && Array.isArray(cat.match_keywords)) {
+            for (const keyword of cat.match_keywords) {
+                const lowerKeyword = keyword.toLowerCase();
+                
+                // Перевіряємо, чи міститься ключове слово в очищеній назві
+                if (cleanedName.includes(lowerKeyword)) { 
+                    if (lowerKeyword.length > bestMatchLength) {
+                        bestMatchLength = lowerKeyword.length;
+                        bestMatchId = cat.id;
+                    }
+                }
+            }
+        }
+    }
+    return bestMatchId;
+}
+
+// Інші хелпери без змін...
+function slugify(text: string) {
+    if (!text) return 'unknown-' + Math.random().toString(36).substr(2, 9);
+    return text.toString().toLowerCase().replace(/[\s\/\\]+/g, '-').replace(/[^\w\-а-яіїєґ]+/g, '').replace(/\-\-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+}
+function safeFloat(val: any): number { const parsed = parseFloat(val); return isNaN(parsed) ? 0 : parsed; }
+function extractTotobiParams(params: any) {
+    let material = null, brandParam = null, specs: any = {};
+    if (!params) return { material, specs, brandParam };
+    const arr = Array.isArray(params) ? params : [params];
+    arr.forEach((p: any) => {
+        const name = p['@_name'], value = p['#text'];
+        if (!name || !value) return;
+        if (name === 'Матеріал' || name === 'Material') material = value;
+        else if (name === 'ТМ' || name === 'Бренд') brandParam = value;
+        else if (name !== 'Колір' && name !== 'Розмір') specs[name] = value;
+    });
+    return { material, specs, brandParam };
+}
+function extractColor(params: any): string {
+    if (!params) return 'N/A';
+    const arr = Array.isArray(params) ? params : [params];
+    const colorParam = arr.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Color');
+    return colorParam ? colorParam['#text'] : 'N/A';
 }

@@ -4,13 +4,25 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { 
   Search, Plus, Edit2, Trash2, Package, RefreshCw, 
-  ChevronLeft, ChevronRight, Filter, MoreHorizontal 
+  ChevronLeft, ChevronRight, Filter 
 } from "lucide-react";
 import Link from "next/link";
-import ProductImage from "../../components/ProductImage";
+import ProductImage from "@/components/ProductImage";
+
+interface Product {
+    id: string;
+    title: string;
+    vendor_article: string; 
+    base_price: number;
+    image_url: string;
+    supplier_id: string;
+    total_stock: number; 
+    supplier_name: string;
+    category_name: string;
+}
 
 export default function AdminProducts() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -20,20 +32,25 @@ export default function AdminProducts() {
 
   useEffect(() => {
     fetchProducts();
-  }, [page, search]); // Перезавантажуємо при зміні сторінки або пошуку
+  }, [page, search]); 
 
   async function fetchProducts() {
     setLoading(true);
     
     let query = supabase
       .from("products")
-      .select("*", { count: "exact" });
+      .select(`
+            *,
+            suppliers (name),
+            categories (name),
+            product_variants!left (stock)
+        `, { count: "exact" }); 
 
     if (search) {
-        // Шукаємо по назві АБО артикулу
-        query = query.or(`title.ilike.%${search}%,sku.ilike.%${search}%`);
+        const searchLower = search.toLowerCase();
+        query = query.or(`title.ilike.%${searchLower}%,vendor_article.ilike.%${searchLower}%`);
     }
-
+    
     const from = (page - 1) * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
@@ -44,27 +61,44 @@ export default function AdminProducts() {
     if (error) {
         console.error("Error fetching products:", error);
     } else {
-        setProducts(data || []);
+        const processedData = (data || []).map((p: any) => {
+            const totalStock = p.product_variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+
+            return {
+                ...p,
+                id: p.id,
+                title: p.title,
+                vendor_article: p.vendor_article,
+                base_price: p.base_price,
+                image_url: p.image_url,
+                supplier_id: p.supplier_id,
+                total_stock: totalStock,
+                supplier_name: p.suppliers?.name || 'N/A',
+                category_name: p.categories?.name || 'Без категорії',
+            } as Product;
+        });
+
+        setProducts(processedData);
         setTotal(count || 0);
     }
     setLoading(false);
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: string) {
       if (!confirm("Ви впевнені? Це видалить товар з магазину.")) return;
       
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) {
           alert("Помилка видалення: " + error.message);
       } else {
-          fetchProducts();
+          fetchProducts(); 
       }
   }
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
-    <div>
+    <div className="text-white">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
             <h1 className="text-3xl font-bold">Товари</h1>
@@ -78,7 +112,6 @@ export default function AdminProducts() {
         </Link>
       </div>
 
-      {/* ФІЛЬТРИ ТА ПОШУК */}
       <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 mb-6 flex gap-4">
          <div className="relative flex-1 max-w-md">
             <input 
@@ -95,7 +128,6 @@ export default function AdminProducts() {
          </button>
       </div>
 
-      {/* ТАБЛИЦЯ */}
       <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -103,17 +135,22 @@ export default function AdminProducts() {
                     <tr className="bg-[#222] text-gray-400 text-xs uppercase tracking-wider">
                         <th className="p-4 font-bold">Товар</th>
                         <th className="p-4 font-bold">Артикул</th>
+                        <th className="p-4 font-bold">Категорія</th>
                         <th className="p-4 font-bold text-center">Ціна</th>
                         <th className="p-4 font-bold text-center">Залишок</th>
-                        <th className="p-4 font-bold text-center">Джерело</th>
+                        <th className="p-4 font-bold text-center">Постачальник</th>
                         <th className="p-4 font-bold text-right">Дії</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-sm">
                     {loading ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-500">Завантаження...</td></tr>
+                        <tr>
+                            <td colSpan={7} className="p-8 text-center text-gray-500">Завантаження...</td>
+                        </tr>
                     ) : products.length === 0 ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-500">Товарів не знайдено</td></tr>
+                        <tr>
+                            <td colSpan={7} className="p-8 text-center text-gray-500">Товарів не знайдено</td>
+                        </tr>
                     ) : (
                         products.map((product) => (
                             <tr key={product.id} className="hover:bg-white/5 transition group">
@@ -121,40 +158,37 @@ export default function AdminProducts() {
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-black rounded-lg border border-white/10 overflow-hidden relative flex-shrink-0">
                                             {product.image_url ? (
-                                                <ProductImage src={product.image_url} alt={product.title} fill className="object-cover"/>
+                                                <ProductImage src={product.image_url} alt={product.title} className="object-cover w-full h-full"/> 
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-600"><Package size={20}/></div>
+                                                <div className="w-full h-full flex items-center justify-center text-gray-600">
+                                                    <Package size={20}/>
+                                                </div>
                                             )}
                                         </div>
                                         <div className="max-w-[250px]">
                                             <div className="font-bold text-white truncate" title={product.title}>{product.title}</div>
-                                            <div className="text-xs text-gray-500">{product.category || "Без категорії"}</div>
+                                            <div className="text-xs text-gray-500">{product.category_name}</div>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="p-4 font-mono text-gray-300">{product.sku}</td>
+                                <td className="p-4 font-mono text-gray-300">{product.vendor_article}</td>
+                                <td className="p-4 text-xs text-gray-500">{product.category_name}</td>
                                 <td className="p-4 text-center font-bold text-white">
-                                    {product.price} <span className="text-xs text-gray-500 font-normal">грн</span>
+                                    {product.base_price} <span className="text-xs text-gray-500 font-normal">грн</span>
                                 </td>
                                 <td className="p-4 text-center">
-                                    {product.amount > 0 ? (
+                                    {product.total_stock > 0 ? (
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/30 text-green-400 border border-green-900/50">
-                                            {product.amount} шт
+                                            {product.total_stock} шт
                                         </span>
                                     ) : (
                                         <span className="text-gray-500 text-xs">Немає</span>
                                     )}
                                 </td>
                                 <td className="p-4 text-center">
-                                    {product.external_id ? (
-                                        <div className="flex items-center justify-center gap-1 text-xs text-blue-400" title="Синхронізовано автоматично">
-                                            <RefreshCw size={12}/> Sync
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center gap-1 text-xs text-orange-400" title="Створено вручну">
-                                            <Edit2 size={12}/> Manual
-                                        </div>
-                                    )}
+                                    <div className="flex items-center justify-center gap-1 text-xs text-blue-400" title="Синхронізовано">
+                                        <RefreshCw size={12}/> {product.supplier_name}
+                                    </div>
                                 </td>
                                 <td className="p-4 text-right">
                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
@@ -173,7 +207,6 @@ export default function AdminProducts() {
             </table>
         </div>
         
-        {/* ПАГІНАЦІЯ */}
         <div className="bg-[#222] p-4 flex justify-between items-center border-t border-white/5">
             <button 
                 onClick={() => setPage(p => Math.max(1, p - 1))} 

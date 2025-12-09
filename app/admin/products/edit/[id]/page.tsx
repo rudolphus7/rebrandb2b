@@ -1,37 +1,48 @@
-"use client";
+import { createClient } from "@supabase/supabase-js";
+import AdminProductForm from "@/components/AdminProductForm";
+import { notFound } from "next/navigation";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import AdminProductForm from "../../../../components/AdminProductForm"; // Шлях може відрізнятись
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-export default function EditProductPage() {
-  const params = useParams();
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+// Вимикаємо кешування для адмінки
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-  useEffect(() => {
-    async function load() {
-        if (!params.id) return;
-        const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .eq('id', params.id)
-            .single();
-        
-        if (error) {
-            console.error(error);
-            alert("Не вдалося завантажити товар");
-        } else {
-            setProduct(data);
-        }
-        setLoading(false);
+export default async function EditProductPage({ 
+    params 
+}: { 
+    params: Promise<{ id: string }> 
+}) {
+    // КРИТИЧНО: розгортаємо Promise
+    const { id } = await params;
+    
+    if (!id) notFound();
+
+    // Запит для завантаження даних
+    const { data: product, error } = await supabase
+        .from('products')
+        .select(`*`)
+        .eq('id', id)
+        .single();
+
+    if (error || !product) {
+        notFound(); 
     }
-    load();
-  }, [params.id]);
 
-  if (loading) return <div className="p-10 text-center text-gray-500">Завантаження...</div>;
-  if (!product) return <div className="p-10 text-center text-red-500">Товар не знайдено</div>;
+    // Оскільки ціни в базі можуть бути null, приводимо їх до коректного вигляду для форми
+    const initialData = {
+        ...product,
+        base_price: product.base_price || 0,
+        old_price: product.old_price || null,
+        id: id, 
+    };
 
-  return <AdminProductForm initialData={product} isNew={false} />;
+    return (
+        <div className="p-8">
+            <AdminProductForm initialData={initialData} isNew={false} />
+        </div>
+    );
 }
