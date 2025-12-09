@@ -62,9 +62,9 @@ export default function AdminProducts() {
     fetchCategories();
   }, []);
 
+  // ВАЖЛИВО: Додано selectedSupplierId у залежності, щоб фільтр спрацьовував миттєво
   useEffect(() => {
     fetchProducts();
-    // Скидаємо виділення при зміні сторінки або фільтрів
     setSelectedIds(new Set()); 
   }, [page, search, selectedSupplierId]);
 
@@ -79,68 +79,67 @@ export default function AdminProducts() {
   }
 
   async function fetchProducts() {
-    setLoading(true);
-    
-    let query = supabase
-      .from("products")
-      .select(`
-            *,
-            suppliers (name),
-            categories (name),
-            product_variants!left (stock)
-        `, { count: "exact" }); 
+    setLoading(true);
+    
+    let query = supabase
+      .from("products")
+      .select(`
+            *,
+            suppliers (name),
+            categories (name),
+            product_variants!left (stock)
+        `, { count: "exact" }); 
 
-    // --- ВИПРАВЛЕННЯ ПОШУКУ ---
-    if (search) {
-        // 1. Видаляємо коми, дужки та проценти, замінюючи їх на пробіли
-        // "Реглани, фліси" -> "Реглани  фліси"
+    // 1. Пошук (з очисткою від спецсимволів)
+    if (search) {
         const cleanSearch = search.replace(/[,%()]/g, ' ').trim();
-        
         if (cleanSearch) {
-            const searchLower = cleanSearch.toLowerCase();
-            query = query.or(`title.ilike.%${searchLower}%,vendor_article.ilike.%${searchLower}%`);
+            const searchLower = cleanSearch.toLowerCase();
+            query = query.or(`title.ilike.%${searchLower}%,vendor_article.ilike.%${searchLower}%`);
         }
-    }
-    
-    // --- ПАГІНАЦІЯ ---
-    const from = (page - 1) * ITEMS_PER_PAGE;
-    const to = from + ITEMS_PER_PAGE - 1;
+    }
 
-    const { data, count, error } = await query
-      .range(from, to)
-      .order("id", { ascending: false });
+    // 2. Фільтр по постачальнику (ПОВЕРНУТО)
+    if (selectedSupplierId !== "all") {
+        query = query.eq('supplier_id', selectedSupplierId);
+    }
+    
+    // Пагінація
+    const from = (page - 1) * ITEMS_PER_PAGE;
+    const to = from + ITEMS_PER_PAGE - 1;
 
-    if (error) {
-        console.error("Error fetching products:", error);
-    } else {
-        // --- ОБРОБКА ДАНИХ ---
-        const processedData = (data || []).map((p: any) => {
-            const totalStock = p.product_variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+    const { data, count, error } = await query
+      .range(from, to)
+      .order("id", { ascending: false });
 
-            return {
-                ...p,
-                id: p.id,
-                title: p.title,
-                vendor_article: p.vendor_article,
-                base_price: p.base_price,
-                image_url: p.image_url,
-                supplier_id: p.supplier_id,
-                total_stock: totalStock,
-                supplier_name: p.suppliers?.name || 'N/A',
-                category_name: p.categories?.name || 'Без категорії',
-            } as Product;
-        });
-
-        setProducts(processedData);
-        setTotal(count || 0);
-    }
-    setLoading(false);
-  }
+    if (error) {
+        console.error("Error fetching products:", error);
+    } else {
+        const processedData = (data || []).map((p: any) => {
+            const totalStock = p.product_variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+            return {
+                ...p,
+                id: p.id,
+                title: p.title,
+                vendor_article: p.vendor_article,
+                base_price: p.base_price,
+                image_url: p.image_url,
+                supplier_id: p.supplier_id,
+                total_stock: totalStock,
+                supplier_name: p.suppliers?.name || 'N/A',
+                category_name: p.categories?.name || 'Без категорії',
+            } as Product;
+        });
+        setProducts(processedData);
+        setTotal(count || 0);
+    }
+    setLoading(false);
+  }
 
   // --- ЛОГІКА ВИДІЛЕННЯ ---
   const handleSelectAll = () => {
     if (selectedIds.size === products.length) {
-      setSelectedIds(new Set()); // Зняти все
+      setSelectedIds(new Set()); 
     } else {
       const allIds = new Set(products.map(p => p.id));
       setSelectedIds(allIds);
@@ -176,7 +175,7 @@ export default function AdminProducts() {
         .from('products')
         .update({ 
             category_id: targetCategoryId,
-            is_manual_category: true // Важливо! Щоб синхронізація не перенесла назад
+            is_manual_category: true 
         })
         .in('id', Array.from(selectedIds));
 
@@ -192,7 +191,6 @@ export default function AdminProducts() {
   // --- ДОПОМІЖНІ ---
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
-  // Підготовка дерева категорій для селекта
   const categoryOptions = useMemo(() => {
      const options: {id: string, name: string}[] = [];
      const map = new Map(categories.map(c => [c.id, c]));
@@ -225,10 +223,9 @@ export default function AdminProducts() {
         </Link>
       </div>
 
-      {/* ПАНЕЛЬ ФІЛЬТРІВ (Верхня) */}
+      {/* ПАНЕЛЬ ФІЛЬТРІВ */}
       <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 mb-6 flex flex-col md:flex-row gap-4 justify-between">
          
-         {/* Пошук */}
          <div className="relative flex-1 max-w-md">
             <input 
                 type="text" 
@@ -240,12 +237,12 @@ export default function AdminProducts() {
             <Search size={18} className="absolute left-3 top-3 text-gray-500"/>
          </div>
 
-         {/* Фільтр Постачальника */}
+         {/* ФІЛЬТР ПОСТАЧАЛЬНИКА */}
          <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400 font-bold uppercase tracking-wider hidden md:block">Постачальник:</span>
             <select 
                 value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
+                onChange={(e) => { setSelectedSupplierId(e.target.value); setPage(1); }}
                 className="bg-black border border-white/10 rounded-lg py-2.5 px-4 text-white focus:border-blue-500 outline-none cursor-pointer"
             >
                 <option value="all">Всі постачальники</option>
@@ -256,7 +253,7 @@ export default function AdminProducts() {
          </div>
       </div>
 
-      {/* ПАНЕЛЬ МАСОВИХ ДІЙ (З'являється, коли вибрано товари) */}
+      {/* ПАНЕЛЬ МАСОВИХ ДІЙ */}
       {selectedIds.size > 0 && (
           <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl mb-4 flex items-center justify-between animate-in slide-in-from-top-2">
               <div className="flex items-center gap-3 px-2">
@@ -285,7 +282,7 @@ export default function AdminProducts() {
           </div>
       )}
 
-      {/* ТАБЛИЦЯ */}
+      {/* ТАБЛИЦЯ (Без пробілів для фіксу гідратації) */}
       <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -329,7 +326,6 @@ export default function AdminProducts() {
                                             </div>
                                             <div className="max-w-[200px] lg:max-w-[300px]">
                                                 <div className="font-bold text-white truncate" title={product.title}>{product.title}</div>
-                                                {/* <div className="text-xs text-gray-500">{product.id.slice(0,8)}</div> */}
                                             </div>
                                         </div>
                                     </td>
@@ -389,7 +385,7 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      {/* МОДАЛЬНЕ ВІКНО МАСОВОГО РЕДАГУВАННЯ КАТЕГОРІЇ */}
+      {/* МОДАЛЬНЕ ВІКНО МАСОВОГО РЕДАГУВАННЯ */}
       {isCategoryModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
               <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
