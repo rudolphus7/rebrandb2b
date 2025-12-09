@@ -29,9 +29,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const specificSupplier = searchParams.get('supplier');
 
-    console.log('--- START FINAL SYNC (TYPES FIXED) ---');
+    console.log('--- START SYNC (CORRECT STOCKS) ---');
 
-    // 1. Завантажуємо категорії для авто-сортування
     const { data: allCategories } = await supabase
         .from('categories')
         .select('id, match_keywords');
@@ -85,7 +84,7 @@ export async function GET(req: NextRequest) {
         });
 
         const groups = Object.values(groupedOffers);
-        console.log(`Totobi: ${groups.length} groups prepared.`);
+        console.log(`Totobi: ${groups.length} groups.`);
 
         for (let i = 0; i < groups.length; i += BATCH_SIZE) {
           if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
@@ -96,14 +95,10 @@ export async function GET(req: NextRequest) {
             try {
                 const mainOffer = group[0]; 
                 
-                // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ (ВИПРАВЛЕНО ТИПІЗАЦІЮ) ---
-                // Явно вказуємо тип: string | null
-                let finalCatId: string | null = manualCategoryMap[mainOffer.categoryId] || null;
-                
+                let finalCatId = manualCategoryMap[mainOffer.categoryId];
                 if (!finalCatId && allCategories) {
                     finalCatId = detectCategory(mainOffer.name, allCategories);
                 }
-                // -----------------------------------
 
                 const { material, specs, brandParam } = extractTotobiParams(mainOffer.param);
                 const mainImage = Array.isArray(mainOffer.picture) ? mainOffer.picture[0] : mainOffer.picture;
@@ -189,7 +184,7 @@ export async function GET(req: NextRequest) {
       }
 
       // ==========================================
-      // TOPTIME
+      // TOPTIME (ЗАЛИШКИ ВИПРАВЛЕНО)
       // ==========================================
       else if (supplier.name === 'TopTime') {
         const items = xmlData.items?.item || xmlData.catalog?.items?.item || []; 
@@ -204,7 +199,7 @@ export async function GET(req: NextRequest) {
         });
 
         const groupsArray = Object.entries(groupedItems);
-        console.log(`TopTime: ${groupsArray.length} groups prepared.`);
+        console.log(`TopTime: ${groupsArray.length} groups.`);
 
         for (let i = 0; i < groupsArray.length; i += BATCH_SIZE) {
             if (Date.now() - startTime > TIME_LIMIT) { timedOut = true; break; }
@@ -216,14 +211,10 @@ export async function GET(req: NextRequest) {
                     const firstVariant = (variants as any[])[0];
                     const cleanTitle = `${firstVariant.brand} ${firstVariant.name.split(',')[0]}`.trim();
 
-                    // --- ЛОГІКА ВИЗНАЧЕННЯ КАТЕГОРІЇ (ВИПРАВЛЕНО ТИПІЗАЦІЮ) ---
-                    // Явно вказуємо тип: string | null
                     let finalCatId: string | null = manualCategoryMap[firstVariant.id_category] || null;
-                    
                     if (!finalCatId && allCategories) {
                         finalCatId = detectCategory(cleanTitle + ' ' + (firstVariant.category_name || ''), allCategories);
                     }
-                    // -----------------------------------
 
                     const basePriceEur = safeFloat(firstVariant.price);
                     const rate = Number(supplier.rate) || 1;
@@ -251,16 +242,22 @@ export async function GET(req: NextRequest) {
 
                     if (product) {
                         const variantsData = (variants as any[]).map(v => {
-                            const stock = parseInt(v.count3 || '0') + parseInt(v.count4 || '0');
-                            const avail = parseInt(v.count2 || '0') + parseInt(v.count4 || '0');
+                            // !!! ВИПРАВЛЕНО ТУТ !!!
+                            // count2 - Доступно для покупки (Україна)
+                            // count3 - В наявності на складі (Україна)
+                            // count4 - Склад Європа (ІГНОРУЄМО, як ви просили)
+                            
+                            const stockUA = parseInt(v.count3 || '0');
+                            const availableUA = parseInt(v.count2 || '0');
+
                             return {
                                 product_id: product.id,
                                 supplier_sku: v.code,
                                 size: v.size || 'One Size',
                                 color: v.color || 'Standard',
                                 price: finalPriceUAH,
-                                stock: stock,
-                                available: avail,
+                                stock: stockUA,       // Фізичний склад в УКР
+                                available: availableUA, // Доступно до покупки в УКР (без Європи)
                                 image_url: v.photo,
                                 sku: v.code
                             };
@@ -288,14 +285,11 @@ export async function GET(req: NextRequest) {
 }
 
 // --- ХЕЛПЕРИ ---
-
 function detectCategory(productName: string, categories: any[]): string | null {
     if (!productName) return null;
-    
     const cleanedName = productName.toLowerCase().replace(/[^a-zа-яіїєґ\s]/g, '');
     let bestMatchId = null;
     let bestMatchLength = 0;
-
     for (const cat of categories) {
         if (cat.match_keywords && Array.isArray(cat.match_keywords)) {
             for (const keyword of cat.match_keywords) {
@@ -311,7 +305,6 @@ function detectCategory(productName: string, categories: any[]): string | null {
     }
     return bestMatchId;
 }
-
 function slugify(text: string) {
     if (!text) return 'unknown-' + Math.random().toString(36).substr(2, 9);
     return text.toString().toLowerCase().replace(/[\s\/\\]+/g, '-').replace(/[^\w\-а-яіїєґ]+/g, '').replace(/\-\-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
