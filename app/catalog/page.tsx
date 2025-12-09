@@ -185,7 +185,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="bg-[#111] min-h-screen font-sans text-white">
-      <Header />
+      
       <div className="container mx-auto px-4 py-8">
         
         {/* Хлібні крихти (спрощені) */}
