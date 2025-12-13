@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   try {
     const specificSupplier = searchParams.get('supplier');
 
-    console.log('--- START SYNC WITH PRIORITY FIX ---');
+    console.log('--- START SYNC (DEBUG MODE) ---');
 
     const { data: allCategories } = await supabase
         .from('categories')
@@ -87,15 +87,15 @@ export async function GET(req: NextRequest) {
         const offers = xmlData.yml_catalog?.shop?.offers?.offer || [];
         const offersArray = Array.isArray(offers) ? offers : [offers];
         
-        // --- ДЕБАГ: Ловимо "Сіру Косметичку", щоб побачити правду в логах ---
-        const grayBag = offersArray.find((o: any) => 
+        // 🕵️ ШПИГУН: Шукаємо ту саму "сіру косметичку", щоб побачити її нутрощі
+        // Це виведе в лог Vercel повну структуру товару.
+        const spyItem = offersArray.find((o: any) => 
             o.name && o.name.toLowerCase().includes('косметичка') && o.name.toLowerCase().includes('сіра')
         );
-        if (grayBag) {
-            console.log('🕵️ SPY TOTOBI (Gray Bag Raw Data):', JSON.stringify(grayBag, null, 2));
+        if (spyItem) {
+            console.log('🕵️ SPY FOUND (RAW XML DATA):', JSON.stringify(spyItem, null, 2));
         }
-        // -------------------------------------------------------------------
-        
+
         const groupedOffers: Record<string, any[]> = {};
         offersArray.forEach((offer: any) => {
             if (!offer.name) return;
@@ -158,14 +158,14 @@ export async function GET(req: NextRequest) {
                       const generalColor = detectGeneralColor(color);
                       const variantImage = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
                       
-                      // 1. ВАРІАНТ З РОЗМІРАМИ
                       if (offer.sizes && offer.sizes.size) {
                         const sizes = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
                         for (const sizeObj of sizes) {
                            let vPrice = safeFloat(sizeObj['@_modifier'] || offer.price);
                            if (vPrice === 0) vPrice = finalBasePrice;
                            
-                           const { stock, available } = getSmartStock(sizeObj);
+                           // Використовуємо нову функцію, яка шукає навіть в параметрах
+                           const { stock, available } = getSmartStock(sizeObj, offer.param);
                            
                            variantsData.push({
                              product_id: product.id,
@@ -180,13 +180,11 @@ export async function GET(req: NextRequest) {
                              sku: sizeObj['@_product_code']
                            });
                         }
-                      } 
-                      // 2. ПРОСТИЙ ТОВАР
-                      else {
+                      } else {
                          let vPrice = safeFloat(offer.price);
                          if (vPrice === 0) vPrice = finalBasePrice;
 
-                         const { stock, available } = getSmartStock(offer);
+                         const { stock, available } = getSmartStock(offer, offer.param);
 
                          variantsData.push({
                             product_id: product.id,
@@ -213,7 +211,7 @@ export async function GET(req: NextRequest) {
       }
 
       // ==========================================
-      // TOPTIME
+      // TOPTIME (Без змін)
       // ==========================================
       else if (supplier.name === 'TopTime') {
         const items = xmlData.items?.item || xmlData.catalog?.items?.item || []; 
@@ -271,7 +269,6 @@ export async function GET(req: NextRequest) {
                         const variantsData = (variants as any[]).map(v => {
                             const stockUA = parseInt(v.count3 || '0');
                             const availableUA = parseInt(v.count2 || '0');
-                            
                             const color = v.color || 'Standard';
                             const generalColor = detectGeneralColor(color);
 
@@ -307,7 +304,6 @@ export async function GET(req: NextRequest) {
 }
 
 // --- ХЕЛПЕРИ ---
-
 function detectGeneralColor(specificColor: string): string {
     if (!specificColor || specificColor === 'N/A') return 'Other';
     const lower = specificColor.toLowerCase();
@@ -377,8 +373,9 @@ function extractColor(params: any): string {
     return colorParam ? colorParam['#text'] : 'N/A';
 }
 
-// --- ОНОВЛЕНИЙ ХЕЛПЕР ДЛЯ TOTOBI ЗАЛИШКІВ ---
-function getSmartStock(obj: any): { stock: number, available: number } {
+// --- СУПЕР РОЗУМНИЙ ХЕЛПЕР ДЛЯ TOTOBI ---
+// Тепер він приймає ще й `params`, щоб шукати там
+function getSmartStock(obj: any, params?: any): { stock: number, available: number } {
     let stock = 0;
     let available = 0;
     let reserve = 0;
@@ -402,17 +399,33 @@ function getSmartStock(obj: any): { stock: number, available: number } {
         available = Math.max(0, stock - reserve);
     }
 
+    // --- ДОДАТКОВА ПЕРЕВІРКА В ПАРАМЕТРАХ ---
+    // Якщо у нас вийшов 0 або 300 (підозріла цифра), 
+    // спробуємо знайти параметр "Залишок" або "Кількість"
+    if (params) {
+        const paramsArr = Array.isArray(params) ? params : [params];
+        const stockParam = paramsArr.find((p: any) => 
+            p['@_name'] === 'Залишок' || p['@_name'] === 'Кількість' || p['@_name'] === 'Наявність'
+        );
+        if (stockParam && stockParam['#text']) {
+            const paramStock = parseInt(stockParam['#text']);
+            // Якщо в параметрах цифра більша, ніж ми знайшли раніше - віримо їй!
+            if (paramStock > available) {
+                stock = paramStock;
+                available = paramStock;
+            }
+        }
+    }
+
     // 4. ЯКЩО МАТЕМАТИКА СПРАЦЮВАЛА (і вийшло > 0), ВІРИМО ЇЙ ПЕРШ ЗА ВСЕ!
     if (available > 0) {
         return { stock, available };
     }
 
-    // 5. Тільки якщо математика дала 0 (або нема полів amount/reserve),
-    // тоді дивимось на поле "quantity_in_stock" (яке може бути обрізаним)
+    // 5. Тільки якщо все інше дало 0, дивимось на "quantity_in_stock"
     if (obj.quantity_in_stock !== undefined) {
         const q = parseInt(obj.quantity_in_stock);
         if (q > 0) {
-             // Якщо amount було 0, а тут є цифра, то беремо її
              return { stock: q, available: q };
         }
     }
