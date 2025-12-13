@@ -24,26 +24,25 @@ const TIME_LIMIT = 50000;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
-const authHeader = req.headers.get('authorization');
+  const authHeader = req.headers.get('authorization');
   const { searchParams } = new URL(req.url);
-  const manualKey = searchParams.get('key'); // Для ручного запуску через браузер
+  const manualKey = searchParams.get('key'); 
 
-  // Перевірка: Це Cron Job? АБО Це ручний запуск з правильним ключем?
+  // Перевірка авторизації
   const isAuthorized = 
       authHeader === `Bearer ${process.env.CRON_SECRET}` || 
       manualKey === process.env.CRON_SECRET;
 
-  // Якщо ми в режимі розробки (localhost), дозволяємо без ключа
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!isAuthorized && !isDev) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
+
   try {
-    
     const specificSupplier = searchParams.get('supplier');
 
-    console.log('--- START SYNC WITH COLOR NORMALIZATION ---');
+    console.log('--- START SYNC WITH PRIORITY FIX ---');
 
     const { data: allCategories } = await supabase
         .from('categories')
@@ -84,18 +83,18 @@ const authHeader = req.headers.get('authorization');
       // ==========================================
       // TOTOBI
       // ==========================================
-      // ==========================================
-      // TOTOBI (ОНОВЛЕНО ЛОГІКУ ЗАЛИШКІВ)
-      // ==========================================
       if (supplier.name === 'Totobi') {
         const offers = xmlData.yml_catalog?.shop?.offers?.offer || [];
         const offersArray = Array.isArray(offers) ? offers : [offers];
         
-        // --- ДЕБАГ: Виводимо структуру першого товару, щоб бачити, де ховаються залишки ---
-        if (offersArray.length > 0) {
-            console.log('🔍 TOTOBI DEBUG (First Item):', JSON.stringify(offersArray[0], null, 2));
+        // --- ДЕБАГ: Ловимо "Сіру Косметичку", щоб побачити правду в логах ---
+        const grayBag = offersArray.find((o: any) => 
+            o.name && o.name.toLowerCase().includes('косметичка') && o.name.toLowerCase().includes('сіра')
+        );
+        if (grayBag) {
+            console.log('🕵️ SPY TOTOBI (Gray Bag Raw Data):', JSON.stringify(grayBag, null, 2));
         }
-        // ----------------------------------------------------------------------------------
+        // -------------------------------------------------------------------
         
         const groupedOffers: Record<string, any[]> = {};
         offersArray.forEach((offer: any) => {
@@ -123,7 +122,6 @@ const authHeader = req.headers.get('authorization');
                 const { material, specs, brandParam } = extractTotobiParams(mainOffer.param);
                 const mainImage = Array.isArray(mainOffer.picture) ? mainOffer.picture[0] : mainOffer.picture;
 
-                // Ціна
                 let rawPrice = safeFloat(mainOffer.price);
                 if (rawPrice === 0 && mainOffer.sizes && mainOffer.sizes.size) {
                     const sizes = Array.isArray(mainOffer.sizes.size) ? mainOffer.sizes.size : [mainOffer.sizes.size];
@@ -160,14 +158,13 @@ const authHeader = req.headers.get('authorization');
                       const generalColor = detectGeneralColor(color);
                       const variantImage = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
                       
-                      // 1. ВАРІАНТ З РОЗМІРАМИ (offer.sizes.size)
+                      // 1. ВАРІАНТ З РОЗМІРАМИ
                       if (offer.sizes && offer.sizes.size) {
                         const sizes = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
                         for (const sizeObj of sizes) {
                            let vPrice = safeFloat(sizeObj['@_modifier'] || offer.price);
                            if (vPrice === 0) vPrice = finalBasePrice;
                            
-                           // --- РОЗУМНЕ ВИЗНАЧЕННЯ ЗАЛИШКУ ---
                            const { stock, available } = getSmartStock(sizeObj);
                            
                            variantsData.push({
@@ -184,13 +181,11 @@ const authHeader = req.headers.get('authorization');
                            });
                         }
                       } 
-                      // 2. ПРОСТИЙ ТОВАР (БЕЗ РОЗМІРІВ В XML)
+                      // 2. ПРОСТИЙ ТОВАР
                       else {
                          let vPrice = safeFloat(offer.price);
                          if (vPrice === 0) vPrice = finalBasePrice;
 
-                         // --- РОЗУМНЕ ВИЗНАЧЕННЯ ЗАЛИШКУ ---
-                         // Передаємо весь об'єкт offer, бо там можуть бути поля amount/stock
                          const { stock, available } = getSmartStock(offer);
 
                          variantsData.push({
@@ -277,7 +272,6 @@ const authHeader = req.headers.get('authorization');
                             const stockUA = parseInt(v.count3 || '0');
                             const availableUA = parseInt(v.count2 || '0');
                             
-                            // ВИЗНАЧАЄМО ЗАГАЛЬНИЙ КОЛІР (TopTime має поле 'color')
                             const color = v.color || 'Standard';
                             const generalColor = detectGeneralColor(color);
 
@@ -286,7 +280,7 @@ const authHeader = req.headers.get('authorization');
                                 supplier_sku: v.code,
                                 size: v.size || 'One Size',
                                 color: color,
-                                general_color: generalColor, // <-- НОВЕ ПОЛЕ
+                                general_color: generalColor,
                                 price: finalPriceUAH,
                                 stock: stockUA,
                                 available: availableUA,
@@ -312,12 +306,11 @@ const authHeader = req.headers.get('authorization');
   }
 }
 
-// --- НОВА ФУНКЦІЯ: ВИЗНАЧЕННЯ ЗАГАЛЬНОГО КОЛЬОРУ ---
+// --- ХЕЛПЕРИ ---
+
 function detectGeneralColor(specificColor: string): string {
     if (!specificColor || specificColor === 'N/A') return 'Other';
-    
     const lower = specificColor.toLowerCase();
-    
     const MAP: Record<string, string[]> = {
         'Black': ['black', 'чорн', 'anthra', 'dark grey', 'charcoal', 'graphite', 'ebony'],
         'White': ['white', 'біл', 'milk', 'snow', 'ivory', 'cream', 'antique white'],
@@ -332,15 +325,12 @@ function detectGeneralColor(specificColor: string): string {
         'Brown': ['brown', 'коричн', 'beige', 'sand', 'chocolate', 'coffee', 'camel', 'mocha', 'tan', 'taupe', 'khaki', 'wood', 'nut'],
         'Metal': ['metal', 'silver', 'gold', 'chrome', 'copper', 'bronze', 'inox', 'alu']
     };
-
     for (const [general, keywords] of Object.entries(MAP)) {
         if (keywords.some(k => lower.includes(k))) return general;
     }
-
-    return 'Other'; // Якщо не знайшли
+    return 'Other';
 }
 
-// --- ІНШІ ХЕЛПЕРИ ---
 function detectCategory(productName: string, categories: any[]): string | null {
     if (!productName) return null;
     const cleanedName = productName.toLowerCase().replace(/[^a-zа-яіїєґ\s]/g, '');
@@ -387,41 +377,48 @@ function extractColor(params: any): string {
     return colorParam ? colorParam['#text'] : 'N/A';
 }
 
-// --- ХЕЛПЕР ДЛЯ TOTOBI ЗАЛИШКІВ ---
+// --- ОНОВЛЕНИЙ ХЕЛПЕР ДЛЯ TOTOBI ЗАЛИШКІВ ---
 function getSmartStock(obj: any): { stock: number, available: number } {
     let stock = 0;
     let available = 0;
     let reserve = 0;
 
-    // Спроба 1: Шукаємо явне поле "quantity_in_stock" (найточніше)
-    // Воно може бути як тег <quantity_in_stock> або атрибут
-    if (obj.quantity_in_stock !== undefined) {
-        available = parseInt(obj.quantity_in_stock);
-        stock = available; // Якщо є це поле, вважаємо його і фізичним, і доступним
-        return { stock, available };
-    }
-
-    // Спроба 2: Шукаємо "amount" (атрибут @_amount або тег amount)
+    // 1. Отримуємо "amount" (Фізичний залишок)
     if (obj['@_amount'] !== undefined) {
         stock = parseInt(obj['@_amount']);
     } else if (obj.amount !== undefined) {
         stock = parseInt(obj.amount);
     }
 
-    // Спроба 3: Шукаємо резерв
+    // 2. Отримуємо "reserve" (Резерв)
     if (obj['@_reserve'] !== undefined) {
         reserve = parseInt(obj['@_reserve']);
     } else if (obj.reserve !== undefined) {
         reserve = parseInt(obj.reserve);
     }
 
-    // Якщо ми знайшли amount, то available = amount - reserve
+    // 3. Рахуємо Доступне = Фізичний - Резерв
     if (stock > 0) {
         available = Math.max(0, stock - reserve);
-    } 
-    
-    // Спроба 4: Якщо stock досі 0, перевіряємо чи є тег <stock_quantity>
-    if (stock === 0 && obj.stock_quantity !== undefined) {
+    }
+
+    // 4. ЯКЩО МАТЕМАТИКА СПРАЦЮВАЛА (і вийшло > 0), ВІРИМО ЇЙ ПЕРШ ЗА ВСЕ!
+    if (available > 0) {
+        return { stock, available };
+    }
+
+    // 5. Тільки якщо математика дала 0 (або нема полів amount/reserve),
+    // тоді дивимось на поле "quantity_in_stock" (яке може бути обрізаним)
+    if (obj.quantity_in_stock !== undefined) {
+        const q = parseInt(obj.quantity_in_stock);
+        if (q > 0) {
+             // Якщо amount було 0, а тут є цифра, то беремо її
+             return { stock: q, available: q };
+        }
+    }
+
+    // Якщо все по нулях, пробуємо stock_quantity
+    if (stock === 0 && available === 0 && obj.stock_quantity !== undefined) {
         stock = parseInt(obj.stock_quantity);
         available = stock;
     }
