@@ -84,9 +84,18 @@ const authHeader = req.headers.get('authorization');
       // ==========================================
       // TOTOBI
       // ==========================================
+      // ==========================================
+      // TOTOBI (ОНОВЛЕНО ЛОГІКУ ЗАЛИШКІВ)
+      // ==========================================
       if (supplier.name === 'Totobi') {
         const offers = xmlData.yml_catalog?.shop?.offers?.offer || [];
         const offersArray = Array.isArray(offers) ? offers : [offers];
+        
+        // --- ДЕБАГ: Виводимо структуру першого товару, щоб бачити, де ховаються залишки ---
+        if (offersArray.length > 0) {
+            console.log('🔍 TOTOBI DEBUG (First Item):', JSON.stringify(offersArray[0], null, 2));
+        }
+        // ----------------------------------------------------------------------------------
         
         const groupedOffers: Record<string, any[]> = {};
         offersArray.forEach((offer: any) => {
@@ -105,15 +114,16 @@ const authHeader = req.headers.get('authorization');
           await Promise.all(chunk.map(async (group) => {
             try {
                 const mainOffer = group[0]; 
+                
                 let finalCatId: string | null = manualCategoryMap[mainOffer.categoryId] || null;
+                if (!finalCatId && allCategories) {
+                    finalCatId = detectCategory(mainOffer.name, allCategories);
+                }
 
-// 2. Якщо немає ручного правила, пробуємо авто-детект
-if (!finalCatId && allCategories) {
-    finalCatId = detectCategory(mainOffer.name, allCategories);
-}
                 const { material, specs, brandParam } = extractTotobiParams(mainOffer.param);
                 const mainImage = Array.isArray(mainOffer.picture) ? mainOffer.picture[0] : mainOffer.picture;
 
+                // Ціна
                 let rawPrice = safeFloat(mainOffer.price);
                 if (rawPrice === 0 && mainOffer.sizes && mainOffer.sizes.size) {
                     const sizes = Array.isArray(mainOffer.sizes.size) ? mainOffer.sizes.size : [mainOffer.sizes.size];
@@ -147,43 +157,51 @@ if (!finalCatId && allCategories) {
                   const variantsData: any[] = [];
                   for (const offer of group) {
                       const color = extractColor(offer.param);
-                      // ВИЗНАЧАЄМО ЗАГАЛЬНИЙ КОЛІР
                       const generalColor = detectGeneralColor(color);
-                      
                       const variantImage = Array.isArray(offer.picture) ? offer.picture[0] : offer.picture;
                       
+                      // 1. ВАРІАНТ З РОЗМІРАМИ (offer.sizes.size)
                       if (offer.sizes && offer.sizes.size) {
                         const sizes = Array.isArray(offer.sizes.size) ? offer.sizes.size : [offer.sizes.size];
                         for (const sizeObj of sizes) {
                            let vPrice = safeFloat(sizeObj['@_modifier'] || offer.price);
                            if (vPrice === 0) vPrice = finalBasePrice;
                            
+                           // --- РОЗУМНЕ ВИЗНАЧЕННЯ ЗАЛИШКУ ---
+                           const { stock, available } = getSmartStock(sizeObj);
+                           
                            variantsData.push({
                              product_id: product.id,
                              supplier_sku: sizeObj['@_product_code'],
                              size: sizeObj['#text'],
                              color: color,
-                             general_color: generalColor, // <-- НОВЕ ПОЛЕ
+                             general_color: generalColor,
                              price: Math.ceil(vPrice),
-                             stock: parseInt(sizeObj['@_amount'] || '0'),
-                             available: Math.max(0, parseInt(sizeObj['@_amount'] || '0') - parseInt(sizeObj['@_reserve'] || '0')),
+                             stock: stock,
+                             available: available,
                              image_url: variantImage,
                              sku: sizeObj['@_product_code']
                            });
                         }
-                      } else {
+                      } 
+                      // 2. ПРОСТИЙ ТОВАР (БЕЗ РОЗМІРІВ В XML)
+                      else {
                          let vPrice = safeFloat(offer.price);
                          if (vPrice === 0) vPrice = finalBasePrice;
+
+                         // --- РОЗУМНЕ ВИЗНАЧЕННЯ ЗАЛИШКУ ---
+                         // Передаємо весь об'єкт offer, бо там можуть бути поля amount/stock
+                         const { stock, available } = getSmartStock(offer);
 
                          variantsData.push({
                             product_id: product.id,
                             supplier_sku: offer.vendorCode,
                             size: 'One Size',
                             color: color,
-                            general_color: generalColor, // <-- НОВЕ ПОЛЕ
+                            general_color: generalColor,
                             price: Math.ceil(vPrice),
-                            stock: parseInt(offer.amount || '0'),
-                            available: Math.max(0, parseInt(offer.amount || '0') - parseInt(offer.reserve || '0')),
+                            stock: stock,
+                            available: available,
                             image_url: variantImage,
                             sku: offer.vendorCode
                          });
@@ -367,4 +385,46 @@ function extractColor(params: any): string {
     const arr = Array.isArray(params) ? params : [params];
     const colorParam = arr.find((p: any) => p['@_name'] === 'Колір' || p['@_name'] === 'Color');
     return colorParam ? colorParam['#text'] : 'N/A';
+}
+
+// --- ХЕЛПЕР ДЛЯ TOTOBI ЗАЛИШКІВ ---
+function getSmartStock(obj: any): { stock: number, available: number } {
+    let stock = 0;
+    let available = 0;
+    let reserve = 0;
+
+    // Спроба 1: Шукаємо явне поле "quantity_in_stock" (найточніше)
+    // Воно може бути як тег <quantity_in_stock> або атрибут
+    if (obj.quantity_in_stock !== undefined) {
+        available = parseInt(obj.quantity_in_stock);
+        stock = available; // Якщо є це поле, вважаємо його і фізичним, і доступним
+        return { stock, available };
+    }
+
+    // Спроба 2: Шукаємо "amount" (атрибут @_amount або тег amount)
+    if (obj['@_amount'] !== undefined) {
+        stock = parseInt(obj['@_amount']);
+    } else if (obj.amount !== undefined) {
+        stock = parseInt(obj.amount);
+    }
+
+    // Спроба 3: Шукаємо резерв
+    if (obj['@_reserve'] !== undefined) {
+        reserve = parseInt(obj['@_reserve']);
+    } else if (obj.reserve !== undefined) {
+        reserve = parseInt(obj.reserve);
+    }
+
+    // Якщо ми знайшли amount, то available = amount - reserve
+    if (stock > 0) {
+        available = Math.max(0, stock - reserve);
+    } 
+    
+    // Спроба 4: Якщо stock досі 0, перевіряємо чи є тег <stock_quantity>
+    if (stock === 0 && obj.stock_quantity !== undefined) {
+        stock = parseInt(obj.stock_quantity);
+        available = stock;
+    }
+
+    return { stock, available };
 }
