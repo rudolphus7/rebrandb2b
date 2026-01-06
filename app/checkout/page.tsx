@@ -19,7 +19,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { useCart } from "@/components/CartContext"; 
+import { useCart } from "@/components/CartContext";
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
 
 const CITIES = ["Київ", "Львів", "Одеса", "Дніпро", "Харків", "Івано-Франківськ", "Калуш"];
@@ -33,14 +33,14 @@ const WAREHOUSES = (city: string) => [
 
 export default function CheckoutPage() {
   const router = useRouter();
-  
+
   // --- ВИПРАВЛЕННЯ ТУТ ---
   // Ми беремо 'items' з контексту, але перейменовуємо його в 'cart', 
   // щоб не переписувати весь файл знизу.
-  const { items: cart, totalPrice, clearCart } = useCart(); 
-  
+  const { items: cart, totalPrice, clearCart } = useCart();
+
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
-  
+
   const [loading, setLoading] = useState(true);
 
   const [userBalance, setUserBalance] = useState(0);
@@ -93,7 +93,7 @@ export default function CheckoutPage() {
           .from("loyalty_logs")
           .select("*")
           .eq("user_id", session.user.id);
-        
+
         const balance = logs
           ? logs.reduce((acc, log) => acc + (log.type === "earn" ? log.amount : -log.amount), 0)
           : 0;
@@ -103,7 +103,7 @@ export default function CheckoutPage() {
           .from("orders")
           .select("total_price")
           .eq("user_email", session.user.email);
-        
+
         const spent = orders ? orders.reduce((acc, o) => acc + o.total_price, 0) : 0;
         setTotalSpent(spent);
       }
@@ -259,15 +259,15 @@ export default function CheckoutPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-[#111] flex items-center justify-center text-white">
+      <div className="min-h-screen bg-background flex items-center justify-center text-foreground">
         Завантаження даних...
       </div>
     );
 
   if (cart.length === 0)
     return (
-      <div className="min-h-screen bg-[#111] flex flex-col items-center justify-center text-white p-6">
-        <ShoppingBag size={64} className="text-gray-600 mb-4" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground p-6">
+        <ShoppingBag size={64} className="text-gray-400 mb-4" />
         <h1 className="text-3xl font-bold mb-2">Ваш кошик порожній</h1>
         <Link
           href="/"
@@ -279,15 +279,15 @@ export default function CheckoutPage() {
     );
 
   return (
-    <div className="min-h-screen bg-[#111] text-white font-sans pb-20">
-      <div className="bg-[#1a1a1a] border-b border-white/10 py-4 sticky top-0 z-50">
+    <div className="min-h-screen bg-background text-foreground font-sans pb-20 transition-colors duration-300">
+      <div className="bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-white/10 py-4 sticky top-0 z-50 transition-colors">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <Link href="/" className="text-xl font-black italic tracking-tighter">
             REBRAND
           </Link>
           <button
             onClick={() => router.push("/")}
-            className="text-gray-400 hover:text-white flex items-center gap-2 text-sm font-bold"
+            className="text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white flex items-center gap-2 text-sm font-bold transition-colors"
           >
             <ArrowLeft size={16} /> На головну
           </button>
@@ -296,7 +296,7 @@ export default function CheckoutPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex items-center justify-between mb-10">
-          <h1 className="text-4xl font-black tracking-tight flex items-center gap-4 text-white">
+          <h1 className="text-4xl font-black tracking-tight flex items-center gap-4 text-gray-900 dark:text-white">
             <Truck size={36} className="text-blue-500" /> Оформлення замовлення
           </h1>
         </div>
@@ -304,9 +304,9 @@ export default function CheckoutPage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* ЛІВА КОЛОНКА */}
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
-              <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3">
-                <User size={24} className="text-blue-400" /> Контактна інформація
+            <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 transition-colors">
+              <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
+                <User size={24} className="text-blue-500" /> Контактна інформація
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <InputField
@@ -343,9 +343,9 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
-              <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3">
-                <MapPin size={24} className="text-blue-400" /> Доставка
+            <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 transition-colors">
+              <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
+                <MapPin size={24} className="text-blue-500" /> Доставка
               </h2>
               <div className="space-y-2 relative">
                 <label className="text-xs font-bold text-gray-400 uppercase">Місто</label>
@@ -360,17 +360,17 @@ export default function CheckoutPage() {
                   }}
                   onFocus={() => setIsCityDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setIsCityDropdownOpen(false), 200)}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg py-3 px-4 text-white focus:border-blue-500 outline-none"
+                  className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-blue-500 outline-none transition-colors"
                   required
                 />
                 {isCityDropdownOpen && citySearch.length > 0 && (
-                  <div className="absolute top-full left-0 w-full bg-zinc-900 border border-white/10 rounded-lg max-h-48 overflow-y-auto z-10 shadow-lg">
+                  <div className="absolute top-full left-0 w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg max-h-48 overflow-y-auto z-10 shadow-lg text-gray-900 dark:text-white">
                     {filteredCities.length > 0 ? (
                       filteredCities.map((city) => (
                         <div
                           key={city}
                           onMouseDown={() => handleCitySelect(city)}
-                          className="p-3 text-sm hover:bg-blue-600/50 cursor-pointer transition"
+                          className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-600/50 cursor-pointer transition"
                         >
                           {city}
                         </div>
@@ -387,11 +387,10 @@ export default function CheckoutPage() {
                   name="deliveryWarehouse"
                   value={formData.deliveryWarehouse}
                   onChange={handleInputChange}
-                  className={`w-full border rounded-lg py-3 px-4 focus:border-blue-500 outline-none ${
-                    formData.deliveryCity
-                      ? "bg-black/50 text-white border-white/10"
-                      : "bg-gray-800 text-gray-500 border-gray-700"
-                  }`}
+                  className={`w-full border rounded-lg py-3 px-4 focus:border-blue-500 outline-none transition-colors ${formData.deliveryCity
+                      ? "bg-gray-50 dark:bg-black/50 text-gray-900 dark:text-white border-gray-200 dark:border-white/10"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700"
+                    }`}
                   disabled={!formData.deliveryCity}
                   required
                 >
@@ -408,9 +407,9 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
-              <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3">
-                <CreditCard size={24} className="text-blue-400" /> Спосіб оплати
+            <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 transition-colors">
+              <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
+                <CreditCard size={24} className="text-blue-500" /> Спосіб оплати
               </h2>
               <PaymentOption
                 id="invoice"
@@ -432,9 +431,9 @@ export default function CheckoutPage() {
               />
             </div>
 
-            <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5">
-              <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3">
-                <Info size={24} className="text-blue-400" /> Коментар
+            <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 transition-colors">
+              <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
+                <Info size={24} className="text-blue-500" /> Коментар
               </h2>
               <textarea
                 name="comment"
@@ -442,27 +441,27 @@ export default function CheckoutPage() {
                 value={formData.comment}
                 onChange={handleInputChange}
                 rows={4}
-                className="w-full bg-black/50 border border-white/10 rounded-lg p-4 text-white focus:border-blue-500 outline-none"
+                className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-lg p-4 text-gray-900 dark:text-white focus:border-blue-500 outline-none transition-colors placeholder:text-gray-400"
               />
             </div>
           </div>
 
           {/* ПРАВА КОЛОНКА */}
           <div className="lg:col-span-1 space-y-8">
-            <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 shadow-xl space-y-5 sticky top-24">
-              <h2 className="text-2xl font-bold border-b border-white/10 pb-3 flex items-center gap-3">
-                <ShoppingBag size={24} className="text-blue-400" /> Ваше замовлення
+            <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 sticky top-24 transition-colors">
+              <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
+                <ShoppingBag size={24} className="text-blue-500" /> Ваше замовлення
               </h2>
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-2 border-b border-white/10 pb-4 custom-scrollbar">
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-2 border-b border-gray-100 dark:border-white/10 pb-4 custom-scrollbar">
                 {cart.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm text-gray-400 items-start">
+                  <div key={index} className="flex justify-between text-sm text-gray-500 dark:text-gray-400 items-start">
                     <div className="flex flex-col max-w-[70%]">
-                      <span className="text-white font-medium truncate">{item.title}</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-gray-900 dark:text-white font-medium truncate">{item.title}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
                         {item.size && item.size !== 'One Size' ? `Розмір: ${item.size}` : ""} | x{item.quantity}
                       </span>
                     </div>
-                    <span className="font-bold text-white whitespace-nowrap">
+                    <span className="font-bold text-gray-900 dark:text-white whitespace-nowrap">
                       {item.price * item.quantity} ₴
                     </span>
                   </div>
@@ -470,18 +469,18 @@ export default function CheckoutPage() {
               </div>
 
               {userId && (
-                <div className="bg-black/40 p-4 rounded-xl border border-white/10">
+                <div className="bg-gray-100 dark:bg-black/40 p-4 rounded-xl border border-gray-200 dark:border-white/10 transition-colors">
                   <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2 text-yellow-400 font-bold">
+                    <div className="flex items-center gap-2 text-yellow-500 dark:text-yellow-400 font-bold">
                       <Wallet size={18} /> Бонуси
                     </div>
-                    <div className="text-xs text-gray-400">Баланс: {userBalance}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Баланс: {userBalance}</div>
                   </div>
                   {maxBonusWriteOff > 0 ? (
                     <>
                       <div className="flex items-center justify-between text-sm mb-2">
-                        <span>Списати:</span>
-                        <span className="font-bold text-white">{bonusesToUse} грн</span>
+                        <span className="text-gray-600 dark:text-gray-300">Списати:</span>
+                        <span className="font-bold text-gray-900 dark:text-white">{bonusesToUse} грн</span>
                       </div>
                       <input
                         type="range"
@@ -506,7 +505,7 @@ export default function CheckoutPage() {
               )}
 
               <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center text-sm text-gray-400">
+                <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
                   <span>Сума товарів:</span>
                   <span>{totalPrice} ₴</span>
                 </div>
@@ -516,9 +515,9 @@ export default function CheckoutPage() {
                     <span>- {bonusesToUse} ₴</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                  <span className="text-xl font-bold uppercase tracking-wider">До сплати</span>
-                  <span className="text-3xl font-black text-blue-400">{payAmount} ₴</span>
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-white/10">
+                  <span className="text-xl font-bold uppercase tracking-wider text-gray-900 dark:text-white">До сплати</span>
+                  <span className="text-3xl font-black text-blue-600 dark:text-blue-400">{payAmount} ₴</span>
                 </div>
                 {userId && (
                   <div className="text-right text-xs text-green-500 font-bold mt-1">
@@ -529,12 +528,12 @@ export default function CheckoutPage() {
 
               <button
                 type="submit"
-                className="w-full bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-600 hover:text-white transition duration-300 shadow-lg mt-6"
+                className="w-full bg-[#111] dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-black dark:hover:bg-blue-600 hover:text-white dark:hover:text-white transition duration-300 shadow-lg mt-6"
               >
                 <CheckCircle size={20} />{" "}
                 <span className="uppercase tracking-widest">Підтвердити</span>
               </button>
-              <div className="text-xs text-gray-500 text-center pt-4 border-t border-white/10">
+              <div className="text-xs text-gray-400 dark:text-gray-500 text-center pt-4 border-t border-gray-100 dark:border-white/10">
                 <p>Натискаючи "Підтвердити", ви погоджуєтесь з умовами оферти.</p>
               </div>
             </div>
@@ -556,16 +555,16 @@ function InputField({
 }: any) {
   return (
     <div className="space-y-2">
-      <label className="text-xs font-bold text-gray-400 uppercase">{label}</label>
+      <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">{label}</label>
       <div className="relative">
-        <Icon size={20} className="absolute left-3 top-3 text-zinc-500" />
+        <Icon size={20} className="absolute left-3 top-3 text-gray-400 dark:text-zinc-500" />
         <input
           type={name === "phone" ? "tel" : name === "email" ? "email" : "text"}
           name={name}
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className="w-full bg-black/50 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-white focus:border-blue-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-lg py-3 pl-10 pr-4 text-gray-900 dark:text-white focus:border-blue-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           required={required}
         />
       </div>
@@ -577,11 +576,10 @@ function PaymentOption({ id, name, value, label, checked, onChange, icon: Icon }
   return (
     <label
       htmlFor={id}
-      className={`flex items-center p-4 rounded-xl cursor-pointer transition duration-200 border-2 ${
-        checked
-          ? "bg-blue-600/20 border-blue-600"
-          : "bg-black/50 border-white/10 hover:border-white/30"
-      }`}
+      className={`flex items-center p-4 rounded-xl cursor-pointer transition duration-200 border-2 ${checked
+          ? "bg-blue-600/10 dark:bg-blue-600/20 border-blue-600"
+          : "bg-gray-50 dark:bg-black/50 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/30"
+        }`}
     >
       <input
         type="radio"
@@ -592,10 +590,10 @@ function PaymentOption({ id, name, value, label, checked, onChange, icon: Icon }
         onChange={onChange}
         className="hidden"
       />
-      <Icon size={24} className={`mr-4 ${checked ? "text-blue-400" : "text-gray-500"}`} />
+      <Icon size={24} className={`mr-4 ${checked ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`} />
       <div>
-        <p className="font-bold text-white">{label}</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="font-bold text-gray-900 dark:text-white">{label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {value === "invoice" ? "Ви отримаєте рахунок для оплати." : "Безпечна оплата онлайн."}
         </p>
       </div>

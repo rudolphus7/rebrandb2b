@@ -3,9 +3,15 @@
 @tailwind utilities;
 
 /* 1. Базові налаштування */
+/* 1. Базові налаштування */
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+[data-theme='dark'] {
+  --background: #111111;
+  --foreground: #ededed;
 }
 
 body {

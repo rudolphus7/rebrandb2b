@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { CartProvider } from "@/components/CartContext";
-import CartDrawer from "@/components/CartDrawer";
-import Header from "@/components/Header"; // <--- Імпорт
+import ClientLayout from "@/components/ClientLayout";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,13 +16,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="uk">
-      <body className={inter.className}>
-        <CartProvider>
-          <Header /> {/* <--- Шапка тут, вона буде на ВСІХ сторінках */}
+    <html lang="uk" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
+        <ClientLayout>
           {children}
-          <CartDrawer />
-        </CartProvider>
+        </ClientLayout>
       </body>
     </html>
   );
