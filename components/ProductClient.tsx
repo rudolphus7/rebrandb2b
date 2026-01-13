@@ -151,9 +151,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
         <div className="bg-white dark:bg-[#0a0a0a] min-h-screen font-sans text-gray-900 dark:text-gray-100 pb-32 md:pb-0">
 
             {/* === MOBILE HEADER (Simple) === */}
-            <div className="md:hidden flex items-center justify-between px-4 py-3 sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-md">
+            <div className="md:hidden flex items-center justify-between px-4 py-3 sticky top-20 z-30 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-100 dark:border-white/10">
                 <Link href="/catalog" className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                    <ChevronRight className="rotate-180" size={16} /> Назад
+                    <ChevronRight className="rotate-180" size={16} /> Назад в каталог
                 </Link>
                 <span className="font-bold text-sm truncate max-w-[200px]">{product.title}</span>
                 <div className="w-8"></div> {/* Spacer balance */}
@@ -264,7 +264,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     <Link href="#" className="text-xs underline text-gray-400 hover:text-black dark:hover:text-white">Таблиця розмірів</Link>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                <div className="grid grid-cols-1 gap-2">
                                     {currentColorVariants.map(variant => {
                                         const qty = quantities[variant.id] || 0;
                                         const isAvailable = variant.available > 0;
