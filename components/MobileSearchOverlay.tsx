@@ -37,13 +37,16 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
     // Instant Search Logic with Debounce
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
-            if (query.trim().length > 1) {
+            const trimmedQuery = query.trim();
+            const safeQuery = trimmedQuery.replace(/[,%()]/g, ' ').trim();
+
+            if (trimmedQuery.length > 1) {
                 setIsLoading(true);
                 try {
                     const { data, error } = await supabase
                         .from('products')
                         .select('id, title, slug, price, images')
-                        .ilike('title', `%${query}%`)
+                        .or(`title.ilike.%${safeQuery}%,vendor_article.ilike.%${safeQuery}%`)
                         .limit(10); // Limit results
 
                     if (data) {

@@ -34,14 +34,17 @@ export default function Header() {
   // Instant Search Logic for Desktop
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
-      if (searchQuery.trim().length > 1) {
+      const trimmedQuery = searchQuery.trim();
+      const safeQuery = trimmedQuery.replace(/[,%()]/g, ' ').trim();
+
+      if (trimmedQuery.length > 1) {
         setIsSearching(true);
         setShowResults(true);
         try {
           const { data, error } = await supabase
             .from('products')
             .select('id, title, slug, price, images')
-            .ilike('title', `%${searchQuery}%`)
+            .or(`title.ilike.%${safeQuery}%,vendor_article.ilike.%${safeQuery}%`)
             .limit(5);
 
           if (data) {
