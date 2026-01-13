@@ -221,7 +221,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                             {/* Color Selector */}
                             {uniqueColors.length > 1 && (
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Color</label>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Колір</label>
                                     <div className="flex flex-wrap gap-3">
                                         {uniqueColors.map(color => {
                                             const v = variants.find(item => item.color === color);
@@ -234,7 +234,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 relative">
                                                         {v?.image_url && <img src={v.image_url} alt={color} className="w-full h-full object-cover" />}
                                                     </div>
-                                                    <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white px-1.5 rounded`}>
+                                                    <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white px-1.5 rounded z-10`}>
                                                         {color}
                                                     </span>
                                                 </button>
@@ -247,8 +247,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                             {/* Size & Matrix Picker (Simplified Visually) */}
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select Size & Quantity</label>
-                                    <Link href="#" className="text-xs underline text-gray-400 hover:text-black dark:hover:text-white">Size Guide</Link>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Оберіть розмір та кількість</label>
+                                    <Link href="#" className="text-xs underline text-gray-400 hover:text-black dark:hover:text-white">Таблиця розмірів</Link>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
