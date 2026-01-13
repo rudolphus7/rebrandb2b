@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronRight, Sparkles, Flame, Percent, Sun, Moon } from 'lucide-react';
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
 import { useTheme } from '@/components/ThemeContext';
 import { supabase } from '@/lib/supabaseClient';
+import MobileSearchOverlay from '@/components/MobileSearchOverlay';
 
 interface MenuCategory {
   id: string;
@@ -15,8 +16,6 @@ interface MenuCategory {
   slug: string;
   sub: { name: string; slug: string }[]; // Змінили: тепер sub це об'єкт, а не просто рядок
 }
-
-import MobileSearchOverlay from '@/components/MobileSearchOverlay';
 
 export default function Header() {
   const router = useRouter();
@@ -33,6 +32,10 @@ export default function Header() {
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   useEffect(() => {
+    // Синхронізація пошукового запиту
+    const q = searchParams.get('q');
+    if (q) setSearchQuery(q);
+
     // Авторизація...
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -71,8 +74,10 @@ export default function Header() {
         data.forEach(cat => {
           if (cat.parent_id && categoryMap.has(cat.parent_id)) {
             const parent = categoryMap.get(cat.parent_id);
-            // ВАЖЛИВО: Зберігаємо об'єкт {name, slug}
-            parent.sub.push({ name: cat.name, slug: cat.slug });
+            if (parent) {
+              // ВАЖЛИВО: Зберігаємо об'єкт {name, slug}
+              parent.sub.push({ name: cat.name, slug: cat.slug });
+            }
           }
         });
 
@@ -150,80 +155,79 @@ export default function Header() {
           {user && <button onClick={handleLogout} className="hidden md:block hover:text-red-500 transition-colors text-gray-700 dark:text-gray-300"><LogOut size={24} /></button>}
           <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-700 dark:text-white transition-colors">{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
         </div>
-      </div>
-    </header >
+      </header>
 
       <MobileSearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
-  {
-    isMenuOpen && (
-      <div className="fixed inset-0 z-30 top-20 bg-background text-foreground animate-in slide-in-from-top-5 duration-300 overflow-y-auto">
-        <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row h-full gap-10">
+      {
+        isMenuOpen && (
+          <div className="fixed inset-0 z-30 top-20 bg-background text-foreground animate-in slide-in-from-top-5 duration-300 overflow-y-auto">
+            <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row h-full gap-10">
 
-          <div className="w-full md:w-64 flex-shrink-0 space-y-8 md:border-r border-gray-200 dark:border-white/10 pr-6">
-            {/* Мобільний пошук ... */}
+              <div className="w-full md:w-64 flex-shrink-0 space-y-8 md:border-r border-gray-200 dark:border-white/10 pr-6">
+                {/* Мобільний пошук ... */}
 
-            <div className="space-y-6">
-              {/* Mobile Controls Row */}
-              <div className="flex items-center gap-6 md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
-                <button onClick={toggleTheme} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
-                  {theme === 'dark' ? <><Sun size={20} /> Світла</> : <><Moon size={20} /> Темна</>}
-                </button>
-                <Link href="/wishlist" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
-                  <Heart size={20} /> Обране {wishlistItems.length > 0 && `(${wishlistItems.length})`}
-                </Link>
-              </div>
-              <div className="md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
-                <Link href={user ? "/profile" : "/login"} onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
-                  <User size={20} /> {user ? "Мій кабінет" : "Увійти"}
-                </Link>
-              </div>
-
-              <Link href="/catalog?sort=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
-              <Link href="/catalog?sort=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
-              <Link href="/catalog?sort=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Уцінка</Link>
-            </div>
-            <div className="bg-gray-100 dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-white/10 mt-auto hidden md:block">
-              <h4 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-2">B2B Партнерство</h4>
-              <Link href="/profile" onClick={() => setIsMenuOpen(false)} className="block w-full bg-black dark:bg-white text-white dark:text-black text-center font-bold text-sm py-2.5 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition">ДЕТАЛЬНІШЕ</Link>
-            </div>
-          </div>
-
-          <div className="flex-1 pb-20 md:pb-0">
-            {dynamicCategories.length === 0 ? <div className="text-gray-500 py-10">Завантаження категорій...</div> : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10">
-                {dynamicCategories.map((cat) => (
-                  <div key={cat.slug} className="group">
-                    <Link
-                      href={`/catalog?category=${cat.slug}`}
-                      className="text-gray-900 dark:text-white font-bold uppercase tracking-wider mb-4 block hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between border-b border-transparent group-hover:border-blue-500 pb-1 w-fit transition-all"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      {cat.name}
+                <div className="space-y-6">
+                  {/* Mobile Controls Row */}
+                  <div className="flex items-center gap-6 md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
+                    <button onClick={toggleTheme} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                      {theme === 'dark' ? <><Sun size={20} /> Світла</> : <><Moon size={20} /> Темна</>}
+                    </button>
+                    <Link href="/wishlist" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                      <Heart size={20} /> Обране {wishlistItems.length > 0 && `(${wishlistItems.length})`}
                     </Link>
-                    <ul className="space-y-2.5">
-                      {cat.sub.map((subItem) => (
-                        <li key={subItem.slug}>
-                          <Link
-                            // ВАЖЛИВО: ТЕПЕР МИ ПОСИЛАЄМОСЬ НА КАТЕГОРІЮ, А НЕ НА ПОШУК
-                            href={`/catalog?category=${subItem.slug}`}
-                            className="text-[13px] text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors block"
-                            onClick={() => setIsMenuOpen(false)}
-                          >
-                            {subItem.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
-                ))}
+                  <div className="md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
+                    <Link href={user ? "/profile" : "/login"} onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                      <User size={20} /> {user ? "Мій кабінет" : "Увійти"}
+                    </Link>
+                  </div>
+
+                  <Link href="/catalog?sort=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
+                  <Link href="/catalog?sort=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
+                  <Link href="/catalog?sort=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Уцінка</Link>
+                </div>
+                <div className="bg-gray-100 dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-white/10 mt-auto hidden md:block">
+                  <h4 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-2">B2B Партнерство</h4>
+                  <Link href="/profile" onClick={() => setIsMenuOpen(false)} className="block w-full bg-black dark:bg-white text-white dark:text-black text-center font-bold text-sm py-2.5 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition">ДЕТАЛЬНІШЕ</Link>
+                </div>
               </div>
-            )}
+
+              <div className="flex-1 pb-20 md:pb-0">
+                {dynamicCategories.length === 0 ? <div className="text-gray-500 py-10">Завантаження категорій...</div> : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10">
+                    {dynamicCategories.map((cat) => (
+                      <div key={cat.slug} className="group">
+                        <Link
+                          href={`/catalog?category=${cat.slug}`}
+                          className="text-gray-900 dark:text-white font-bold uppercase tracking-wider mb-4 block hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between border-b border-transparent group-hover:border-blue-500 pb-1 w-fit transition-all"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          {cat.name}
+                        </Link>
+                        <ul className="space-y-2.5">
+                          {cat.sub.map((subItem) => (
+                            <li key={subItem.slug}>
+                              <Link
+                                // ВАЖЛИВО: ТЕПЕР МИ ПОСИЛАЄМОСЬ НА КАТЕГОРІЮ, А НЕ НА ПОШУК
+                                href={`/catalog?category=${subItem.slug}`}
+                                className="text-[13px] text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors block"
+                                onClick={() => setIsMenuOpen(false)}
+                              >
+                                {subItem.name}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    )
-  }
+        )
+      }
     </>
   );
 }
