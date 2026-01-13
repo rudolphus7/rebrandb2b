@@ -1,3 +1,5 @@
+'use client';
+
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import { Search, X, ChevronDown, ChevronUp, Menu as MenuIcon, Filter } from 'lucide-react';
