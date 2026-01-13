@@ -278,16 +278,18 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                                 </div>
 
                                                 {isAvailable ? (
-                                                    <div className="flex items-center gap-3">
-                                                        {qty > 0 && (
-                                                            <button onClick={() => handleQuantityChange(variant.id, -1, variant.available)} className="w-8 h-8 flex items-center justify-center bg-white dark:bg-[#222] rounded-full shadow-sm text-black dark:text-white hover:bg-gray-100">
-                                                                <Minus size={14} />
-                                                            </button>
-                                                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleQuantityChange(variant.id, -1, variant.available)}
+                                                            disabled={qty === 0}
+                                                            className={`w-8 h-8 flex items-center justify-center rounded-full shadow-sm transition-opacity ${qty === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white dark:bg-[#222] text-black dark:text-white hover:bg-gray-100'}`}
+                                                        >
+                                                            <Minus size={14} />
+                                                        </button>
 
                                                         <input
                                                             type="number"
-                                                            className={`w-12 text-center bg-transparent font-bold outline-none ${qty > 0 ? 'text-black dark:text-white' : 'text-gray-300'}`}
+                                                            className="w-12 h-8 text-center border border-gray-200 dark:border-white/20 rounded-lg bg-gray-50 dark:bg-white/5 font-bold outline-none focus:border-black dark:focus:border-white transition-colors"
                                                             value={qty > 0 ? qty : ''}
                                                             onChange={(e) => handleInputChange(variant.id, e.target.value, variant.available)}
                                                             placeholder="0"
