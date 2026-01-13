@@ -48,23 +48,19 @@ export default function CatalogLayout({ products, categories, availableColors, m
             <div className="flex-1">
 
                 {/* === TOOLBAR (Mobile & Desktop Unified) === */}
-                <div className="bg-white dark:bg-[#1a1a1a] rounded-xl p-3 md:p-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 border border-gray-100 dark:border-white/10 shadow-sm transition-colors sticky top-20 z-20 md:static">
+                <div className="bg-white dark:bg-[#1a1a1a] rounded-xl p-3 mb-6 flex flex-row justify-between items-center gap-4 border border-gray-100 dark:border-white/10 shadow-sm transition-colors sticky top-20 z-20 md:static">
 
-                    {/* Left: Filter Trigger (Mobile) + Count */}
-                    <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4">
+                    {/* Mobile Filter Button */}
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="md:hidden flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-bold active:scale-95 transition-transform"
+                    >
+                        <Filter size={16} /> Фільтри та Категорії
+                    </button>
 
-                        {/* Mobile Filter Button */}
-                        <button
-                            onClick={() => setIsSidebarOpen(true)}
-                            className="md:hidden flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-bold active:scale-95 transition-transform"
-                        >
-                            <Filter size={16} /> Фільтри
-                        </button>
-
-                        {/* Product Count */}
-                        <div className="text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">
-                            Знайдено: <span className="text-black dark:text-white font-bold ml-1">{totalCount}</span>
-                        </div>
+                    {/* Desktop Spacer (if needed) or just hidden */}
+                    <div className="hidden md:block text-lg font-bold">
+                        Каталог
                     </div>
 
                     {/* Right: View Toggle */}
@@ -84,6 +80,11 @@ export default function CatalogLayout({ products, categories, availableColors, m
                             <LayoutGrid size={18} />
                         </button>
                     </div>
+                </div>
+
+                {/* Product Count (Moved here) */}
+                <div className="mb-4 text-xs text-gray-500 dark:text-gray-400 text-right px-1">
+                    Знайдено товарів: <span className="font-bold text-black dark:text-white">{totalCount}</span>
                 </div>
 
                 {/* === PRODUCT GRID === */}
