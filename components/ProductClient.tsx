@@ -329,6 +329,89 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                         </div>
                     </div>
                 </div>
+                {/* === НИЖНІЙ БЛОК: ЗВЕДЕНА МАТРИЦЯ === */}
+                <div className="bg-[#1a1a1a] text-white rounded-[32px] p-8 lg:p-12 shadow-2xl overflow-hidden border border-white/5 transition-colors mt-12 mb-12">
+                    <div className="flex items-center justify-between mb-10">
+                        <h3 className="text-3xl font-black text-white">Загальна наявність на складах</h3>
+                        <div className="text-sm text-gray-400 flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div> Обрано
+                            <div className="w-2 h-2 rounded-full bg-gray-500 ml-2"></div> Доступно
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto pb-4">
+                        <table className="w-full text-left border-collapse min-w-[900px]">
+                            <thead>
+                                <tr>
+                                    <th className="py-5 pl-6 font-bold text-gray-400 text-xs uppercase tracking-widest border-b border-white/10 w-72">
+                                        Модель / Колір
+                                    </th>
+                                    {allSizes.map(size => (
+                                        <th key={size} className="py-5 font-bold text-white text-center text-sm w-24 border-b border-white/10 bg-[#222]">
+                                            {size}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {uniqueColors.map(color => {
+                                    const variantWithImg = variants.find(v => v.color === color);
+                                    const imgUrl = variantWithImg?.image_url || product.image_url;
+                                    const isCurrentRow = selectedColor === color;
+
+                                    return (
+                                        <tr
+                                            key={color}
+                                            onClick={() => setSelectedColor(color)}
+                                            className={`group cursor-pointer transition-all duration-300 ${isCurrentRow ? 'bg-blue-900/10' : 'hover:bg-white/5'}`}
+                                        >
+                                            <td className="py-5 pl-6 pr-6">
+                                                <div className="flex items-center gap-5">
+                                                    <div className={`w-14 h-16 rounded-xl overflow-hidden border p-1 flex-shrink-0 shadow-sm transition-all ${isCurrentRow ? 'border-blue-500' : 'border-white/10 bg-white'}`}>
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={imgUrl} alt={color} className="w-full h-full object-contain" />
+                                                    </div>
+                                                    <div className={`font-bold text-base transition-colors ${isCurrentRow ? 'text-blue-400' : 'text-white'}`}>{color}</div>
+                                                </div>
+                                            </td>
+
+                                            {allSizes.map(size => {
+                                                const v = variants.find(vr => vr.color === color && vr.size === size);
+                                                const available = v ? v.available : 0;
+                                                const qty = v ? quantities[v.id] || 0 : 0;
+                                                const isSelected = qty > 0;
+
+                                                return (
+                                                    <td key={size} className="py-5 text-center align-middle relative group/cell">
+                                                        {available > 0 ? (
+                                                            <div className="flex flex-col items-center justify-center">
+                                                                <div
+                                                                    className={`text-base font-bold transition-all duration-300 ${isSelected ? 'text-blue-400 scale-125' : 'text-white group-hover/cell:scale-110'}`}
+                                                                >
+                                                                    {available}
+                                                                </div>
+                                                                {isSelected && (
+                                                                    <div className="absolute -top-1 right-2 w-5 h-5 bg-blue-500 rounded-full text-[10px] flex items-center justify-center font-bold text-white shadow-lg">
+                                                                        {qty}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center opacity-10">
+                                                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                )
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </main>
 
             {/* === MOBILE STICKY FOOTER === */}
