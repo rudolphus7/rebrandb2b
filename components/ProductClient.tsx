@@ -279,13 +279,14 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
                                                 {isAvailable ? (
                                                     <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => handleQuantityChange(variant.id, -1, variant.available)}
-                                                            disabled={qty === 0}
-                                                            className={`w-8 h-8 flex items-center justify-center rounded-full shadow-sm transition-opacity ${qty === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white dark:bg-[#222] text-black dark:text-white hover:bg-gray-100'}`}
-                                                        >
-                                                            <Minus size={14} />
-                                                        </button>
+                                                        {qty > 0 && (
+                                                            <button
+                                                                onClick={() => handleQuantityChange(variant.id, -1, variant.available)}
+                                                                className="w-8 h-8 flex items-center justify-center bg-white dark:bg-[#222] text-black dark:text-white rounded-full shadow-sm hover:bg-gray-100"
+                                                            >
+                                                                <Minus size={14} />
+                                                            </button>
+                                                        )}
 
                                                         <input
                                                             type="number"
