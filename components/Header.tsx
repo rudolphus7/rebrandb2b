@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronRight, Sparkles, Flame, Percent, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronRight, Sparkles, Flame, Percent, Sun, Moon, Loader2 } from 'lucide-react';
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
 import { useTheme } from '@/components/ThemeContext';
@@ -26,7 +26,41 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false); // New state
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+  // Instant Search Logic for Desktop
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim().length > 1) {
+        setIsSearching(true);
+        setShowResults(true);
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .select('id, title, slug, price, images')
+            .ilike('title', `%${searchQuery}%`)
+            .limit(5);
+
+          if (data) {
+            setSearchResults(data);
+          }
+        } catch (error) {
+          console.error('Search error:', error);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const [dynamicCategories, setDynamicCategories] = useState<MenuCategory[]>([]);
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
@@ -123,18 +157,64 @@ export default function Header() {
             </button>
           </div>
 
-          <form onSubmit={handleSearch} className="flex-1 max-w-xl relative hidden md:block">
-            <input
-              type="text"
-              placeholder="Я шукаю..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-100 dark:bg-[#333] text-black dark:text-white h-11 pl-4 pr-12 rounded-sm outline-none focus:ring-0 placeholder:text-gray-500 font-medium border border-transparent focus:border-blue-500 transition-colors"
-            />
-            <button type="submit" className="absolute right-0 top-0 h-11 w-11 bg-gray-200 dark:bg-[#333] flex items-center justify-center text-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-black transition-colors">
-              <Search size={20} />
-            </button>
-          </form>
+          <div className="flex-1 max-w-xl relative hidden md:block">
+            <form onSubmit={handleSearch} className="relative">
+              <input
+                type="text"
+                placeholder="Я шукаю..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => { if (searchResults.length > 0) setShowResults(true); }}
+                onBlur={() => setTimeout(() => setShowResults(false), 200)} // Delay to allow clock on link
+                className="w-full bg-gray-100 dark:bg-[#333] text-black dark:text-white h-11 pl-4 pr-12 rounded-sm outline-none focus:ring-0 placeholder:text-gray-500 font-medium border border-transparent focus:border-blue-500 transition-colors"
+                autoComplete="off"
+              />
+              <button type="submit" className="absolute right-0 top-0 h-11 w-11 bg-gray-200 dark:bg-[#333] flex items-center justify-center text-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-black transition-colors">
+                {isSearching ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+              </button>
+            </form>
+
+            {/* Desktop Search Results Dropdown */}
+            {showResults && searchQuery.length > 1 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden z-[60]">
+                {searchResults.length > 0 ? (
+                  <div className="py-2">
+                    {searchResults.map((product) => (
+                      <Link
+                        key={product.id}
+                        href={`/product/${product.slug}`}
+                        onClick={() => {
+                          setShowResults(false);
+                          setSearchQuery('');
+                        }}
+                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                      >
+                        <div className="w-10 h-10 bg-gray-100 dark:bg-white/5 rounded-md overflow-hidden shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={product.images?.[0] || '/placeholder.png'}
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">{product.title}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-bold">{product.price} грн</div>
+                        </div>
+                      </Link>
+                    ))}
+                    <Link href={`/catalog?q=${encodeURIComponent(searchQuery)}`} onClick={() => setShowResults(false)} className="block px-4 py-2 text-center text-xs font-bold text-blue-500 hover:text-blue-600 border-t border-gray-100 dark:border-white/5 mt-1">
+                      Показати всі результати
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Товарів не знайдено
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <button onClick={() => setIsSearchOpen(true)} className="md:hidden hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
             <Search size={24} />

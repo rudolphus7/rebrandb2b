@@ -8,10 +8,7 @@ import { useRouter } from 'next/navigation';
 
 // Initialize Supabase client inside component or importing it (better to create here to avoid props drilling if simple)
 // Actually, usually we pass it or import a shared one. Let's assume shared client logic or just create new simple one for search
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '@/lib/supabaseClient';
 
 interface MobileSearchOverlayProps {
     isOpen: boolean;
