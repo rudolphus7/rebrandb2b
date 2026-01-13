@@ -272,7 +272,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                             <div key={variant.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-black bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-[#111]'}`}>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-sm">{variant.size === 'One Size' ? 'Універсальний' : variant.size}</span>
-                                                    <span className="text-[10px] text-gray-400">{isAvailable ? `${variant.available} шт.` : 'Немає'}</span>
+                                                    <span className={`text-xs font-medium ${isAvailable ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                                        {isAvailable ? `В наявності: ${variant.available} шт.` : 'Немає'}
+                                                    </span>
                                                 </div>
 
                                                 {isAvailable ? (
@@ -284,9 +286,10 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                                         )}
 
                                                         <input
-                                                            className={`w-8 text-center bg-transparent font-bold ${qty > 0 ? 'text-black dark:text-white' : 'text-gray-300'}`}
-                                                            value={qty}
-                                                            readOnly
+                                                            type="number"
+                                                            className={`w-12 text-center bg-transparent font-bold outline-none ${qty > 0 ? 'text-black dark:text-white' : 'text-gray-300'}`}
+                                                            value={qty > 0 ? qty : ''}
+                                                            onChange={(e) => handleInputChange(variant.id, e.target.value, variant.available)}
                                                             placeholder="0"
                                                         />
 
