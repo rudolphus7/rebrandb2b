@@ -18,6 +18,21 @@ interface MenuCategory {
 }
 
 export default function Header() {
+  // Helper function to extract image URL from various formats
+  const getImageUrl = (images: any): string => {
+    if (!images) return '/placeholder.png';
+    if (Array.isArray(images) && images.length > 0) return images[0];
+    if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : images;
+      } catch {
+        return images;
+      }
+    }
+    return '/placeholder.png';
+  };
+
   const router = useRouter();
   const searchParams = useSearchParams(); // New hook
   const { toggleCart, items } = useCart();
@@ -47,7 +62,11 @@ export default function Header() {
             .limit(5);
 
           if (data) {
+            console.log('Search results:', data); // Debug log
             setSearchResults(data as any);
+          }
+          if (error) {
+            console.error('Search RPC error:', error);
           }
         } catch (error) {
           console.error('Search error:', error);
@@ -200,7 +219,7 @@ export default function Header() {
                             <div className="w-12 h-16 bg-gray-100 dark:bg-white/5 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={product.images?.[0] || '/placeholder.png'}
+                                src={getImageUrl(product.images)}
                                 alt={product.title}
                                 className="w-full h-full object-cover"
                               />

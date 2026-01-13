@@ -16,6 +16,21 @@ interface MobileSearchOverlayProps {
 }
 
 export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOverlayProps) {
+    // Helper function to extract image URL from various formats
+    const getImageUrl = (images: any): string => {
+        if (!images) return '/placeholder.png';
+        if (Array.isArray(images) && images.length > 0) return images[0];
+        if (typeof images === 'string') {
+            try {
+                const parsed = JSON.parse(images);
+                return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : images;
+            } catch {
+                return images;
+            }
+        }
+        return '/placeholder.png';
+    };
+
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +63,11 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                         .limit(10);
 
                     if (data) {
+                        console.log('Mobile search results:', data); // Debug log
                         setResults(data as any);
+                    }
+                    if (error) {
+                        console.error('Mobile search RPC error:', error);
                     }
                 } catch (error) {
                     console.error('Search error:', error);
@@ -118,7 +137,7 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                                     <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-lg overflow-hidden shrink-0">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                            src={product.images?.[0] || '/placeholder.png'}
+                                            src={getImageUrl(product.images)}
                                             alt={product.title}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                         />
