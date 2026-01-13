@@ -127,12 +127,12 @@ export default function Header() {
             </button>
           </form>
 
-          <div className="flex items-center gap-6">
-            <Link href="/wishlist" className="hidden md:block relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-3 md:gap-6">
+            <Link href="/wishlist" className="relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
               <Heart size={24} />
               {wishlistItems.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">{wishlistItems.length}</span>}
             </Link>
-            <Link href={user ? "/profile" : "/login"} className="hidden md:block hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
+            <Link href={user ? "/profile" : "/login"} className="hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
             <button onClick={toggleTheme} className="hidden md:block hover:text-yellow-400 transition-colors text-gray-700 dark:text-gray-300">
               {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
             </button>

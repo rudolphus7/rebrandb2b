@@ -20,26 +20,27 @@ interface SidebarProps {
   categories: Category[];
   availableColors: string[];
   maxPrice: number;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function CatalogSidebar({ categories, availableColors, maxPrice }: SidebarProps) {
+export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen = false, onClose }: SidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isMobileOpen, setIsMobileOpen] = useState(false); // Mobile state
 
   // Close mobile menu on route change
   useEffect(() => {
-    setIsMobileOpen(false);
-  }, [searchParams]);
+    if (onClose) onClose();
+  }, [searchParams, onClose]);
 
   // Disable body scroll when open
   useEffect(() => {
-    if (isMobileOpen) {
+    if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [isMobileOpen]);
+  }, [isOpen]);
 
   // ... (rest of logic same) ...
 
@@ -128,37 +129,27 @@ export function CatalogSidebar({ categories, availableColors, maxPrice }: Sideba
   // --- РЕНДЕРИНГ ---
   return (
     <>
-      {/* MOBILE TRIGGER BUTTON */}
-      <div className="md:hidden w-full mb-4">
-        <button
-          onClick={() => setIsMobileOpen(true)}
-          className="w-full flex items-center justify-center gap-2 bg-black dark:bg-white text-white dark:text-black font-bold py-3 rounded-xl hover:opacity-90 transition-opacity"
-        >
-          <Filter size={18} /> Фільтри та Категорії
-        </button>
-      </div>
-
       {/* OVERLAY & SIDEBAR CONTAINER */}
       <div className={`
             fixed inset-0 z-50 md:static md:z-auto
-            ${isMobileOpen ? 'visible' : 'invisible md:visible'}
+            ${isOpen ? 'visible' : 'invisible md:visible'}
         `}>
         {/* Backdrop for mobile */}
         <div
-          className={`fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity md:hidden ${isMobileOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => setIsMobileOpen(false)}
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity md:hidden ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={onClose}
         />
 
         <aside className={`
                 fixed top-0 left-0 bottom-0 w-[300px] bg-white dark:bg-[#111] z-50 p-6 overflow-y-auto transition-transform duration-300 shadow-2xl
                 md:static md:w-[280px] md:bg-transparent md:p-0 md:shadow-none md:overflow-visible md:translate-x-0
-                ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
 
           {/* Mobile Header with Close Button */}
           <div className="flex items-center justify-between mb-6 md:hidden">
             <h2 className="text-xl font-bold">Фільтри</h2>
-            <button onClick={() => setIsMobileOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full">
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full">
               <X size={24} />
             </button>
           </div>
@@ -197,7 +188,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice }: Sideba
                           <span onClick={(e) => {
                             e.stopPropagation();
                             applyFilters({ category: cat.slug });
-                            setIsMobileOpen(false); // Close on selection
+                            onClose?.(); // Close on selection
                           }} className="flex-1 hover:text-white transition-colors">
                             {cat.name}
                           </span>
@@ -213,7 +204,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice }: Sideba
                               <li key={sub.id}
                                 onClick={() => {
                                   selectSubCategorySlug(sub.slug);
-                                  setIsMobileOpen(false);
+                                  onClose?.();
                                 }}
                                 className={`py-1 cursor-pointer transition-colors flex items-center gap-2 ${searchParams.get('category') === sub.slug ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-white'}`}
                               >
@@ -266,7 +257,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice }: Sideba
               <button
                 onClick={() => {
                   applyFilters({ minPrice: priceRange.min, maxPrice: priceRange.max });
-                  setIsMobileOpen(false);
+                  onClose?.();
                 }}
                 className="w-full py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-sm font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
               >

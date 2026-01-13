@@ -1,9 +1,7 @@
-import ProductCard from '@/components/ProductCard';
-import ProductGrid from '@/components/ProductGrid';
-import { CatalogSidebar } from '@/components/CatalogSidebar';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import CatalogLayout from '@/components/CatalogLayout';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -196,71 +194,37 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
           {queryText && <span className="ml-1 text-gray-400"> / Пошук: "{queryText}"</span>}
         </div>
 
-        <div className="flex flex-col md:flex-row gap-8">
+        {/* --- КОНТЕНТ (Через Layout) --- */}
+        <CatalogLayout
+          products={products}
+          categories={categories}
+          availableColors={availableColors}
+          maxPrice={50000}
+          totalCount={count || 0}
+        />
 
-          {/* --- САЙДБАР --- */}
-          <CatalogSidebar
-            categories={categories}
-            availableColors={availableColors}
-            maxPrice={50000}
-          />
+        {/* ПАГІНАЦІЯ */}
+        {totalPages > 1 && (
+          <div className="mt-12 flex justify-center items-center gap-4 pb-12">
+            <Link
+              href={hasPrevPage ? createPageUrl(page - 1) : '#'}
+              className={`w-10 h-10 flex items-center justify-center rounded-full border transition-all ${!hasPrevPage ? 'border-gray-200 dark:border-white/10 text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black'}`}
+            >
+              <ChevronLeft size={20} />
+            </Link>
 
-          {/* --- ОСНОВНИЙ КОНТЕНТ --- */}
-          <div className="flex-1">
-
-            {/* Верхня панель */}
-            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-white/10 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Filter size={16} />
-                  <span>Знайдено:</span>
-                </div>
-                <span className="font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-white/10 px-3 py-1 rounded-full text-sm">{count || 0}</span>
-              </div>
+            <div className="text-sm font-medium text-gray-500">
+              Сторінка <span className="text-black dark:text-white font-bold">{page}</span> з {totalPages}
             </div>
 
-            {/* СІТКА ТОВАРІВ */}
-            {products.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-32 bg-gray-50 dark:bg-[#1a1a1a] rounded-3xl border border-dashed border-gray-300 dark:border-white/10 transition-colors">
-                <div className="w-16 h-16 bg-gray-200 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-                  <Filter size={24} className="text-gray-500" />
-                </div>
-                <p className="text-gray-900 dark:text-white font-bold text-lg">Товарів не знайдено</p>
-                <p className="text-sm text-gray-500 mt-1">Спробуйте змінити параметри пошуку або категорію</p>
-                <Link href="/catalog" className="mt-4 text-blue-500 font-bold text-sm hover:underline">
-                  Скинути всі фільтри
-                </Link>
-              </div>
-            ) : (
-              <>
-                <ProductGrid products={products} />
-
-                {/* ПАГІНАЦІЯ */}
-                {totalPages > 1 && (
-                  <div className="mt-12 flex justify-center items-center gap-4">
-                    <Link
-                      href={hasPrevPage ? createPageUrl(page - 1) : '#'}
-                      className={`w-10 h-10 flex items-center justify-center rounded-full border transition-all ${!hasPrevPage ? 'border-gray-200 dark:border-white/10 text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black'}`}
-                    >
-                      <ChevronLeft size={20} />
-                    </Link>
-
-                    <div className="text-sm font-medium text-gray-500">
-                      Сторінка <span className="text-black dark:text-white font-bold">{page}</span> з {totalPages}
-                    </div>
-
-                    <Link
-                      href={hasNextPage ? createPageUrl(page + 1) : '#'}
-                      className={`w-10 h-10 flex items-center justify-center rounded-full border transition-all ${!hasNextPage ? 'border-gray-200 dark:border-white/10 text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black'}`}
-                    >
-                      <ChevronRight size={20} />
-                    </Link>
-                  </div>
-                )}
-              </>
-            )}
+            <Link
+              href={hasNextPage ? createPageUrl(page + 1) : '#'}
+              className={`w-10 h-10 flex items-center justify-center rounded-full border transition-all ${!hasNextPage ? 'border-gray-200 dark:border-white/10 text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black'}`}
+            >
+              <ChevronRight size={20} />
+            </Link>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
