@@ -44,13 +44,12 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                 setIsLoading(true);
                 try {
                     const { data, error } = await supabase
-                        .from('products')
+                        .rpc('search_products', { keyword: safeQuery })
                         .select('id, title, slug, price, images, vendor_article')
-                        .or(`title.ilike.%${safeQuery}%,vendor_article::text.ilike.%${safeQuery}%`)
-                        .limit(10); // Limit results
+                        .limit(10);
 
                     if (data) {
-                        setResults(data);
+                        setResults(data as any);
                     }
                 } catch (error) {
                     console.error('Search error:', error);

@@ -42,16 +42,13 @@ export default function Header() {
         setShowResults(true);
         try {
           // Construct the OR filter string carefully
-          const filterString = `title.ilike.%${safeQuery}%,vendor_article::text.ilike.%${safeQuery}%`;
-
           const { data, error } = await supabase
-            .from('products')
+            .rpc('search_products', { keyword: safeQuery })
             .select('id, title, slug, price, images, vendor_article')
-            .or(filterString)
             .limit(5);
 
           if (data) {
-            setSearchResults(data);
+            setSearchResults(data as any);
           }
         } catch (error) {
           console.error('Search error:', error);
