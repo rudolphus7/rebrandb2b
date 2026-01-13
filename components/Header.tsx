@@ -42,7 +42,7 @@ export default function Header() {
         setShowResults(true);
         try {
           // Construct the OR filter string carefully
-          const filterString = `title.ilike.%${safeQuery}%,vendor_article.ilike.%${safeQuery}%`;
+          const filterString = `title.ilike.%${safeQuery}%,vendor_article::text.ilike.%${safeQuery}%`;
 
           const { data, error } = await supabase
             .from('products')

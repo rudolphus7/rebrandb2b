@@ -46,7 +46,7 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                     const { data, error } = await supabase
                         .from('products')
                         .select('id, title, slug, price, images, vendor_article')
-                        .or(`title.ilike.%${safeQuery}%,vendor_article.ilike.%${safeQuery}%`)
+                        .or(`title.ilike.%${safeQuery}%,vendor_article::text.ilike.%${safeQuery}%`)
                         .limit(10); // Limit results
 
                     if (data) {
