@@ -45,7 +45,6 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                 try {
                     const { data, error } = await supabase
                         .rpc('search_products', { keyword: safeQuery })
-                        .select('id, title, slug, price, images, vendor_article')
                         .limit(10);
 
                     if (data) {

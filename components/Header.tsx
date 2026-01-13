@@ -44,7 +44,6 @@ export default function Header() {
           // Construct the OR filter string carefully
           const { data, error } = await supabase
             .rpc('search_products', { keyword: safeQuery })
-            .select('id, title, slug, price, images, vendor_article')
             .limit(5);
 
           if (data) {
