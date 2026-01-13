@@ -132,7 +132,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
       {/* OVERLAY & SIDEBAR CONTAINER */}
       <div className={`
             fixed inset-0 z-[100] md:static md:z-auto
-            ${isOpen ? 'visible' : 'invisible md:visible'}
+            ${isOpen ? 'pointer-events-auto' : 'pointer-events-none md:pointer-events-auto'}
         `}>
         {/* Backdrop for mobile */}
         <div
