@@ -21,15 +21,43 @@ export default function Header() {
   // Helper function to extract image URL from various formats
   const getImageUrl = (images: any): string => {
     if (!images) return '/placeholder.png';
-    if (Array.isArray(images) && images.length > 0) return images[0];
+
+    // Case 1: Real Array
+    if (Array.isArray(images)) {
+      return images.length > 0 ? images[0] : '/placeholder.png';
+    }
+
+    // Case 2: String processing
     if (typeof images === 'string') {
-      try {
-        const parsed = JSON.parse(images);
-        return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : images;
-      } catch {
-        return images;
+      // Clean up string
+      let cleanImage = images.trim();
+
+      // Handle Postgres array format: {"url"}
+      if (cleanImage.startsWith('{') && cleanImage.endsWith('}')) {
+        cleanImage = cleanImage.slice(1, -1); // Remove {}
+        // Take first item if comma separated
+        if (cleanImage.includes(',')) {
+          cleanImage = cleanImage.split(',')[0];
+        }
+        // Remove quotes if present
+        cleanImage = cleanImage.replace(/"/g, '');
+      }
+      // Handle JSON format: ["url"]
+      else if (cleanImage.startsWith('[') && cleanImage.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(cleanImage);
+          return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : '/placeholder.png';
+        } catch {
+          // If parse fails, treat as string? unlikely for []
+        }
+      }
+
+      // Final check if it looks like a URL or path
+      if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
+        return cleanImage;
       }
     }
+
     return '/placeholder.png';
   };
 
