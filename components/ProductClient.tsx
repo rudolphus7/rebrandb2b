@@ -33,8 +33,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
         const sizes = new Set(variants.map(v => v.size).filter(s => s && s !== 'One Size'));
         const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL'];
         return Array.from(sizes).sort((a, b) => {
-            const idxA = sizeOrder.indexOf(a);
-            const idxB = sizeOrder.indexOf(b);
+            const idxA = sizeOrder.indexOf(a.toUpperCase());
+            const idxB = sizeOrder.indexOf(b.toUpperCase());
             if (idxA !== -1 && idxB !== -1) return idxA - idxB;
             return a.localeCompare(b);
         });
@@ -50,8 +50,21 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     // For "Studio" feel, we focus on currently selected color variants.
 
     const currentColorVariants = useMemo(() => {
-        if (uniqueColors.length === 0) return variants;
-        return variants.filter(v => v.color === selectedColor);
+        let vars = uniqueColors.length === 0 ? variants : variants.filter(v => v.color === selectedColor);
+        const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL'];
+
+        return vars.sort((a, b) => {
+            const sizeA = a.size ? a.size.toUpperCase() : '';
+            const sizeB = b.size ? b.size.toUpperCase() : '';
+            const idxA = sizeOrder.indexOf(sizeA);
+            const idxB = sizeOrder.indexOf(sizeB);
+
+            if (a.size === 'One Size') return -1;
+            if (b.size === 'One Size') return 1;
+
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            return sizeA.localeCompare(sizeB);
+        });
     }, [variants, selectedColor, uniqueColors]);
 
     useEffect(() => {
@@ -258,8 +271,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         return (
                                             <div key={variant.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-black bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-[#111]'}`}>
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-sm">{variant.size === 'One Size' ? 'Univ.' : variant.size}</span>
-                                                    <span className="text-[10px] text-gray-400">{isAvailable ? `${variant.available} in stock` : 'Out of stock'}</span>
+                                                    <span className="font-bold text-sm">{variant.size === 'One Size' ? 'Універсальний' : variant.size}</span>
+                                                    <span className="text-[10px] text-gray-400">{isAvailable ? `${variant.available} шт.` : 'Немає'}</span>
                                                 </div>
 
                                                 {isAvailable ? (
@@ -282,7 +295,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-[10px] font-bold text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded">Sold Out</span>
+                                                    <span className="text-[10px] font-bold text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded">Розпродано</span>
                                                 )}
                                             </div>
                                         )
@@ -294,8 +307,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                             <div className="hidden md:block pt-4 border-t border-gray-100 dark:border-white/10">
                                 <div className="flex justify-between items-end mb-4">
                                     <div>
-                                        <p className="text-gray-500 text-xs uppercase mb-1">Total</p>
-                                        <p className="text-3xl font-black">{formatPrice(totalSelectedPrice)}</p>
+                                        <p className="text-gray-500 text-xs uppercase mb-1">Підсумок</p>
+                                        <p className="text-3xl font-black">{formatPrice(totalSelectedPrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
                                     </div>
                                 </div>
                                 <button
@@ -303,26 +316,26 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     disabled={totalSelectedQty === 0}
                                     className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold text-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    <ShoppingBag size={20} /> Add to Cart ({totalSelectedQty})
+                                    <ShoppingBag size={20} /> Додати до кошика ({totalSelectedQty})
                                 </button>
                             </div>
 
                             {/* Description Tabs */}
                             <div className="pt-8">
                                 <div className="flex gap-6 border-b border-gray-100 dark:border-white/10 mb-6">
-                                    <button onClick={() => setActiveTab('features')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'features' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Features</button>
-                                    <button onClick={() => setActiveTab('description')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'description' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Details</button>
+                                    <button onClick={() => setActiveTab('features')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'features' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Характеристики</button>
+                                    <button onClick={() => setActiveTab('description')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'description' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Опис</button>
                                 </div>
                                 <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                                     {activeTab === 'features' ? (
                                         <div className="space-y-2">
-                                            {product.material && <div className="flex justify-between py-1 border-b border-gray-50 dark:border-white/5"><span>Material</span> <span className="text-black dark:text-white font-medium">{product.material}</span></div>}
+                                            {product.material && <div className="flex justify-between py-1 border-b border-gray-50 dark:border-white/5"><span>Матеріал</span> <span className="text-black dark:text-white font-medium">{product.material}</span></div>}
                                             {Object.entries(product.specifications || {}).map(([k, v]) => (
                                                 <div key={k} className="flex justify-between py-1 border-b border-gray-50 dark:border-white/5"><span>{k}</span> <span className="text-black dark:text-white font-medium">{v as string}</span></div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <div dangerouslySetInnerHTML={{ __html: product.description || 'No description' }} />
+                                        <div dangerouslySetInnerHTML={{ __html: product.description || 'Опис відсутній' }} />
                                     )}
                                 </div>
                             </div>
@@ -418,7 +431,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#0a0a0a] border-t border-gray-100 dark:border-white/10 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] safe-area-pb">
                 <div className="flex gap-3 items-center">
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold">Total</span>
+                        <span className="text-[10px] text-gray-400 uppercase font-bold">Разом</span>
                         <span className="text-xl font-black leading-none">{formatPrice(Math.max(basePrice, totalSelectedPrice))}</span>
                     </div>
                     <button
@@ -427,9 +440,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                         className={`flex-1 ${totalSelectedQty > 0 ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 text-gray-400'} py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]`}
                     >
                         {totalSelectedQty > 0 ? (
-                            <>Add to Cart ({totalSelectedQty})</>
+                            <>У кошик ({totalSelectedQty})</>
                         ) : (
-                            <>Select Size above</>
+                            <>Оберіть розмір</>
                         )}
                     </button>
                 </div>
