@@ -48,7 +48,7 @@ export default function CatalogLayout({ products, categories, availableColors, m
             <div className="flex-1">
 
                 {/* === TOOLBAR (Mobile & Desktop Unified) === */}
-                <div className="bg-white dark:bg-[#1a1a1a] rounded-xl p-3 mb-6 flex flex-row justify-between items-center gap-4 border border-gray-100 dark:border-white/10 shadow-sm transition-colors sticky top-20 z-20 md:static">
+                <div className="bg-white dark:bg-[#1a1a1a] rounded-xl p-3 mb-6 flex flex-row justify-between items-center gap-4 border border-gray-100 dark:border-white/10 shadow-sm transition-colors sticky top-20 z-30 md:static">
 
                     {/* Mobile Filter Button */}
                     <button
