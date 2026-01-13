@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LayoutGrid, Rows, Filter } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
 import { CatalogSidebar } from '@/components/CatalogSidebar';
@@ -33,6 +33,11 @@ export default function CatalogLayout({ products, categories, availableColors, m
         localStorage.setItem('catalogViewMode', mode);
     };
 
+    // Memoize onClose to prevent Sidebar useEffect from triggering unnecessarily
+    const handleClose = useCallback(() => {
+        setIsSidebarOpen(false);
+    }, []);
+
     return (
         <div className="flex flex-col md:flex-row gap-8">
 
@@ -42,7 +47,7 @@ export default function CatalogLayout({ products, categories, availableColors, m
                 availableColors={availableColors}
                 maxPrice={maxPrice}
                 isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
+                onClose={handleClose}
             />
 
             <div className="flex-1">

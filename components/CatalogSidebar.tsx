@@ -30,8 +30,11 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
 
   // Close mobile menu on route change
   useEffect(() => {
-    if (onClose) onClose();
-  }, [searchParams, onClose]);
+    if (isOpen && onClose) {
+      onClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Disable body scroll when open
   useEffect(() => {
