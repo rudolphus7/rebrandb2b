@@ -17,12 +17,7 @@ import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
 import LoginPage from "@/components/LoginPage";
 
-const VISUAL_CATEGORIES = [
-  { id: "clothing", title: "Одяг", slug: "clothing", image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop", icon: Shirt },
-  { id: "office", title: "Офіс", slug: "office", image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000&auto-format&fit=crop", icon: Briefcase },
-  { id: "dishes", title: "Посуд", slug: "home", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto-format&fit=crop", icon: Coffee },
-  { id: "gadgets", title: "Електроніка", slug: "electronics", image: "https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto-format&fit=crop", icon: Monitor },
-];
+// VISUAL_CATEGORIES removed as we use a custom grid now
 
 const DEFAULT_SLIDES = [
   {
@@ -202,36 +197,199 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === КАТЕГОРІЇ === */}
-        <section>
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><LayoutGrid size={24} className="text-blue-500" /> Популярні категорії</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {VISUAL_CATEGORIES.map((cat) => (
-              <div key={cat.id} className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group border border-white/5" onClick={() => router.push(`/catalog?category=${cat.slug}`)}>
-                <img src={cat.image} alt={cat.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-110 transition duration-500" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-                <div className="absolute bottom-0 left-0 p-4 w-full">
-                  <cat.icon className="text-white mb-2 opacity-0 group-hover:opacity-100 -translate-y-2 group-hover:translate-y-0 transition duration-300" size={24} />
-                  <h3 className="text-lg font-bold text-white leading-tight">{cat.title}</h3>
+        {/* === ПЕРЕВАГИ B2B (WHY CHOOSE US) === */}
+        <section className="py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: ShieldAlert, title: "Гарантія Якості", desc: "Сертефікована продукція та контроль кожного етапу" },
+              { icon: Briefcase, title: "B2B Ціни", desc: "Спеціальні умови для оптових партнерів та компаній" },
+              { icon: Monitor, title: "Власний Дизайн", desc: "Розробка унікального мерчу та брендування під ключ" },
+              { icon: Coffee, title: "Швидка Доставка", desc: "Відправка замовлень день у день по всій Україні" },
+            ].map((item, i) => (
+              <div key={i} className="bg-white dark:bg-[#111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-black dark:hover:border-white/20 transition-all duration-300 group">
+                <div className="w-12 h-12 bg-gray-50 dark:bg-white/5 rounded-xl flex items-center justify-center mb-4 text-black dark:text-white group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
+                  <item.icon size={24} />
                 </div>
+                <h3 className="font-bold text-lg mb-2">{item.title}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{item.desc}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* === ХІТИ ПРОДАЖУ (ТОВАРИ) === */}
-        <section id="catalog">
+        {/* === ОНОВЛЕНІ КАТЕГОРІЇ (MODERN GRID) === */}
+        <section>
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-2">Каталог</h2>
+              <p className="text-gray-500 dark:text-gray-400">Оберіть напрямок для вашого бізнесу</p>
+            </div>
+            <Link href="/catalog" className="hidden md:flex items-center gap-2 font-bold hover:gap-4 transition-all">
+              Всі категорії <ArrowRight size={20} />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 h-auto md:h-[500px]">
+            {/* Велика картка 1 */}
+            <div
+              className="col-span-2 md:col-span-3 h-[250px] md:h-full relative rounded-3xl overflow-hidden cursor-pointer group"
+              onClick={() => router.push('/catalog?category=clothing')}
+            >
+              <img src="https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Одяг" />
+              <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+                <div className="flex items-center justify-between text-white">
+                  <div>
+                    <h3 className="text-2xl font-black uppercase">Одяг</h3>
+                    <p className="text-white/80 text-sm">Худі, футболки, кепки</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center group-hover:bg-white group-hover:text-black transition-colors">
+                    <ArrowRight size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Права колонка сітки */}
+            <div className="col-span-2 md:col-span-3 grid grid-cols-2 gap-4 h-full">
+              {/* Картка 2 */}
+              <div
+                className="col-span-2 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
+                onClick={() => router.push('/catalog?category=office')}
+              >
+                <img src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Офіс" />
+                <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+                  <div className="flex items-center justify-between text-white">
+                    <div>
+                      <h3 className="text-xl font-bold uppercase">Офіс</h3>
+                      <p className="text-white/80 text-sm">Блокноти, ручки, папiр</p>
+                    </div>
+                    <ArrowRight className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" size={20} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Картка 3 */}
+              <div
+                className="col-span-1 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
+                onClick={() => router.push('/catalog?category=home')}
+              >
+                <img src="https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto-format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Дім" />
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <h3 className="font-bold uppercase">Дім & Посуд</h3>
+                </div>
+              </div>
+
+              {/* Картка 4 */}
+              <div
+                className="col-span-1 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
+                onClick={() => router.push('/catalog?category=electronics')}
+              >
+                <img src="https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto-format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Гаджети" />
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <h3 className="font-bold uppercase">Електроніка</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* === ХІТИ ТА НОВИНКИ (TABS STYLE) === */}
+        <section className="py-12">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold">Новинки</h2>
-            <Link href="/catalog" className="text-sm text-gray-400 hover:text-white flex items-center gap-1">Дивитись всі <ArrowRight size={14} /></Link>
+            <div className="flex items-center gap-8">
+              <h2 className="text-3xl font-black uppercase">Trending</h2>
+              <div className="hidden md:flex text-sm font-bold text-gray-400 gap-4">
+                <button className="text-black dark:text-white border-b-2 border-black dark:border-white pb-1">Хіти Продажів</button>
+                <button className="hover:text-black dark:hover:text-white transition-colors">Нові Надходження</button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition"><ArrowLeft size={18} /></button>
+              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition"><ArrowRight size={18} /></button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {products.map((product) => (
+            {products.slice(0, 4).map((product) => (
               <div key={product.id} className="h-full">
                 <ProductCard product={product} />
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* === WORKFLOW (ЯК ЦЕ ПРАЦЮЄ) === */}
+        <section className="py-16 border-y border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02] -mx-4 px-4 md:-mx-0 md:px-0 md:rounded-3xl">
+          <div className="max-w-4xl mx-auto text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-black uppercase mb-6">Створюємо <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">Ваш Бренд</span></h2>
+            <p className="text-lg text-gray-500 max-w-2xl mx-auto">Повний цикл виробництва мерчу: від розробки дизайну до доставки готової партії.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+            {/* Connecting Line (Desktop) */}
+            <div className="hidden md:block absolute top-8 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-gray-200 dark:via-white/10 to-transparent -z-10"></div>
+
+            {[
+              { num: "01", title: "Заявка", desc: "Ви залишаєте заявку або обираєте товари в каталозі" },
+              { num: "02", title: "Дизайн", desc: "Ми розробляємо макети та погоджуємо деталі" },
+              { num: "03", title: "Виробництво", desc: "Нанесення логотипу та контроль якості партії" },
+              { num: "04", title: "Доставка", desc: "Відправка готового замовлення кур'єром або поштою" },
+            ].map((step, i) => (
+              <div key={i} className="relative bg-background p-6 rounded-2xl border border-gray-100 dark:border-white/5 hover:-translate-y-2 transition-transform duration-300 shadow-xl shadow-black/5 dark:shadow-none">
+                <div className="text-5xl font-black text-gray-100 dark:text-white/5 mb-4 absolute top-4 right-4">{step.num}</div>
+                <div className="w-16 h-16 bg-black dark:bg-white text-white dark:text-black rounded-full flex items-center justify-center font-bold text-xl mb-6 relative z-10 shadow-lg">
+                  {step.num}
+                </div>
+                <h3 className="text-xl font-bold mb-3">{step.title}</h3>
+                <p className="text-sm text-gray-500">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* === BRANDS / PARTNERS === */}
+        <section className="py-12 overflow-hidden">
+          <p className="text-center text-sm font-bold text-gray-400 uppercase tracking-widest mb-8">Нам довіряють</p>
+          <div className="flex flex-wrap justify-center items-center gap-12 md:gap-20 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+            {/* Fake Brands using Text for now */}
+            <div className="text-2xl font-black font-serif italic">VOGUE</div>
+            <div className="text-2xl font-black tracking-widest">NIKE</div>
+            <div className="text-2xl font-black font-mono">ADIDAS</div>
+            <div className="text-2xl font-black font-serif">PUMA</div>
+            <div className="text-2xl font-black tracking-tighter">REEBOK</div>
+          </div>
+        </section>
+
+        {/* === FAQ / CTA SECTION === */}
+        <section className="relative rounded-3xl overflow-hidden bg-black dark:bg-white text-white dark:text-black overflow-hidden py-20 px-8">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] opacity-20 bg-cover bg-center"></div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+            <div className="max-w-2xl">
+              <h2 className="text-4xl md:text-6xl font-black uppercase leading-tight mb-6">Готові До <br />Співпраці?</h2>
+              <p className="text-lg text-white/70 dark:text-black/70 mb-8">Отримайте індивідуальну комерційну пропозицію та доступ до B2B цін вже сьогодні.</p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href="/catalog" className="bg-white dark:bg-black text-black dark:text-white px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform text-center">Перейти в каталог</Link>
+                <button className="px-8 py-4 rounded-xl font-bold text-lg border-2 border-white/20 dark:border-black/10 hover:bg-white/10 dark:hover:bg-black/5 transition-colors">Зв'язатись з менеджером</button>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-8 md:gap-12">
+              <div>
+                <div className="text-4xl md:text-5xl font-black mb-2">500+</div>
+                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Партнерів</div>
+              </div>
+              <div>
+                <div className="text-4xl md:text-5xl font-black mb-2">30k</div>
+                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Товарів на складі</div>
+              </div>
+              <div>
+                <div className="text-4xl md:text-5xl font-black mb-2">24h</div>
+                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Відправка зразків</div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
