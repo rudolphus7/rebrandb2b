@@ -6,6 +6,7 @@ import CartDrawer from '@/components/CartDrawer';
 import { ThemeProvider } from '@/components/ThemeContext';
 import { CartProvider } from '@/components/CartContext';
 import { WishlistProvider } from '@/components/WishlistContext';
+import { Suspense } from 'react';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -17,7 +18,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <CartProvider>
             <WishlistProvider>
                 <ThemeProvider>
-                    {!isAdmin && <Header />}
+                    {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
                     {children}
                     {!isAdmin && <CartDrawer />}
                 </ThemeProvider>
