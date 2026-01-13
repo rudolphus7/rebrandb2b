@@ -40,7 +40,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const moreCount = (product.display_variants?.length || 0) - 5;
 
   return (
-    <div className="group block bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col relative">
+    <div className="group block bg-white dark:bg-[#1a1a1a] rounded-xl md:rounded-2xl border border-transparent md:border-gray-200 dark:md:border-white/5 shadow-sm md:shadow-none hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col relative overflow-hidden ring-1 ring-black/5 md:ring-0">
 
       {/* ФОТО (Клікабельне посилання на товар) */}
       <Link href={`/product/${product.slug}`} className="relative aspect-[4/5] overflow-hidden bg-gray-50 dark:bg-black p-0 block">
@@ -58,7 +58,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
 
         {hasDiscount && (
-          <div className="absolute top-4 left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-2 py-1 rounded-md uppercase">
+          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded md:rounded-md uppercase tracking-wider shadow-sm">
             Акція
           </div>
         )}
@@ -69,63 +69,63 @@ export default function ProductCard({ product }: ProductCardProps) {
             e.stopPropagation();
             toggleItem(product.id);
           }}
-          className={`absolute top-3 right-3 text-gray-400 hover:text-red-500 transition bg-black/50 p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 z-20 ${isDefaultActive ? 'text-red-500 opacity-100' : ''}`}
+          className={`absolute top-2 right-2 md:top-3 md:right-3 text-gray-400 hover:text-red-500 transition bg-white/80 dark:bg-black/50 p-2 md:p-2 rounded-full backdrop-blur-sm opacity-100 md:opacity-0 group-hover:opacity-100 z-20 shadow-sm ${isDefaultActive ? 'text-red-500 opacity-100' : ''}`}
         >
-          <Heart size={18} fill={isDefaultActive ? "currentColor" : "none"} />
+          <Heart size={16} className="w-4 h-4 md:w-[18px] md:h-[18px]" fill={isDefaultActive ? "currentColor" : "none"} />
         </button>
       </Link>
 
       {/* ІНФО */}
-      <div className="p-4 flex flex-col flex-grow">
+      <div className="p-3 md:p-4 flex flex-col flex-grow">
         <Link href={`/product/${product.slug}`}>
-          <h3 className="font-bold text-lg leading-tight mb-2 line-clamp-2 text-gray-900 dark:text-gray-100 hover:text-blue-500 transition cursor-pointer h-[50px]">
+          <h3 className="font-semibold text-sm md:text-lg leading-snug md:leading-tight mb-1.5 md:mb-2 line-clamp-2 text-gray-900 dark:text-gray-100 hover:text-blue-500 transition cursor-pointer min-h-[2.5rem] md:h-[50px]">
             {product.title}
           </h3>
         </Link>
 
-        <div className="text-xs text-gray-500 mb-3">
+        <div className="text-[10px] md:text-xs text-gray-500 mb-2 md:mb-3">
           Арт: {product.vendor_article}
         </div>
 
         {/* --- МІНІАТЮРИ КОЛЬОРІВ --- */}
         {variantsToShow.length > 0 ? (
-          <div className="flex gap-2 mb-3 h-8 items-center">
+          <div className="flex gap-1.5 md:gap-2 mb-2 md:mb-3 h-6 md:h-8 items-center">
             {variantsToShow.map((v, i) => (
               <div
                 key={i}
-                className="w-8 h-8 rounded-md border border-gray-200 dark:border-white/10 p-0.5 cursor-pointer hover:border-black dark:hover:border-white transition-colors"
+                className="w-6 h-6 md:w-8 md:h-8 rounded md:rounded-lg border border-gray-200 dark:border-white/10 p-0.5 cursor-pointer hover:border-black dark:hover:border-white transition-colors"
                 onMouseEnter={() => setCurrentImage(v.image)} // При наведенні міняємо велике фото
                 onMouseLeave={() => setCurrentImage(product.image_url)} // Прибиранні - повертаємо дефолтне
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={v.image} alt={v.color} className="w-full h-full object-cover rounded-sm" title={v.color} />
+                <img src={v.image} alt={v.color} className="w-full h-full object-cover rounded-[2px] md:rounded-sm" title={v.color} />
               </div>
             ))}
             {moreCount > 0 && (
-              <Link href={`/product/${product.slug}`} className="text-[10px] text-gray-400 hover:text-black">
+              <Link href={`/product/${product.slug}`} className="text-[10px] text-gray-400 hover:text-black pl-0.5">
                 +{moreCount}
               </Link>
             )}
           </div>
         ) : (
           // Якщо варіантів немає, залишаємо пусте місце, щоб картки були однієї висоти
-          <div className="h-8 mb-3"></div>
+          <div className="h-6 md:h-8 mb-2 md:mb-3"></div>
         )}
 
-        <div className="mt-auto pt-4 flex items-center justify-between border-t border-gray-100 dark:border-white/5">
+        <div className="mt-auto pt-3 md:pt-4 flex items-end justify-between border-t border-gray-100 dark:border-white/5">
           <div className="flex flex-col">
             {hasDiscount && product.old_price && (
-              <span className="text-xs text-gray-400 line-through">
+              <span className="text-[10px] md:text-xs text-gray-400 line-through mb-0.5">
                 {formatPrice(product.old_price)}
               </span>
             )}
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatPrice(product.base_price)} <span className="text-xs font-normal text-gray-500">грн</span>
+            <span className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white leading-none">
+              {formatPrice(product.base_price).replace(' грн', '')} <span className="text-[10px] md:text-xs font-normal text-gray-500 relative -top-0.5">грн</span>
             </span>
           </div>
 
-          <button className="bg-white text-black w-10 h-10 flex items-center justify-center rounded-xl hover:bg-blue-500 hover:text-white transition shadow-lg active:scale-95">
-            <ShoppingBag size={20} />
+          <button className="bg-black dark:bg-white text-white dark:text-black w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl hover:opacity-80 transition shadow-md active:scale-95">
+            <ShoppingBag size={16} className="md:w-5 md:h-5" />
           </button>
         </div>
       </div>
