@@ -43,8 +43,8 @@ export default function Header() {
         try {
           const { data, error } = await supabase
             .from('products')
-            .select('id, title, slug, price, images')
-            .ilike('title', `%${safeQuery}%`)
+            .select('id, title, slug, price, images, vendor_article')
+            .or(`title.ilike.%${safeQuery}%,vendor_article.ilike.%${safeQuery}%`)
             .limit(5);
 
           if (data) {
@@ -179,40 +179,49 @@ export default function Header() {
 
             {/* Desktop Search Results Dropdown */}
             {showResults && searchQuery.length > 1 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden z-[60]">
+              <div className="absolute top-full left-0 w-[600px] mt-2 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden z-[60]">
                 {searchResults.length > 0 ? (
-                  <div className="py-2">
-                    {searchResults.map((product) => (
-                      <Link
-                        key={product.id}
-                        href={`/product/${product.slug}`}
-                        onClick={() => {
-                          setShowResults(false);
-                          setSearchQuery('');
-                        }}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
-                      >
-                        <div className="w-10 h-10 bg-gray-100 dark:bg-white/5 rounded-md overflow-hidden shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={product.images?.[0] || '/placeholder.png'}
-                            alt={product.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">{product.title}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 font-bold">{product.price} грн</div>
-                        </div>
-                      </Link>
-                    ))}
-                    <Link href={`/catalog?q=${encodeURIComponent(searchQuery)}`} onClick={() => setShowResults(false)} className="block px-4 py-2 text-center text-xs font-bold text-blue-500 hover:text-blue-600 border-t border-gray-100 dark:border-white/5 mt-1">
-                      Показати всі результати
+                  <div className="flex flex-col">
+                    <div className="px-5 py-3 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5 text-xs font-bold uppercase text-gray-500 tracking-wider">
+                      Товари
+                    </div>
+                    <div className="py-2">
+                      {searchResults.map((product) => (
+                        <Link
+                          key={product.id}
+                          href={`/product/${product.slug}`}
+                          onClick={() => {
+                            setShowResults(false);
+                            setSearchQuery('');
+                          }}
+                          className="flex items-start gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group border-b border-gray-100 dark:border-white/5 last:border-0"
+                        >
+                          <div className="w-12 h-16 bg-gray-100 dark:bg-white/5 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={product.images?.[0] || '/placeholder.png'}
+                              alt={product.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col justify-center h-16">
+                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors mb-0.5">{product.title}</div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500 font-mono">Арт: {product.vendor_article}</span>
+                              <span className="text-sm font-bold text-black dark:text-white">{product.price} грн</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    <Link href={`/catalog?q=${encodeURIComponent(searchQuery)}`} onClick={() => setShowResults(false)} className="block px-5 py-3 text-center text-sm font-bold bg-gray-50 dark:bg-white/5 text-blue-600 hover:text-blue-700 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                      Всі результати пошуку
                     </Link>
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                    Товарів не знайдено
+                  <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <Search className="mx-auto mb-2 opacity-50" size={24} />
+                    <p>Товарів не знайдено</p>
                   </div>
                 )}
               </div>
