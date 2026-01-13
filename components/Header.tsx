@@ -128,20 +128,20 @@ export default function Header() {
           </form>
 
           <div className="flex items-center gap-6">
-            <Link href="/wishlist" className="relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
+            <Link href="/wishlist" className="hidden md:block relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
               <Heart size={24} />
               {wishlistItems.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">{wishlistItems.length}</span>}
             </Link>
-            <Link href={user ? "/profile" : "/login"} className="hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
-            <button onClick={toggleTheme} className="hover:text-yellow-400 transition-colors text-gray-700 dark:text-gray-300">
+            <Link href={user ? "/profile" : "/login"} className="hidden md:block hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
+            <button onClick={toggleTheme} className="hidden md:block hover:text-yellow-400 transition-colors text-gray-700 dark:text-gray-300">
               {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
             </button>
             <button onClick={toggleCart} className="relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
               <ShoppingBag size={24} />
               {cartCount > 0 && <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">{cartCount}</span>}
             </button>
-            {user && <button onClick={handleLogout} className="hover:text-red-500 transition-colors text-gray-700 dark:text-gray-300"><LogOut size={24} /></button>}
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-white">{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
+            {user && <button onClick={handleLogout} className="hidden md:block hover:text-red-500 transition-colors text-gray-700 dark:text-gray-300"><LogOut size={24} /></button>}
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-700 dark:text-white transition-colors">{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
           </div>
         </div>
       </header>
@@ -154,6 +154,21 @@ export default function Header() {
               {/* Мобільний пошук ... */}
 
               <div className="space-y-6">
+                {/* Mobile Controls Row */}
+                <div className="flex items-center gap-6 md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
+                  <button onClick={toggleTheme} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                    {theme === 'dark' ? <><Sun size={20} /> Світла</> : <><Moon size={20} /> Темна</>}
+                  </button>
+                  <Link href="/wishlist" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                    <Heart size={20} /> Обране {wishlistItems.length > 0 && `(${wishlistItems.length})`}
+                  </Link>
+                </div>
+                <div className="md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
+                  <Link href={user ? "/profile" : "/login"} onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                    <User size={20} /> {user ? "Мій кабінет" : "Увійти"}
+                  </Link>
+                </div>
+
                 <Link href="/catalog?sort=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
                 <Link href="/catalog?sort=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
                 <Link href="/catalog?sort=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Уцінка</Link>

@@ -161,6 +161,13 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
             <main className="container mx-auto px-0 md:px-6 lg:px-8 pt-0 md:pt-12">
 
+                {/* Desktop Back Button */}
+                <div className="hidden md:flex items-center gap-2 mb-6">
+                    <Link href="/catalog" className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-black dark:hover:text-white transition-colors">
+                        <ChevronRight className="rotate-180" size={16} /> Назад в каталог
+                    </Link>
+                </div>
+
                 <div className="flex flex-col lg:flex-row gap-0 lg:gap-16">
 
                     {/* === LEFT COLUMN: IMAGERY === */}

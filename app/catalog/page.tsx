@@ -1,4 +1,5 @@
 import ProductCard from '@/components/ProductCard';
+import ProductGrid from '@/components/ProductGrid';
 import { CatalogSidebar } from '@/components/CatalogSidebar';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
@@ -232,11 +233,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
-                  {products.map((product: any) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
+                <ProductGrid products={products} />
 
                 {/* ПАГІНАЦІЯ */}
                 {totalPages > 1 && (
