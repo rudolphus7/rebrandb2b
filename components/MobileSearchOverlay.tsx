@@ -18,7 +18,18 @@ interface MobileSearchOverlayProps {
 export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOverlayProps) {
     // Helper function to extract image URL from various formats
     const getImageUrl = (images: any): string => {
-        if (!images) return '/placeholder.png';
+        // Debug logging to see exact format
+        console.log('📱 Mobile getImageUrl input:', {
+            value: images,
+            type: typeof images,
+            isArray: Array.isArray(images),
+            stringified: JSON.stringify(images)
+        });
+
+        if (!images) {
+            console.log('❌ No images provided');
+            return '/placeholder.png';
+        }
 
         // 1. If it's already an array, take the first item
         if (Array.isArray(images)) {

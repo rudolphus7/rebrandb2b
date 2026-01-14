@@ -20,7 +20,18 @@ interface MenuCategory {
 export default function Header() {
   // Helper function to extract image URL from various formats
   const getImageUrl = (images: any): string => {
-    if (!images) return '/placeholder.png';
+    // Debug logging to see exact format
+    console.log('🖼️ getImageUrl input:', {
+      value: images,
+      type: typeof images,
+      isArray: Array.isArray(images),
+      stringified: JSON.stringify(images)
+    });
+
+    if (!images) {
+      console.log('❌ No images provided');
+      return '/placeholder.png';
+    }
 
     // Case 1: Real Array
     if (Array.isArray(images)) {
