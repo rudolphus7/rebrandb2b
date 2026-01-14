@@ -199,7 +199,7 @@ export default function Home() {
 
         {/* === ПЕРЕВАГИ B2B (WHY CHOOSE US) === */}
         <section className="py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: ShieldAlert, title: "Гарантія Якості", desc: "Сертефікована продукція та контроль кожного етапу" },
               { icon: Briefcase, title: "B2B Ціни", desc: "Спеціальні умови для оптових партнерів та компаній" },
@@ -285,7 +285,7 @@ export default function Home() {
                 className="col-span-1 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
                 onClick={() => router.push('/catalog?category=electronics')}
               >
-                <img src="https://images.unsplash.com/photo-1550009158-9ebf69056955?q=80&w=1000&auto-format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Гаджети" />
+                <img src="https://images.unsplash.com/photo-1498049860654-af1a5c5668ba?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Гаджети" />
                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
                 <div className="absolute bottom-4 left-4 text-white">
                   <h3 className="font-bold uppercase">Електроніка</h3>
@@ -311,7 +311,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {products.slice(0, 4).map((product) => (
               <div key={product.id} className="h-full">
                 <ProductCard product={product} />
@@ -327,7 +327,7 @@ export default function Home() {
             <p className="text-lg text-gray-500 max-w-2xl mx-auto">Повний цикл виробництва мерчу: від розробки дизайну до доставки готової партії.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative">
             {/* Connecting Line (Desktop) */}
             <div className="hidden md:block absolute top-8 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-gray-200 dark:via-white/10 to-transparent -z-10"></div>
 
