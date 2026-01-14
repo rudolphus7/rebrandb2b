@@ -10,7 +10,8 @@ returns table (
   slug text,
   price numeric,
   vendor_article text,
-  images text[],  -- Keep as text array, Supabase JS will handle conversion
+  images text[],
+  image_url text, -- Added image_url column
   description text,
   category_id uuid,
   stock integer,
@@ -31,6 +32,7 @@ as $$
     price,
     vendor_article,
     images,
+    image_url, -- Select image_url
     description,
     category_id,
     stock,

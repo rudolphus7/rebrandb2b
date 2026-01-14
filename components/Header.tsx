@@ -20,62 +20,47 @@ interface MenuCategory {
 export default function Header() {
   // Helper function to extract image URL from various formats
   const getImageUrl = (images: any): string => {
-    // Debug logging to see exact format
-    console.log('🖼️ RAW:', images);
-    console.log('🖼️ Type:', typeof images, '| IsArray:', Array.isArray(images));
-    if (images && typeof images === 'object') {
-      console.log('🖼️ Keys:', Object.keys(images), '| Values:', Object.values(images));
-    }
+    // 1. Safe default (Data URI grey placeholder) to avoid 404s
+    const PLACEHOLDER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-    if (images === null || images === undefined) {
-      console.log('❌ Null or undefined');
-      return '/placeholder.png';
-    }
+    // 2. Handle null/undefined
+    if (!images) return PLACEHOLDER;
 
-    // Case 1: Real Array
+    let url = '';
+
+    // 3. Extract logic
     if (Array.isArray(images)) {
-      return images.length > 0 ? images[0] : '/placeholder.png';
-    }
-
-    // Case 2: String processing
-    if (typeof images === 'string') {
-      let cleanImage = images.trim();
-
-      // Handle Postgres array format: {"url1","url2"} or {url1,url2}
-      if (cleanImage.startsWith('{') && cleanImage.endsWith('}')) {
-        // Remove outer curly braces
-        cleanImage = cleanImage.slice(1, -1).trim();
-
-        // Split by comma and take first element
-        const firstItem = cleanImage.split(',')[0].trim();
-
-        // Remove all quotes (both single and double)
-        cleanImage = firstItem.replace(/["']/g, '').trim();
-
-        // Return if it's a valid URL or path
-        if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
-          return cleanImage;
-        }
+      url = images.length > 0 ? images[0] : '';
+    } else if (typeof images === 'string') {
+      let clean = images.trim();
+      // Postgres array {url,url}
+      if (clean.startsWith('{') && clean.endsWith('}')) {
+        clean = clean.slice(1, -1);
+        url = clean.split(',')[0].replace(/["']/g, '');
       }
-      // Handle JSON format: ["url"]
-      else if (cleanImage.startsWith('[') && cleanImage.endsWith(']')) {
+      // JSON array ["url"]
+      else if (clean.startsWith('[') && clean.endsWith(']')) {
         try {
-          const parsed = JSON.parse(cleanImage);
-          return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : '/placeholder.png';
-        } catch {
-          // If parse fails, continue to next check
-        }
+          const parsed = JSON.parse(clean);
+          url = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : '';
+        } catch { /* ignore */ }
       }
-      // Direct URL or path (also remove any quotes)
+      // Direct string
       else {
-        cleanImage = cleanImage.replace(/["']/g, '').trim();
-        if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
-          return cleanImage;
-        }
+        url = clean.replace(/["']/g, '');
       }
     }
 
-    return '/placeholder.png';
+    if (!url || url.length < 5) return PLACEHOLDER;
+
+    // 4. PROXY FIX: Force HTTPS using weserv.nl for HTTP images
+    if (url.startsWith('http://')) {
+      // Remove http:// and encode for proxy
+      const cleanUrl = url.replace('http://', '');
+      return `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`;
+    }
+
+    return url;
   };
 
   const router = useRouter();
@@ -264,7 +249,7 @@ export default function Header() {
                             <div className="w-12 h-16 bg-gray-100 dark:bg-white/5 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={getImageUrl(product.images)}
+                                src={getImageUrl(product.image_url || product.images)}
                                 alt={product.title}
                                 className="w-full h-full object-cover"
                               />
