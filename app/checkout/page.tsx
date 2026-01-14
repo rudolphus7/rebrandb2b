@@ -125,11 +125,98 @@ export default function CheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCitySelect = (city: string) => {
-    setFormData((prev) => ({ ...prev, deliveryCity: city, deliveryWarehouse: "" }));
-    setCitySearch(city);
+  // --- NOVA POSHTA LOGIC ---
+  const [npCities, setNpCities] = useState<any[]>([]);
+  const [npWarehouses, setNpWarehouses] = useState<any[]>([]);
+  const [selectedCityRef, setSelectedCityRef] = useState("");
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [npError, setNpError] = useState("");
+
+  // Warehouse Search State
+  const [warehouseSearch, setWarehouseSearch] = useState("");
+  const [isWarehouseDropdownOpen, setIsWarehouseDropdownOpen] = useState(false);
+
+  // Debounced City Search
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      setNpError("");
+      if (citySearch.length > 1) {
+        try {
+          const res = await fetch('/api/nova-poshta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'searchCities', cityName: citySearch })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setNpCities(data.data);
+            if (data.data.length === 0) setNpError("Нічого не знайдено");
+          } else {
+            setNpCities([]);
+            setNpError(data.error || "Помилка API");
+          }
+        } catch (error: any) {
+          console.error("NP Search Error:", error);
+          setNpError("Помилка з'єднання");
+        }
+      } else {
+        setNpCities([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [citySearch]);
+
+  // Debounced Warehouse Search
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      if (!selectedCityRef) return;
+      setLoadingWarehouses(true);
+      try {
+        const res = await fetch('/api/nova-poshta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'getWarehouses',
+            cityRef: selectedCityRef,
+            searchString: warehouseSearch // Pass search string
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setNpWarehouses(data.data);
+        } else {
+          console.error("Warehouses Error:", data.error);
+        }
+      } catch (error) {
+        console.error("NP Warehouses Error:", error);
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+
+    const delayDebounceFn = setTimeout(fetchWarehouses, 500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [selectedCityRef, warehouseSearch]);
+
+  const handleCitySelect = (city: any) => {
+    setFormData((prev) => ({ ...prev, deliveryCity: city.Description, deliveryWarehouse: "" }));
+    setCitySearch(city.Description);
+    setSelectedCityRef(city.Ref);
     setIsCityDropdownOpen(false);
+    setNpError("");
+
+    // Reset warehouse search
+    setWarehouseSearch("");
+    setNpWarehouses([]);
   };
+
+  const handleWarehouseSelect = (warehouse: any) => {
+    setFormData((prev) => ({ ...prev, deliveryWarehouse: warehouse.Description }));
+    setWarehouseSearch(warehouse.Description);
+    setIsWarehouseDropdownOpen(false);
+  };
+  // --------------------------
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +238,7 @@ export default function CheckoutPage() {
       items: cart,
       delivery_data: {
         city: formData.deliveryCity,
+        cityRef: selectedCityRef, // Save Ref for future TTN
         warehouse: formData.deliveryWarehouse,
         payment: formData.paymentMethod,
         comment: formData.comment,
@@ -212,6 +300,7 @@ export default function CheckoutPage() {
         totalSum: payAmount,
         delivery: {
           city: formData.deliveryCity,
+          cityRef: selectedCityRef,
           warehouse: formData.deliveryWarehouse,
         },
         isPaid: false,
@@ -253,9 +342,7 @@ export default function CheckoutPage() {
     router.push("/order-success");
   };
 
-  const filteredCities = CITIES.filter((city) =>
-    city.toLowerCase().includes(citySearch.toLowerCase())
-  );
+  const filteredCities = npCities; // Use NP cities
 
   if (loading)
     return (
@@ -345,7 +432,7 @@ export default function CheckoutPage() {
 
             <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none space-y-5 transition-colors">
               <h2 className="text-2xl font-bold border-b border-gray-100 dark:border-white/10 pb-3 flex items-center gap-3 text-gray-900 dark:text-white">
-                <MapPin size={24} className="text-blue-500" /> Доставка
+                <MapPin size={24} className="text-blue-500" /> Доставка (Нова Пошта)
               </h2>
               <div className="space-y-2 relative">
                 <label className="text-xs font-bold text-gray-400 uppercase">Місто</label>
@@ -356,54 +443,81 @@ export default function CheckoutPage() {
                   onChange={(e) => {
                     setCitySearch(e.target.value);
                     setIsCityDropdownOpen(true);
-                    setFormData((prev) => ({ ...prev, deliveryCity: "" }));
+                    if (e.target.value === "") {
+                      setFormData((prev) => ({ ...prev, deliveryCity: "", deliveryWarehouse: "" }));
+                      setSelectedCityRef("");
+                      setNpWarehouses([]);
+                    }
                   }}
                   onFocus={() => setIsCityDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setIsCityDropdownOpen(false), 200)}
                   className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-blue-500 outline-none transition-colors"
                   required
                 />
-                {isCityDropdownOpen && citySearch.length > 0 && (
+                {isCityDropdownOpen && (citySearch.length > 1 || npCities.length > 0 || npError) && (
                   <div className="absolute top-full left-0 w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg max-h-48 overflow-y-auto z-10 shadow-lg text-gray-900 dark:text-white">
-                    {filteredCities.length > 0 ? (
-                      filteredCities.map((city) => (
+                    {npError ? (
+                      <div className="p-3 text-sm text-red-500 font-bold">{npError}</div>
+                    ) : npCities.length > 0 ? (
+                      npCities.map((city) => (
                         <div
-                          key={city}
+                          key={city.Ref}
                           onMouseDown={() => handleCitySelect(city)}
-                          className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-600/50 cursor-pointer transition"
+                          className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-600/50 cursor-pointer transition flex justify-between"
                         >
-                          {city}
+                          <span>{city.Description}</span>
                         </div>
                       ))
                     ) : (
-                      <div className="p-3 text-sm text-gray-500">Місто не знайдено</div>
+                      <div className="p-3 text-sm text-gray-500">
+                        {citySearch.length < 2 ? "Введіть ще символи..." : "Місто не знайдено"}
+                      </div>
                     )}
                   </div>
                 )}
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase">Відділення</label>
-                <select
-                  name="deliveryWarehouse"
-                  value={formData.deliveryWarehouse}
-                  onChange={handleInputChange}
-                  className={`w-full border rounded-lg py-3 px-4 focus:border-blue-500 outline-none transition-colors ${formData.deliveryCity
-                      ? "bg-gray-50 dark:bg-black/50 text-gray-900 dark:text-white border-gray-200 dark:border-white/10"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700"
-                    }`}
-                  disabled={!formData.deliveryCity}
-                  required
-                >
-                  <option value="" disabled>
-                    {formData.deliveryCity ? "Виберіть відділення" : "Спочатку виберіть місто"}
-                  </option>
-                  {formData.deliveryCity &&
-                    WAREHOUSES(formData.deliveryCity).map((warehouse) => (
-                      <option key={warehouse} value={warehouse}>
-                        {warehouse}
-                      </option>
-                    ))}
-                </select>
+                <label className="text-xs font-bold text-gray-400 uppercase">
+                  Відділення {loadingWarehouses && <span className="text-blue-500 animate-pulse">(Завантаження...)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={formData.deliveryCity ? "Введіть номер або адресу..." : "Спочатку виберіть місто"}
+                    value={warehouseSearch}
+                    onChange={(e) => {
+                      setWarehouseSearch(e.target.value);
+                      setIsWarehouseDropdownOpen(true);
+                      setFormData((prev) => ({ ...prev, deliveryWarehouse: "" }));
+                    }}
+                    onFocus={() => setIsWarehouseDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setIsWarehouseDropdownOpen(false), 200)}
+                    disabled={!formData.deliveryCity}
+                    className={`w-full border rounded-lg py-3 px-4 outline-none transition-colors ${formData.deliveryCity
+                      ? "bg-gray-50 dark:bg-black/50 text-gray-900 dark:text-white border-gray-200 dark:border-white/10 focus:border-blue-500"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                      }`}
+                    required
+                  />
+                  {isWarehouseDropdownOpen && npWarehouses.length > 0 && (
+                    <div className="absolute top-full left-0 w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg max-h-48 overflow-y-auto z-10 shadow-lg text-gray-900 dark:text-white mt-1">
+                      {npWarehouses.map((warehouse) => (
+                        <div
+                          key={warehouse.Ref}
+                          onMouseDown={() => handleWarehouseSelect(warehouse)}
+                          className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-600/50 cursor-pointer transition border-b border-gray-100 dark:border-white/5 last:border-0"
+                        >
+                          {warehouse.Description}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {isWarehouseDropdownOpen && warehouseSearch.length > 0 && npWarehouses.length === 0 && !loadingWarehouses && (
+                    <div className="absolute top-full left-0 w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg p-3 text-sm text-gray-500 z-10 shadow-lg mt-1">
+                      Відділення не знайдено
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -577,8 +691,8 @@ function PaymentOption({ id, name, value, label, checked, onChange, icon: Icon }
     <label
       htmlFor={id}
       className={`flex items-center p-4 rounded-xl cursor-pointer transition duration-200 border-2 ${checked
-          ? "bg-blue-600/10 dark:bg-blue-600/20 border-blue-600"
-          : "bg-gray-50 dark:bg-black/50 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/30"
+        ? "bg-blue-600/10 dark:bg-blue-600/20 border-blue-600"
+        : "bg-gray-50 dark:bg-black/50 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/30"
         }`}
     >
       <input

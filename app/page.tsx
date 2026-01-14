@@ -217,7 +217,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* === ОНОВЛЕНІ КАТЕГОРІЇ (MODERN GRID) === */}
+
+        {/* === ОНОВЛЕНІ КАТЕГОРІЇ (DYNAMIC GRID) === */}
         <section>
           <div className="flex items-end justify-between mb-8">
             <div>
@@ -229,69 +230,78 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 h-auto md:h-[500px]">
-            {/* Велика картка 1 */}
-            <div
-              className="col-span-2 md:col-span-3 h-[250px] md:h-full relative rounded-3xl overflow-hidden cursor-pointer group"
-              onClick={() => router.push('/catalog?category=clothing')}
-            >
-              <img src="https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Одяг" />
-              <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                <div className="flex items-center justify-between text-white">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 auto-rows-[180px] md:auto-rows-[240px]">
+            {[
+              {
+                id: 'odiah',
+                title: 'Одяг',
+                desc: 'Худі, футболки',
+                image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1000&auto=format&fit=crop',
+                className: 'row-span-2 md:row-span-2',
+              },
+              {
+                id: 'ofis',
+                title: 'Офіс',
+                desc: 'Блокноти, ручки',
+                image: 'https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=1000&auto=format&fit=crop', // Office Supplies
+                className: 'md:col-span-2',
+              },
+              {
+                id: 'elektronika',
+                title: 'Електроніка',
+                desc: 'Повербанки, гаджети',
+                image: 'https://images.unsplash.com/photo-1760708825913-65a50b3dc39b?q=80&w=1000&auto=format&fit=crop', // Clear Powerbank
+                className: 'md:col-span-1',
+              },
+              {
+                id: 'bags',
+                title: 'Сумки',
+                desc: 'Рюкзаки, шопери',
+                image: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=1000&auto=format&fit=crop', // Better framed backpack
+                className: '',
+              },
+              {
+                id: 'dim',
+                title: 'Дім',
+                desc: 'Чашки, термоси',
+                image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto=format&fit=crop',
+                className: '',
+              },
+              {
+                id: 'parasoli',
+                title: 'Парасолі',
+                desc: 'Крокуй під дощем',
+                image: 'https://images.unsplash.com/photo-1541005460290-3bbe4ded5654?q=80&w=1000&auto=format&fit=crop', // Red Umbrella
+                className: 'col-span-2 md:col-span-2',
+              },
+            ].map((cat) => (
+              <div
+                key={cat.id}
+                onClick={() => router.push(`/catalog?category=${cat.id}`)}
+                className={`relative rounded-2xl md:rounded-3xl overflow-hidden cursor-pointer group ${cat.className}`}
+              >
+                <img
+                  src={cat.image}
+                  alt={cat.title}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300" />
+
+                <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 flex items-end justify-between">
                   <div>
-                    <h3 className="text-2xl font-black uppercase">Одяг</h3>
-                    <p className="text-white/80 text-sm">Худі, футболки, кепки</p>
+                    <h3 className="text-lg md:text-2xl font-black uppercase text-white mb-1 leading-none">
+                      {cat.title}
+                    </h3>
+                    <p className="text-white/70 text-[10px] md:text-sm font-medium line-clamp-1">
+                      {cat.desc}
+                    </p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center group-hover:bg-white group-hover:text-black transition-colors">
-                    <ArrowRight size={20} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Права колонка сітки */}
-            <div className="col-span-2 md:col-span-3 grid grid-cols-2 gap-4 h-full">
-              {/* Картка 2 */}
-              <div
-                className="col-span-2 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
-                onClick={() => router.push('/catalog?category=office')}
-              >
-                <img src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Офіс" />
-                <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                  <div className="flex items-center justify-between text-white">
-                    <div>
-                      <h3 className="text-xl font-bold uppercase">Офіс</h3>
-                      <p className="text-white/80 text-sm">Блокноти, ручки, папiр</p>
-                    </div>
-                    <ArrowRight className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" size={20} />
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-all duration-300 shadow-lg">
+                    <ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />
                   </div>
                 </div>
               </div>
-
-              {/* Картка 3 */}
-              <div
-                className="col-span-1 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
-                onClick={() => router.push('/catalog?category=home')}
-              >
-                <img src="https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto-format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Дім" />
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <h3 className="font-bold uppercase">Дім & Посуд</h3>
-                </div>
-              </div>
-
-              {/* Картка 4 */}
-              <div
-                className="col-span-1 h-[200px] md:h-1/2 relative rounded-3xl overflow-hidden cursor-pointer group"
-                onClick={() => router.push('/catalog?category=electronics')}
-              >
-                <img src="https://images.unsplash.com/photo-1498049860654-af1a5c5668ba?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Гаджети" />
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <h3 className="font-bold uppercase">Електроніка</h3>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 

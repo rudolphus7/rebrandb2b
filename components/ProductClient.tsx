@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useCart } from '@/components/CartContext';
+import { useWishlist } from '@/components/WishlistContext';
 import {
     ShoppingBag,
     FileText,
@@ -11,7 +12,8 @@ import {
     Minus,
     Plus,
     Info,
-    ArrowRight // <<-- ДОДАНО
+    ArrowRight, // <<-- ДОДАНО
+    Heart // Added Heart icon
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,6 +24,8 @@ interface ProductClientProps {
 
 export default function ProductClient({ product, variants }: ProductClientProps) {
     const { addItem } = useCart();
+    const { toggleItem, isInWishlist } = useWishlist();
+    const isWishlisted = isInWishlist(product.id);
 
     // --- 1. ОБРОБКА ДАНИХ (Data Processing) ---
     const uniqueColors = useMemo(() => {
@@ -30,7 +34,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     }, [variants]);
 
     const allSizes = useMemo(() => {
-        const sizes = new Set(variants.map(v => v.size).filter(s => s && s !== 'One Size'));
+        const sizes = new Set(variants.map(v => v.size).filter(Boolean));
         const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL'];
         return Array.from(sizes).sort((a, b) => {
             const idxA = sizeOrder.indexOf(a.toUpperCase());
@@ -73,12 +77,27 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
     // --- 3. ЛОГІКА КАРТИНОК (Images) ---
     const galleryImages = useMemo(() => {
-        const mainImg = currentColorVariants[0]?.image_url || product.image_url;
+        // Helper to get image from variant
+        const getVariantImage = (v: any) => {
+            if (v?.image_url) return v.image_url;
+            if (Array.isArray(v?.images) && v.images.length > 0) return v.images[0];
+            return null;
+        };
+
+        // Find the first variant of the selected color that actually has an image
+        const variantWithImage = currentColorVariants.find(v => getVariantImage(v));
+        const mainImg = getVariantImage(variantWithImage) || product.image_url;
+
         const images = [mainImg];
+
+        // Add other variant images if they exist and are unique
         currentColorVariants.forEach(v => {
-            if (v.image_url && !images.includes(v.image_url)) images.push(v.image_url);
+            const img = getVariantImage(v);
+            if (img && !images.includes(img)) images.push(img);
         });
+
         if (product.image_url && !images.includes(product.image_url)) images.push(product.image_url);
+
         return images.filter(Boolean);
     }, [product, currentColorVariants]);
 
@@ -144,8 +163,34 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     };
 
     // Helper for simplified price display
-    const basePrice = product.base_price;
+    // const basePrice = product.base_price;
+    const basePrice = currentColorVariants.length > 0 ? currentColorVariants[0].price : product.base_price;
     const oldPrice = product.old_price;
+
+    // --- 4. MERGE SPECIFICATIONS (Display logic) ---
+    const currentSpecifications = useMemo(() => {
+        const baseSpecs = { ...product.specifications };
+        const selectedVariant = currentColorVariants[0]; // First variant of this color
+
+        if (selectedVariant) {
+            // 1. If variant has explicit specifications JSON, merge it
+            if (selectedVariant.specifications) {
+                Object.assign(baseSpecs, selectedVariant.specifications);
+            }
+
+            // 2. Explicitly override 'Група Кольорів' if we have better data
+            // Try 'color_group' column, then 'color' column
+            if (selectedVariant.color_group) {
+                baseSpecs['Група Кольорів'] = selectedVariant.color_group;
+            } else if (selectedVariant.color) {
+                // Fallback: use the specific color name as the group if no group is defined
+                // This ensures it changes from the default parent color
+                baseSpecs['Група Кольорів'] = selectedVariant.color;
+            }
+        }
+
+        return baseSpecs;
+    }, [product.specifications, currentColorVariants]);
 
     return (
         <div className="bg-white dark:bg-[#0a0a0a] min-h-screen font-sans text-gray-900 dark:text-gray-100 pb-32 md:pb-0">
@@ -213,9 +258,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                         </div>
                     </div>
 
-                    {/* === RIGHT COLUMN: INFO (Sticky on Desktop) === */}
+                    {/* === RIGHT COLUMN: INFO === */}
                     <div className="w-full lg:w-[40%] px-4 md:px-0 mt-6 md:mt-0">
-                        <div className="lg:sticky lg:top-24 flex flex-col gap-8">
+                        <div className="flex flex-col gap-8">
 
                             {/* Title & Price Header */}
                             <div>
@@ -278,7 +323,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         return (
                                             <div key={variant.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-black bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-[#111]'}`}>
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-sm">{variant.size === 'One Size' ? 'Універсальний' : variant.size}</span>
+                                                    <span className="font-bold text-sm">{variant.size === 'One Size' ? variant.color : variant.size}</span>
                                                     <span className={`text-xs font-medium ${isAvailable ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
                                                         {isAvailable ? `В наявності: ${variant.available} шт.` : 'Немає'}
                                                     </span>
@@ -324,13 +369,21 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         <p className="text-3xl font-black">{formatPrice(totalSelectedPrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={handleBulkAddToCart}
-                                    disabled={totalSelectedQty === 0}
-                                    className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold text-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <ShoppingBag size={20} /> Додати до кошика ({totalSelectedQty})
-                                </button>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleBulkAddToCart}
+                                        disabled={totalSelectedQty === 0}
+                                        className="flex-1 bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold text-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        <ShoppingBag size={20} /> Додати до кошика ({totalSelectedQty})
+                                    </button>
+                                    <button
+                                        onClick={() => toggleItem(product.id)}
+                                        className={`w-[60px] rounded-2xl border-2 transition-all flex items-center justify-center ${isWishlisted ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-white/10 text-gray-400 hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white'}`}
+                                    >
+                                        <Heart size={24} fill={isWishlisted ? "currentColor" : "none"} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Description Tabs */}
@@ -343,7 +396,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     {activeTab === 'features' ? (
                                         <div className="space-y-2">
                                             {product.material && <div className="flex justify-between py-1 border-b border-gray-50 dark:border-white/5"><span>Матеріал</span> <span className="text-black dark:text-white font-medium">{product.material}</span></div>}
-                                            {Object.entries(product.specifications || {}).map(([k, v]) => (
+                                            {Object.entries(currentSpecifications).map(([k, v]) => (
                                                 <div key={k} className="flex justify-between py-1 border-b border-gray-50 dark:border-white/5"><span>{k}</span> <span className="text-black dark:text-white font-medium">{v as string}</span></div>
                                             ))}
                                         </div>
@@ -355,6 +408,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                         </div>
                     </div>
                 </div>
+
                 {/* === НИЖНІЙ БЛОК: ЗВЕДЕНА МАТРИЦЯ === */}
                 <div className="bg-[#1a1a1a] text-white rounded-[32px] p-8 lg:p-12 shadow-2xl overflow-hidden border border-white/5 transition-colors mt-12 mb-12">
                     <div className="flex items-center justify-between mb-10">
@@ -374,7 +428,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     </th>
                                     {allSizes.map(size => (
                                         <th key={size} className="py-5 font-bold text-white text-center text-sm w-24 border-b border-white/10 bg-[#222]">
-                                            {size}
+                                            {size === 'One Size' ? 'Універсальний' : size}
                                         </th>
                                     ))}
                                 </tr>
@@ -438,11 +492,17 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                     </div>
                 </div>
 
-            </main>
+            </main >
 
             {/* === MOBILE STICKY FOOTER === */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#0a0a0a] border-t border-gray-100 dark:border-white/10 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] safe-area-pb">
+            < div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#0a0a0a] border-t border-gray-100 dark:border-white/10 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] safe-area-pb" >
                 <div className="flex gap-3 items-center">
+                    <button
+                        onClick={() => toggleItem(product.id)}
+                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all ${isWishlisted ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-white/10 text-gray-400'}`}
+                    >
+                        <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
+                    </button>
                     <div className="flex flex-col">
                         <span className="text-[10px] text-gray-400 uppercase font-bold">Разом</span>
                         <span className="text-xl font-black leading-none">{formatPrice(Math.max(basePrice, totalSelectedPrice))}</span>
@@ -459,8 +519,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                         )}
                     </button>
                 </div>
-            </div>
+            </div >
 
-        </div>
+        </div >
     );
 }

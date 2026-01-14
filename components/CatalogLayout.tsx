@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { LayoutGrid, Rows, Filter } from 'lucide-react';
+import { LayoutGrid, Rows, Filter, Loader2, ChevronUp, Plus } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
 import { CatalogSidebar } from '@/components/CatalogSidebar';
+import { fetchMoreProducts } from '@/app/catalog/actions';
+import { SearchParams } from '@/lib/catalog';
+import CatalogPagination from '@/components/CatalogPagination';
 
 interface CatalogLayoutProps {
     products: any[];
@@ -11,14 +14,28 @@ interface CatalogLayoutProps {
     availableColors: string[];
     maxPrice: number;
     totalCount: number;
+    searchParams: SearchParams;
+    currentPage: number;
+    totalPages: number;
 }
 
-export default function CatalogLayout({ products, categories, availableColors, maxPrice, totalCount }: CatalogLayoutProps) {
+export default function CatalogLayout({ products: initialProducts, categories, availableColors, maxPrice, totalCount, searchParams, currentPage, totalPages }: CatalogLayoutProps) {
     // Mobile Sidebar State
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     // View Mode State (Persisted)
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+
+    // Pagination State
+    const [loadedProducts, setLoadedProducts] = useState<any[]>(initialProducts);
+    const [page, setPage] = useState(parseInt(searchParams.page || '1'));
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Reset loaded products when initialProducts change (filtes applied)
+    useEffect(() => {
+        setLoadedProducts(initialProducts);
+        setPage(parseInt(searchParams.page || '1'));
+    }, [initialProducts, searchParams]);
 
     useEffect(() => {
         // Load saved preference
@@ -38,8 +55,42 @@ export default function CatalogLayout({ products, categories, availableColors, m
         setIsSidebarOpen(false);
     }, []);
 
+    const handleLoadMore = async () => {
+        setIsLoading(true);
+        const nextPage = page + 1;
+
+        try {
+            // Call server action
+            const result = await fetchMoreProducts({ ...searchParams, page: nextPage.toString() });
+
+            if (result.products && result.products.length > 0) {
+                setLoadedProducts(prev => [...prev, ...result.products]);
+                setPage(nextPage);
+            }
+        } catch (error) {
+            console.error("Failed to load more products:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleScrollToTop = () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const hasMore = loadedProducts.length < totalCount;
+
     return (
-        <div className="flex flex-col md:flex-row gap-8">
+        <div className="flex flex-col md:flex-row gap-8 relative">
+
+            {/* Back to Top Button (Fixed) */}
+            <button
+                onClick={handleScrollToTop}
+                className="fixed bottom-8 right-8 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 dark:border-white/10 text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all group hidden md:flex items-center justify-center"
+                title="Вгору"
+            >
+                <ChevronUp className="group-hover:-translate-y-1 transition-transform" size={24} />
+            </button>
 
             {/* SIDEBAR (Controlled) */}
             <CatalogSidebar
@@ -90,19 +141,49 @@ export default function CatalogLayout({ products, categories, availableColors, m
                 {/* Product Count (Moved here) */}
                 <div className="mb-4 text-xs text-gray-500 dark:text-gray-400 text-right px-1">
                     Знайдено товарів: <span className="font-bold text-black dark:text-white">{totalCount}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    Показано: <span className="font-bold text-black dark:text-white">{loadedProducts.length}</span>
                 </div>
 
                 {/* === PRODUCT GRID === */}
-                {products.length === 0 ? (
+                {loadedProducts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-gray-500">
                         <p className="text-lg font-medium">Товарів не знайдено</p>
                     </div>
                 ) : (
-                    <div className={`grid gap-4 md:gap-6 ${viewMode === 'grid' ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'} transition-all duration-300`}>
-                        {products.map((product) => (
-                            <ProductCard key={product.id} product={product} />
-                        ))}
-                    </div>
+                    <>
+                        <div className={`grid gap-4 md:gap-6 ${viewMode === 'grid' ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'} transition-all duration-300`}>
+                            {loadedProducts.map((product) => (
+                                <ProductCard key={product.id} product={product} />
+                            ))}
+                        </div>
+
+                        {/* Show More Button */}
+                        {hasMore && (
+                            <div className="mt-12 flex justify-center">
+                                <button
+                                    onClick={handleLoadMore}
+                                    disabled={isLoading}
+                                    className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-black dark:text-white font-bold py-4 px-12 rounded-full shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={20} /> Завантаження...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus size={20} className="bg-black text-white dark:bg-white dark:text-black rounded-full p-0.5" /> Показати більше
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Numbered Pagination (Aligned with Grid) */}
+                        {totalPages > 1 && (
+                            <CatalogPagination currentPage={currentPage} totalPages={totalPages} />
+                        )}
+                    </>
                 )}
 
             </div>
