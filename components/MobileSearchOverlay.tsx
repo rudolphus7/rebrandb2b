@@ -19,15 +19,14 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
     // Helper function to extract image URL from various formats
     const getImageUrl = (images: any): string => {
         // Debug logging to see exact format
-        console.log('📱 Mobile getImageUrl input:', {
-            value: images,
-            type: typeof images,
-            isArray: Array.isArray(images),
-            stringified: JSON.stringify(images)
-        });
+        console.log('📱 RAW:', images);
+        console.log('📱 Type:', typeof images, '| IsArray:', Array.isArray(images));
+        if (images && typeof images === 'object') {
+            console.log('📱 Keys:', Object.keys(images), '| Values:', Object.values(images));
+        }
 
-        if (!images) {
-            console.log('❌ No images provided');
+        if (images === null || images === undefined) {
+            console.log('❌ Null or undefined');
             return '/placeholder.png';
         }
 
