@@ -29,18 +29,23 @@ export default function Header() {
 
     // Case 2: String processing
     if (typeof images === 'string') {
-      // Clean up string
       let cleanImage = images.trim();
 
-      // Handle Postgres array format: {"url"}
+      // Handle Postgres array format: {"url1","url2"} or {url1,url2}
       if (cleanImage.startsWith('{') && cleanImage.endsWith('}')) {
-        cleanImage = cleanImage.slice(1, -1); // Remove {}
-        // Take first item if comma separated
-        if (cleanImage.includes(',')) {
-          cleanImage = cleanImage.split(',')[0];
+        // Remove outer curly braces
+        cleanImage = cleanImage.slice(1, -1).trim();
+
+        // Split by comma and take first element
+        const firstItem = cleanImage.split(',')[0].trim();
+
+        // Remove all quotes (both single and double)
+        cleanImage = firstItem.replace(/["']/g, '').trim();
+
+        // Return if it's a valid URL or path
+        if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
+          return cleanImage;
         }
-        // Remove quotes if present
-        cleanImage = cleanImage.replace(/"/g, '');
       }
       // Handle JSON format: ["url"]
       else if (cleanImage.startsWith('[') && cleanImage.endsWith(']')) {
@@ -48,13 +53,15 @@ export default function Header() {
           const parsed = JSON.parse(cleanImage);
           return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : '/placeholder.png';
         } catch {
-          // If parse fails, treat as string? unlikely for []
+          // If parse fails, continue to next check
         }
       }
-
-      // Final check if it looks like a URL or path
-      if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
-        return cleanImage;
+      // Direct URL or path (also remove any quotes)
+      else {
+        cleanImage = cleanImage.replace(/["']/g, '').trim();
+        if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
+          return cleanImage;
+        }
       }
     }
 

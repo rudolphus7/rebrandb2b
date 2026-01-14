@@ -27,30 +27,39 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
 
         // 2. If it's a string, try to parse it or clean it
         if (typeof images === 'string') {
-            const clean = images.trim();
+            let cleanImage = images.trim();
 
-            // Check for Postgres array format {url1,url2}
-            if (clean.startsWith('{')) {
-                const matches = clean.match(/\{([^}]+)\}/);
-                if (matches && matches[1]) {
-                    const parts = matches[1].split(',');
-                    return parts[0].replace(/"/g, '').trim();
+            // Handle Postgres array format: {"url1","url2"} or {url1,url2}
+            if (cleanImage.startsWith('{') && cleanImage.endsWith('}')) {
+                // Remove outer curly braces
+                cleanImage = cleanImage.slice(1, -1).trim();
+
+                // Split by comma and take first element
+                const firstItem = cleanImage.split(',')[0].trim();
+
+                // Remove all quotes (both single and double)
+                cleanImage = firstItem.replace(/["']/g, '').trim();
+
+                // Return if it's a valid URL or path
+                if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
+                    return cleanImage;
                 }
             }
-
-            // Check for JSON array format ["url1"]
-            if (clean.startsWith('[')) {
+            // Handle JSON format: ["url1"]
+            else if (cleanImage.startsWith('[') && cleanImage.endsWith(']')) {
                 try {
-                    const parsed = JSON.parse(clean);
+                    const parsed = JSON.parse(cleanImage);
                     if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
                 } catch (e) {
                     // ignore error
                 }
             }
-
-            // Check if it's a direct URL
-            if (clean.startsWith('http') || clean.startsWith('/')) {
-                return clean.replace(/"/g, '');
+            // Direct URL or path (also remove any quotes)
+            else {
+                cleanImage = cleanImage.replace(/["']/g, '').trim();
+                if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
+                    return cleanImage;
+                }
             }
         }
 
