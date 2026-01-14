@@ -102,35 +102,51 @@ export default function LoginPage({ onLogin }: { onLogin: (e: any, p: any) => vo
       {/* GRID PATTERN */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px] z-0"></div>
 
-      <div className="container mx-auto px-4 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 max-w-6xl">
+      <div className="container mx-auto px-4 relative z-10 flex flex-col md:flex-row items-center justify-between gap-20 max-w-[1600px]">
 
         {/* LEFT SIDE: WELCOME TEXT (Visible on Desktop) */}
-        <div className="hidden md:block flex-1 max-w-lg">
+        <div className="flex-1 order-2 md:order-1">
           <motion.div
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
+            className="w-full relative rounded-3xl overflow-hidden bg-white text-black p-8 md:p-12 md:py-16 shadow-2xl h-full flex flex-col justify-center"
           >
-            <div className="flex items-center gap-2 mb-6 text-blue-600 dark:text-blue-400 font-bold tracking-wider uppercase text-sm">
-              <Hexagon size={16} className="fill-blue-600/20" /> B2B Платформа
-            </div>
-            <h1 className="text-5xl lg:text-7xl font-black text-gray-900 dark:text-white leading-tight mb-6">
-              Масштабуй <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">свій бізнес</span>
-            </h1>
-            <p className="text-lg text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-              Замовляйте оптом, слідкуйте за статусами та отримуйте персональні пропозиції в єдиному цифровому просторі.
-            </p>
+            {/* Background Image from Homepage */}
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] opacity-30 bg-cover bg-center"></div>
 
-            <div className="flex items-center gap-8 text-sm font-semibold text-gray-400 dark:text-gray-500">
-              <div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500" /> Швидка доставка</div>
-              <div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500" /> Ексклюзивні ціни</div>
+            <div className="relative z-10">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black uppercase leading-tight mb-6 text-black">
+                Готові До <br />Співпраці?
+              </h1>
+              <p className="text-xl text-black/70 mb-10 leading-relaxed font-medium max-w-2xl">
+                Отримайте індивідуальну комерційну пропозицію та доступ до B2B цін вже сьогодні.
+              </p>
+
+              <button className="bg-black text-white px-8 md:px-10 py-4 md:py-5 rounded-xl font-bold text-lg md:text-xl hover:scale-105 transition-transform mb-12 md:mb-16 shadow-lg">
+                Зв'язатись з менеджером
+              </button>
+
+              <div className="grid grid-cols-3 gap-4 md:gap-8 text-left max-w-3xl">
+                <div>
+                  <div className="text-3xl md:text-5xl font-black mb-2 text-black">500+</div>
+                  <div className="text-sm text-black/50 font-bold uppercase tracking-wider">Партнерів</div>
+                </div>
+                <div>
+                  <div className="text-3xl md:text-5xl font-black mb-2 text-black">30k</div>
+                  <div className="text-sm text-black/50 font-bold uppercase tracking-wider">Товарів</div>
+                </div>
+                <div>
+                  <div className="text-3xl md:text-5xl font-black mb-2 text-black">24h</div>
+                  <div className="text-sm text-black/50 font-bold uppercase tracking-wider">Зразки</div>
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
 
         {/* RIGHT SIDE: LOGIN FORM */}
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md order-1 md:order-2">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}

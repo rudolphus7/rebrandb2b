@@ -197,25 +197,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === ПЕРЕВАГИ B2B (WHY CHOOSE US) === */}
-        <section className="py-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: ShieldAlert, title: "Гарантія Якості", desc: "Сертефікована продукція та контроль кожного етапу" },
-              { icon: Briefcase, title: "B2B Ціни", desc: "Спеціальні умови для оптових партнерів та компаній" },
-              { icon: Monitor, title: "Власний Дизайн", desc: "Розробка унікального мерчу та брендування під ключ" },
-              { icon: Coffee, title: "Швидка Доставка", desc: "Відправка замовлень день у день по всій Україні" },
-            ].map((item, i) => (
-              <div key={i} className="bg-white dark:bg-[#111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-black dark:hover:border-white/20 transition-all duration-300 group">
-                <div className="w-12 h-12 bg-gray-50 dark:bg-white/5 rounded-xl flex items-center justify-center mb-4 text-black dark:text-white group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
-                  <item.icon size={24} />
-                </div>
-                <h3 className="font-bold text-lg mb-2">{item.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+
 
 
         {/* === ОНОВЛЕНІ КАТЕГОРІЇ (DYNAMIC GRID) === */}
@@ -330,6 +312,26 @@ export default function Home() {
           </div>
         </section>
 
+        {/* === ПЕРЕВАГИ B2B (WHY CHOOSE US) === */}
+        <section className="py-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: ShieldAlert, title: "Гарантія Якості", desc: "Сертефікована продукція та контроль кожного етапу" },
+              { icon: Briefcase, title: "B2B Ціни", desc: "Спеціальні умови для оптових партнерів та компаній" },
+              { icon: Monitor, title: "Власний Дизайн", desc: "Розробка унікального мерчу та брендування під ключ" },
+              { icon: Coffee, title: "Швидка Доставка", desc: "Відправка замовлень день у день по всій Україні" },
+            ].map((item, i) => (
+              <div key={i} className="bg-white dark:bg-[#111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-black dark:hover:border-white/20 transition-all duration-300 group">
+                <div className="w-12 h-12 bg-gray-50 dark:bg-white/5 rounded-xl flex items-center justify-center mb-4 text-black dark:text-white group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
+                  <item.icon size={24} />
+                </div>
+                <h3 className="font-bold text-lg mb-2">{item.title}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* === WORKFLOW (ЯК ЦЕ ПРАЦЮЄ) === */}
         <section className="py-16 border-y border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02] -mx-4 px-4 md:-mx-0 md:px-0 md:rounded-3xl">
           <div className="max-w-4xl mx-auto text-center mb-16">
@@ -372,36 +374,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* === FAQ / CTA SECTION === */}
-        <section className="relative rounded-3xl overflow-hidden bg-black dark:bg-white text-white dark:text-black overflow-hidden py-20 px-8">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] opacity-20 bg-cover bg-center"></div>
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
-            <div className="max-w-2xl">
-              <h2 className="text-4xl md:text-6xl font-black uppercase leading-tight mb-6">Готові До <br />Співпраці?</h2>
-              <p className="text-lg text-white/70 dark:text-black/70 mb-8">Отримайте індивідуальну комерційну пропозицію та доступ до B2B цін вже сьогодні.</p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/catalog" className="bg-white dark:bg-black text-black dark:text-white px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform text-center">Перейти в каталог</Link>
-                <button className="px-8 py-4 rounded-xl font-bold text-lg border-2 border-white/20 dark:border-black/10 hover:bg-white/10 dark:hover:bg-black/5 transition-colors">Зв'язатись з менеджером</button>
-              </div>
-            </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-8 md:gap-12">
-              <div>
-                <div className="text-4xl md:text-5xl font-black mb-2">500+</div>
-                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Партнерів</div>
-              </div>
-              <div>
-                <div className="text-4xl md:text-5xl font-black mb-2">30k</div>
-                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Товарів на складі</div>
-              </div>
-              <div>
-                <div className="text-4xl md:text-5xl font-black mb-2">24h</div>
-                <div className="text-sm text-white/50 dark:text-black/50 font-bold uppercase">Відправка зразків</div>
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
 
       <footer className="bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-white/10 py-12 mt-12 transition-colors duration-300">
