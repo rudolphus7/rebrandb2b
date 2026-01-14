@@ -20,41 +20,40 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
     const getImageUrl = (images: any): string => {
         if (!images) return '/placeholder.png';
 
-        // Case 1: Real Array
+        // 1. If it's already an array, take the first item
         if (Array.isArray(images)) {
             return images.length > 0 ? images[0] : '/placeholder.png';
         }
 
-        // Case 2: String processing
+        // 2. If it's a string, try to parse it or clean it
         if (typeof images === 'string') {
-            // Clean up string
-            let cleanImage = images.trim();
+            const clean = images.trim();
 
-            // Handle Postgres array format: {"url"}
-            if (cleanImage.startsWith('{') && cleanImage.endsWith('}')) {
-                cleanImage = cleanImage.slice(1, -1); // Remove {}
-                // Take first item if comma separated
-                if (cleanImage.includes(',')) {
-                    cleanImage = cleanImage.split(',')[0];
+            // Check for Postgres array format {url1,url2}
+            if (clean.startsWith('{')) {
+                const matches = clean.match(/\{([^}]+)\}/);
+                if (matches && matches[1]) {
+                    const parts = matches[1].split(',');
+                    return parts[0].replace(/"/g, '').trim();
                 }
-                // Remove quotes if present
-                cleanImage = cleanImage.replace(/"/g, '');
             }
-            // Handle JSON format: ["url"]
-            else if (cleanImage.startsWith('[') && cleanImage.endsWith(']')) {
+
+            // Check for JSON array format ["url1"]
+            if (clean.startsWith('[')) {
                 try {
-                    const parsed = JSON.parse(cleanImage);
-                    return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : '/placeholder.png';
-                } catch {
-                    // fall through
+                    const parsed = JSON.parse(clean);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+                } catch (e) {
+                    // ignore error
                 }
             }
 
-            // Final check if it looks like a URL or path
-            if (cleanImage && (cleanImage.startsWith('http') || cleanImage.startsWith('/'))) {
-                return cleanImage;
+            // Check if it's a direct URL
+            if (clean.startsWith('http') || clean.startsWith('/')) {
+                return clean.replace(/"/g, '');
             }
         }
+
         return '/placeholder.png';
     };
 
