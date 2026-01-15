@@ -91,7 +91,11 @@ export default function Home() {
       .order('created_at', { ascending: false })
       .limit(8);
 
-    if (prodData) setProducts(prodData);
+    if (prodData) {
+      const valid = prodData.filter((p: any) => p.base_price > 0);
+      const zeros = prodData.filter((p: any) => p.base_price === 0);
+      setProducts([...valid, ...zeros]);
+    }
 
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
     if (bannerData && bannerData.length > 0) setBanners(bannerData);

@@ -81,6 +81,13 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
   );
 
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
+  const [onlyInStock, setOnlyInStock] = useState(searchParams.get('inStock') === 'true');
+
+  const toggleInStock = () => {
+    const newVal = !onlyInStock;
+    setOnlyInStock(newVal);
+    applyFilters({ inStock: newVal ? 'true' : null });
+  };
 
   // --- ЛОГІКА ---
   const applyFilters = (newParams: Record<string, string | null>) => {
@@ -126,6 +133,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
     setSearch('');
     setPriceRange({ min: '0', max: String(maxPrice) });
     setSelectedColors([]);
+    setOnlyInStock(false);
     router.push('/catalog');
   };
 
@@ -136,7 +144,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
       {(searchParams.toString().length > 0) && (
         <button
           onClick={handleReset}
-          className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase hover:text-red-300 transition-colors mb-2"
+          className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase hover:text-red-400 transition-colors mb-2"
         >
           <X size={14} /> Скинути всі фільтри
         </button>
@@ -211,6 +219,23 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
           />
           <Search size={16} className="absolute right-3 top-3 text-gray-500" />
         </div>
+      </div>
+
+      {/* 2.5. НАЯВНІСТЬ (In Stock) */}
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 p-5 transition-colors">
+        <h3 className="font-bold mb-4 text-gray-900 dark:text-white">Наявність</h3>
+        <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-400 cursor-pointer hover:text-black dark:hover:text-white transition-colors group">
+          <div className="relative flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={onlyInStock}
+              onChange={toggleInStock}
+              className="peer w-5 h-5 rounded border border-gray-600 bg-transparent checked:bg-green-500 checked:border-green-500 appearance-none transition-colors cursor-pointer"
+            />
+            <svg className="absolute w-3.5 h-3.5 text-white hidden peer-checked:block pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+          </div>
+          Тільки в наявності
+        </label>
       </div>
 
       {/* 3. ЦІНА */}
