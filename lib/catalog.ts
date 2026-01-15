@@ -15,9 +15,9 @@ export interface SearchParams {
     color?: string;
     page?: string;
     inStock?: string;
+    label?: string;
 }
 
-// Helper to apply common filters
 // Helper to separate Async Category Logic
 const resolveCategoryIds = async (categorySlug: string | undefined, supabase: any) => {
     if (!categorySlug) return null;
@@ -40,8 +40,6 @@ export async function getProducts(params: SearchParams) {
 
     // 2. Define Sync Query BuilderFactory
     const createBaseQuery = (selectStr: string, opts: any = { count: 'exact' }) => {
-        let q = supabase.from('products').select(selectStr, opts);
-
         // Apply Common Filters (Sync)
         const queryText = params.q || '';
         const safeQueryText = queryText.replace(/[,%()]/g, ' ').trim();
@@ -49,6 +47,18 @@ export async function getProducts(params: SearchParams) {
         const maxPrice = parseFloat(params.maxPrice || '1000000');
         const selectedColors = params.color?.split(',').filter(Boolean) || [];
         const onlyInStock = params.inStock === 'true';
+
+        // Check if we are filtering by variants
+        const filteringVariants = selectedColors.length > 0 || onlyInStock;
+
+        // Fix: If filtering by variants (color or stock), we MUST include the relation in the select
+        // even for count queries. If selectStr is just 'id', we append the inner join.
+        let finalSelect = selectStr;
+        if (filteringVariants && selectStr === 'id') {
+            finalSelect = 'id, product_variants!inner(id)';
+        }
+
+        let q = supabase.from('products').select(finalSelect, opts);
 
         if (safeQueryText) {
             q = q.or(`title.ilike.%${safeQueryText}%,vendor_article.ilike.%${safeQueryText}%`);
@@ -73,6 +83,10 @@ export async function getProducts(params: SearchParams) {
             q = q.gt('product_variants.stock', 0);
         }
 
+        if (params.label) {
+            q = q.eq('label', params.label);
+        }
+
         return q;
     };
 
@@ -92,6 +106,7 @@ export async function getProducts(params: SearchParams) {
     let rawProducts: any[] = [];
 
     // 5. Select Fields Logic
+    // IMPORTANT: Use inner join for variants if we are filtering by them, otherwise normal join
     const selectFields = (params.color?.length || params.inStock === 'true')
         ? `*, categories(slug), product_variants!inner(color, general_color, price, stock, available, image_url)`
         : `*, categories(slug), product_variants(color, general_color, price, stock, available, image_url)`;

@@ -82,11 +82,18 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
 
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
   const [onlyInStock, setOnlyInStock] = useState(searchParams.get('inStock') === 'true');
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(searchParams.get('label')); // New State
 
   const toggleInStock = () => {
     const newVal = !onlyInStock;
     setOnlyInStock(newVal);
     applyFilters({ inStock: newVal ? 'true' : null });
+  };
+
+  const toggleLabel = (value: string) => {
+    const newVal = selectedLabel === value ? null : value;
+    setSelectedLabel(newVal);
+    applyFilters({ label: newVal });
   };
 
   // --- ЛОГІКА ---
@@ -100,14 +107,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
     router.push(`/catalog?${params.toString()}`, { scroll: false });
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search !== (searchParams.get('q') || '')) {
-        applyFilters({ q: search || null });
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [search]);
+  // ... (useEffect for search sync) ...
 
   const toggleCategory = (slug: string) => {
     if (expandedCats.includes(slug)) {
@@ -134,6 +134,7 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
     setPriceRange({ min: '0', max: String(maxPrice) });
     setSelectedColors([]);
     setOnlyInStock(false);
+    setSelectedLabel(null);
     router.push('/catalog');
   };
 
@@ -221,7 +222,33 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
         </div>
       </div>
 
-      {/* 2.5. НАЯВНІСТЬ (In Stock) */}
+      {/* 2.5a. МАРКЕТИНГ (NEW) */}
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 p-5 transition-colors">
+        <h3 className="font-bold mb-4 text-gray-900 dark:text-white">Маркетинг</h3>
+        <div className="space-y-2">
+          {[
+            { value: 'new', name: 'Новинка', color: 'text-green-500' },
+            { value: 'sale', name: 'Розпродаж (Sale)', color: 'text-blue-500' },
+            { value: 'promo', name: 'Акція (Hot)', color: 'text-red-500' },
+            { value: 'hit', name: 'Хіт продажу', color: 'text-yellow-500' },
+          ].map(l => (
+            <label key={l.value} className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-400 cursor-pointer hover:text-black dark:hover:text-white transition-colors group">
+              <div className="relative flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={selectedLabel === l.value}
+                  onChange={() => toggleLabel(l.value)}
+                  className={`peer w-5 h-5 rounded-full border border-gray-600 bg-transparent checked:border-current ${l.color} appearance-none transition-colors cursor-pointer`}
+                />
+                <div className={`absolute w-3 h-3 rounded-full bg-current ${l.color} hidden peer-checked:block pointer-events-none`} />
+              </div>
+              <span className={selectedLabel === l.value ? `font-bold ${l.color}` : ''}>{l.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* 2.5b. НАЯВНІСТЬ (In Stock) */}
       <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 p-5 transition-colors">
         <h3 className="font-bold mb-4 text-gray-900 dark:text-white">Наявність</h3>
         <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-400 cursor-pointer hover:text-black dark:hover:text-white transition-colors group">

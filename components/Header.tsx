@@ -353,9 +353,9 @@ export default function Header() {
                     </Link>
                   </div>
 
-                  <Link href="/catalog?sort=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
-                  <Link href="/catalog?sort=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
-                  <Link href="/catalog?sort=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Уцінка</Link>
+                  <Link href="/catalog?label=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
+                  <Link href="/catalog?label=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
+                  <Link href="/catalog?label=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Розпродаж</Link>
                 </div>
                 <div className="bg-gray-100 dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-white/10 mt-auto hidden md:block">
                   <h4 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-2">B2B Партнерство</h4>

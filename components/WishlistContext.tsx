@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 
 interface WishlistContextType {
     items: string[]; // List of Product IDs
-    toggleItem: (productId: string) => Promise<void>;
-    isInWishlist: (productId: string) => boolean;
+    toggleItem: (productId: string | number) => Promise<void>;
+    isInWishlist: (productId: string | number) => boolean;
     isLoading: boolean;
 }
 
@@ -52,27 +52,29 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
             .eq('user_id', userId);
 
         if (!error && data) {
-            setItems(data.map((row: any) => row.product_id));
+            setItems(data.map((row: any) => String(row.product_id)));
         }
         setIsLoading(false);
     };
 
     // 3. Toggle Item
-    const toggleItem = async (productId: string) => {
+    const toggleItem = async (productId: string | number) => {
         if (!user) {
             alert("Будь ласка, увійдіть в акаунт, щоб додати товар в обране");
             return;
         }
 
+        const idStr = String(productId);
+
         // Optimistic UI Update
         const oldItems = [...items];
-        const exists = items.includes(productId);
+        const exists = items.includes(idStr);
 
         let newItems;
         if (exists) {
-            newItems = items.filter(id => id !== productId);
+            newItems = items.filter(id => id !== idStr);
         } else {
-            newItems = [...items, productId];
+            newItems = [...items, idStr];
         }
         setItems(newItems);
 
@@ -83,11 +85,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                     .from('wishlists')
                     .delete()
                     .eq('user_id', user.id)
-                    .eq('product_id', productId);
+                    .eq('product_id', idStr);
             } else {
                 await supabase
                     .from('wishlists')
-                    .insert({ user_id: user.id, product_id: productId });
+                    .insert({ user_id: user.id, product_id: idStr });
             }
         } catch (error) {
             console.error("Wishlist sync error:", error);
@@ -96,7 +98,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const isInWishlist = (productId: string) => items.includes(productId);
+    const isInWishlist = (productId: string | number) => items.includes(String(productId));
 
     return (
         <WishlistContext.Provider value={{ items, toggleItem, isInWishlist, isLoading }}>

@@ -12,8 +12,8 @@ import {
     Minus,
     Plus,
     Info,
-    ArrowRight, // <<-- ДОДАНО
-    Heart // Added Heart icon
+    ArrowRight,
+    Heart
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,10 +22,18 @@ interface ProductClientProps {
     variants: any[];
 }
 
+const LABELS_MAP: Record<string, { text: string, className: string }> = {
+    'new': { text: 'Новинка', className: 'bg-green-500 text-white' },
+    'sale': { text: 'Sale', className: 'bg-blue-500 text-white' },
+    'promo': { text: 'Hot', className: 'bg-red-500 text-white' },
+    'hit': { text: 'Хіт', className: 'bg-yellow-400 text-black' },
+};
+
 export default function ProductClient({ product, variants }: ProductClientProps) {
     const { addItem } = useCart();
     const { toggleItem, isInWishlist } = useWishlist();
     const isWishlisted = isInWishlist(product.id);
+    const labelConfig = product.label ? LABELS_MAP[product.label] : null;
 
     // --- 1. ОБРОБКА ДАНИХ (Data Processing) ---
     const uniqueColors = useMemo(() => {
@@ -219,14 +227,22 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                     <div className="w-full lg:w-[60%] select-none">
 
                         {/* Mobile: Horizontal Snap Gallery */}
-                        <div className="flex md:hidden overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-0 aspect-[3/4]">
-                            {galleryImages.map((img, i) => (
-                                <div key={i} className="snap-center w-full flex-shrink-0 h-full relative bg-gray-50 dark:bg-[#111]">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={img} alt={`${product.title} ${i}`} className="w-full h-full object-cover" />
+                        <div className="relative md:hidden">
+                            <div className="flex md:hidden overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-0 aspect-[3/4]">
+                                {galleryImages.map((img, i) => (
+                                    <div key={i} className="snap-center w-full flex-shrink-0 h-full relative bg-gray-50 dark:bg-[#111]">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={img} alt={`${product.title} ${i}`} className="w-full h-full object-cover" />
+                                    </div>
+                                ))}
+                                {/* Mobile Indicators (Dots) could go here overlying */}
+                            </div>
+                            {/* Mobile Badge */}
+                            {labelConfig && (
+                                <div className={`absolute top-4 left-4 z-10 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider shadow-sm ${labelConfig.className}`}>
+                                    {labelConfig.text}
                                 </div>
-                            ))}
-                            {/* Mobile Indicators (Dots) could go here overlying */}
+                            )}
                         </div>
 
                         {/* Desktop: Featured + Grid */}
@@ -234,9 +250,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                             <div className="aspect-[4/3] bg-gray-50 dark:bg-[#111] rounded-3xl overflow-hidden relative group cursor-zoom-in">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={mainImage} alt={product.title} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal transition-transform duration-700 group-hover:scale-105" />
-                                {oldPrice && (
-                                    <div className="absolute top-6 left-6 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                                        SALE
+                                {labelConfig && (
+                                    <div className={`absolute top-6 left-6 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm ${labelConfig.className}`}>
+                                        {labelConfig.text}
                                     </div>
                                 )}
                             </div>

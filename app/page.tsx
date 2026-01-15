@@ -42,7 +42,10 @@ export default function Home() {
 
   const [session, setSession] = useState<any>(null);
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
-  const [products, setProducts] = useState<any[]>([]);
+  const [hits, setHits] = useState<any[]>([]);
+  const [news, setNews] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'hit' | 'new'>('hit');
+  const [carouselOffset, setCarouselOffset] = useState(0);
   const [banners, setBanners] = useState<any[]>(DEFAULT_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -59,17 +62,16 @@ export default function Home() {
       setSession(session);
       if (session) {
         checkUserStatus(session);
-        fetchContent();
       }
+      // Fetch content regardless of auth for public homepage
+      fetchContent();
     };
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        checkUserStatus(session);
-        fetchContent();
-      }
+      if (session) checkUserStatus(session);
+      // Removed duplicates fetch here as init() handles it, but keeps session sync
     });
 
     return () => subscription.unsubscribe();
@@ -83,18 +85,43 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [banners.length]);
 
+  // Reset carousel when tab changes
+  useEffect(() => {
+    setCarouselOffset(0);
+  }, [activeTab]);
+
   // --- ЗАВАНТАЖЕННЯ КОНТЕНТУ ---
   async function fetchContent() {
-    const { data: prodData } = await supabase
+    // Fetch HITs
+    const { data: hitData } = await supabase
       .from("products")
-      .select("id, title, base_price, image_url, description, vendor_article, slug")
+      .select("id, title, base_price, old_price, label, image_url, description, vendor_article, slug")
+      .eq('label', 'hit')
       .order('created_at', { ascending: false })
-      .limit(8);
+      .limit(12);
 
-    if (prodData) {
-      const valid = prodData.filter((p: any) => p.base_price > 0);
-      const zeros = prodData.filter((p: any) => p.base_price === 0);
-      setProducts([...valid, ...zeros]);
+    // Fetch NEWs
+    const { data: newData } = await supabase
+      .from("products")
+      .select("id, title, base_price, old_price, label, image_url, description, vendor_article, slug")
+      .eq('label', 'new')
+      .order('created_at', { ascending: false })
+      .limit(12);
+
+    // Fallback if no specific hits/news found? 
+    // Maybe show latest products as "New" if empty.
+    // For now strict filtering as requested.
+
+    if (hitData) {
+      const valid = hitData.filter((p: any) => p.base_price > 0);
+      const zeros = hitData.filter((p: any) => p.base_price === 0);
+      setHits([...valid, ...zeros]);
+    }
+
+    if (newData) {
+      const valid = newData.filter((p: any) => p.base_price > 0);
+      const zeros = newData.filter((p: any) => p.base_price === 0);
+      setNews([...valid, ...zeros]);
     }
 
     const { data: bannerData } = await supabase.from("banners").select("*").order('id', { ascending: false });
@@ -115,6 +142,22 @@ export default function Home() {
       vendorArticle: product.vendor_article
     });
   };
+
+  const currentProducts = activeTab === 'hit' ? hits : news;
+  const VISIBLE_COUNT = 4;
+
+  const nextSlide = () => {
+    if (carouselOffset + VISIBLE_COUNT < currentProducts.length) {
+      setCarouselOffset(prev => prev + 1);
+    }
+  };
+
+  const prevSlide = () => {
+    if (carouselOffset > 0) {
+      setCarouselOffset(prev => prev - 1);
+    }
+  };
+
 
   const handleLogin = async (e: string, p: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
@@ -297,22 +340,50 @@ export default function Home() {
             <div className="flex items-center gap-8">
               <h2 className="text-3xl font-black uppercase">Trending</h2>
               <div className="hidden md:flex text-sm font-bold text-gray-400 gap-4">
-                <button className="text-black dark:text-white border-b-2 border-black dark:border-white pb-1">Хіти Продажів</button>
-                <button className="hover:text-black dark:hover:text-white transition-colors">Нові Надходження</button>
+                <button
+                  onClick={() => setActiveTab('hit')}
+                  className={`border-b-2 transition-colors pb-1 ${activeTab === 'hit' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}
+                >
+                  Хіти Продажів
+                </button>
+                <button
+                  onClick={() => setActiveTab('new')}
+                  className={`border-b-2 transition-colors pb-1 ${activeTab === 'new' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}
+                >
+                  Нові Надходження
+                </button>
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition"><ArrowLeft size={18} /></button>
-              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition"><ArrowRight size={18} /></button>
+              <button
+                onClick={prevSlide}
+                disabled={carouselOffset === 0}
+                className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <button
+                onClick={nextSlide}
+                disabled={carouselOffset + VISIBLE_COUNT >= currentProducts.length}
+                className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ArrowRight size={18} />
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {products.slice(0, 4).map((product) => (
-              <div key={product.id} className="h-full">
-                <ProductCard product={product} />
+            {currentProducts.length > 0 ? (
+              currentProducts.slice(carouselOffset, carouselOffset + VISIBLE_COUNT).map((product) => (
+                <div key={product.id} className="h-full">
+                  <ProductCard product={product} />
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center text-gray-400">
+                Немає товарів у цій категорії
               </div>
-            ))}
+            )}
           </div>
         </section>
 

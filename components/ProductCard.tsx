@@ -15,9 +15,17 @@ interface ProductCardProps {
     image_url: string | null;
     vendor_article: string;
     total_available: number;
-    display_variants?: { color: string; image: string }[]; // Новий проп
+    display_variants?: { color: string; image: string }[];
+    label?: string | null; // Added label
   };
 }
+
+const LABELS_MAP: Record<string, { text: string, className: string }> = {
+  'new': { text: 'Новинка', className: 'bg-green-500 text-white' },
+  'sale': { text: 'Sale', className: 'bg-blue-500 text-white' },
+  'promo': { text: 'Hot', className: 'bg-red-500 text-white' },
+  'hit': { text: 'Хіт', className: 'bg-yellow-400 text-black' },
+};
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { isInWishlist, toggleItem } = useWishlist();
@@ -34,6 +42,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   };
 
   const hasDiscount = product.old_price && product.old_price > product.base_price;
+  const labelConfig = product.label ? LABELS_MAP[product.label] : null;
 
   // Беремо перші 5 варіантів, щоб не перевантажувати картку
   const variantsToShow = product.display_variants?.slice(0, 5) || [];
@@ -57,11 +66,14 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
         )}
 
-        {hasDiscount && (
-          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-[#FFD700] text-black text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded md:rounded-md uppercase tracking-wider shadow-sm">
-            Акція
-          </div>
-        )}
+        {/* CSS Badge Positioning Stack */}
+        <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 flex flex-col gap-1.5 items-start">
+          {labelConfig && (
+            <div className={`text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded md:rounded-md uppercase tracking-wider shadow-sm ${labelConfig.className}`}>
+              {labelConfig.text}
+            </div>
+          )}
+        </div>
 
         <button
           onClick={(e) => {
