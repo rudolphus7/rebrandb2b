@@ -2,200 +2,219 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { 
-  Search, CheckCircle, User, Building2, 
-  FileText, Phone, Calendar, ShieldAlert, Lock, Mail
+import {
+    Search, CheckCircle, User, Building2,
+    FileText, Phone, Calendar, ShieldAlert, Lock, Mail, Clock, MapPin
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 
 // --- ВАЖЛИВО: Впишіть сюди свій email ---
-const ADMIN_EMAIL = "rebrand.com.ua@gmail.com"; 
+const ADMIN_EMAIL = "rebrand.com.ua@gmail.com";
 
 export default function AdminCustomers() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+    const [users, setUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
 
-  useEffect(() => {
-    // 1. Перевіряємо, хто зайшов
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user?.email) {
-            setCurrentUserEmail(session.user.email);
+    useEffect(() => {
+        // 1. Перевіряємо, хто зайшов
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user?.email) {
+                setCurrentUserEmail(session.user.email);
+            }
+        });
+
+        fetchUsers();
+    }, []);
+
+    async function fetchUsers() {
+        setLoading(true);
+        // Тепер email прийде разом з профілем, бо ми додали його в базу
+        const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+        if (error) console.error("Error fetching users:", error);
+        setUsers(data || []);
+        setLoading(false);
+    }
+
+    const toggleVerification = async (id: string, currentStatus: boolean) => {
+        // Перевірка прав на рівні UI
+        if (currentUserEmail !== ADMIN_EMAIL) {
+            alert("У вас немає прав для виконання цієї дії. Зверніться до головного адміністратора.");
+            return;
         }
-    });
 
-    fetchUsers();
-  }, []);
+        const { error } = await supabase
+            .from("profiles")
+            .update({ is_verified: !currentStatus })
+            .eq("id", id);
 
-  async function fetchUsers() {
-    setLoading(true);
-    // Тепер email прийде разом з профілем, бо ми додали його в базу
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
+        if (error) {
+            alert("Помилка бази даних: " + error.message);
+        } else {
+            // Оновлюємо локальний стан
+            setUsers(users.map(u => u.id === id ? { ...u, is_verified: !currentStatus } : u));
+        }
+    };
 
-    if (error) console.error("Error fetching users:", error);
-    setUsers(data || []);
-    setLoading(false);
-  }
+    const filteredUsers = users.filter(u =>
+        (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (u.company_name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (u.edrpou || "").includes(search) ||
+        (u.email || "").toLowerCase().includes(search.toLowerCase()) || // Пошук по пошті
+        (u.phone || "").includes(search)
+    );
 
-  const toggleVerification = async (id: string, currentStatus: boolean) => {
-    // Перевірка прав на рівні UI
-    if (currentUserEmail !== ADMIN_EMAIL) {
-        alert("У вас немає прав для виконання цієї дії. Зверніться до головного адміністратора.");
-        return;
-    }
+    const isSuperAdmin = currentUserEmail === ADMIN_EMAIL;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_verified: !currentStatus })
-      .eq("id", id);
-
-    if (error) {
-      alert("Помилка бази даних: " + error.message);
-    } else {
-      // Оновлюємо локальний стан
-      setUsers(users.map(u => u.id === id ? { ...u, is_verified: !currentStatus } : u));
-    }
-  };
-
-  const filteredUsers = users.filter(u => 
-    (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (u.company_name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (u.edrpou || "").includes(search) ||
-    (u.email || "").toLowerCase().includes(search.toLowerCase()) || // Пошук по пошті
-    (u.phone || "").includes(search)
-  );
-
-  const isSuperAdmin = currentUserEmail === ADMIN_EMAIL;
-
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
+    return (
         <div>
-            <h1 className="text-3xl font-bold">Клієнти (B2B)</h1>
-            <p className="text-gray-400 text-sm mt-1">Перевірка документів та активація партнерів</p>
-        </div>
-        <div className="flex items-center gap-4">
-            {!isSuperAdmin && (
-                <div className="bg-red-900/20 border border-red-500/50 px-4 py-2 rounded-xl text-red-200 text-xs flex items-center gap-2">
-                    <Lock size={14}/> Ви в режимі перегляду (не Адмін)
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold">Клієнти (B2B)</h1>
+                    <p className="text-gray-400 text-sm mt-1">Перевірка документів та активація партнерів</p>
                 </div>
-            )}
-            <div className="bg-[#1a1a1a] px-4 py-2 rounded-xl border border-white/10 text-sm flex gap-2">
-                <span className="text-gray-400">Всього:</span>
-                <span className="text-white font-bold">{users.length}</span>
+                <div className="flex items-center gap-4">
+                    {!isSuperAdmin && (
+                        <div className="bg-red-900/20 border border-red-500/50 px-4 py-2 rounded-xl text-red-200 text-xs flex items-center gap-2">
+                            <Lock size={14} /> Ви в режимі перегляду (не Адмін)
+                        </div>
+                    )}
+                    <div className="bg-[#1a1a1a] px-4 py-2 rounded-xl border border-white/10 text-sm flex gap-2">
+                        <span className="text-gray-400">Всього:</span>
+                        <span className="text-white font-bold">{users.length}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* ПОШУК */}
+            <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 mb-6">
+                <div className="relative max-w-md">
+                    <input
+                        type="text"
+                        placeholder="Пошук за Компанією, Email, ЄДРПОУ..."
+                        className="w-full bg-black border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-blue-500 outline-none"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                    <Search size={18} className="absolute left-3 top-3 text-gray-500" />
+                </div>
+            </div>
+
+            {/* ТАБЛИЦЯ */}
+            <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-[#222] text-gray-400 uppercase text-xs">
+                            <tr>
+                                <th className="p-4">Компанія / ЄДРПОУ</th>
+                                <th className="p-4">Представник / Email</th>
+                                <th className="p-4">Телефон</th>
+                                <th className="p-4">Дата реєстрації</th>
+                                <th className="p-4">Останній візит</th>
+                                <th className="p-4">IP / Місто</th>
+                                <th className="p-4 text-center">Статус</th>
+                                <th className="p-4 text-right">Дія</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {loading ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Завантаження...</td></tr>
+                            ) : filteredUsers.length === 0 ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Клієнтів не знайдено</td></tr>
+                            ) : (
+                                filteredUsers.map((user) => (
+                                    <tr key={user.id} className="hover:bg-white/5 transition group">
+                                        <td className="p-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-blue-900/20 text-blue-400 rounded-lg mt-1">
+                                                    <Building2 size={18} />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-white text-base">{user.company_name || "Приватна особа"}</div>
+                                                    <div className="text-xs text-gray-500 font-mono flex items-center gap-1 mt-1">
+                                                        <FileText size={10} /> {user.edrpou || "ЄДРПОУ не вказано"}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 text-white font-medium mb-1">
+                                                    <User size={16} className="text-gray-500" /> {user.full_name || "Без імені"}
+                                                </div>
+                                                {user.email && (
+                                                    <div className="flex items-center gap-2 text-xs text-blue-400 font-mono bg-blue-900/10 px-2 py-0.5 rounded w-fit">
+                                                        <Mail size={12} /> {user.email}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-300">
+                                            <div className="flex items-center gap-2 text-sm"><Phone size={14} className="text-gray-500" /> {user.phone || "-"}</div>
+                                        </td>
+                                        <td className="p-4 text-gray-500 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={14} />
+                                                {user.created_at ? format(new Date(user.created_at), 'd MMM yyyy', { locale: uk }) : '-'}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-500 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <Clock size={14} />
+                                                {user.last_visit ? format(new Date(user.last_visit), 'd MMM yyyy HH:mm', { locale: uk }) : '—'}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-500 text-xs">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2 font-mono">
+                                                    <span className="text-blue-400">{user.last_ip || "—"}</span>
+                                                </div>
+                                                {user.city && (
+                                                    <div className="flex items-center gap-1 text-gray-400">
+                                                        <MapPin size={10} /> {user.city}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            {user.is_verified ? (
+                                                <span className="inline-flex items-center gap-1.5 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-bold border border-green-900/50">
+                                                    <CheckCircle size={12} /> Активний
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 text-yellow-400 bg-yellow-900/20 px-3 py-1 rounded-full text-xs font-bold border border-yellow-900/50 animate-pulse">
+                                                    <ShieldAlert size={12} /> Очікує
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <button
+                                                onClick={() => toggleVerification(user.id, user.is_verified)}
+                                                disabled={!isSuperAdmin}
+                                                className={`px-4 py-2 rounded-lg text-xs font-bold transition border ${!isSuperAdmin
+                                                    ? "bg-gray-800 text-gray-500 cursor-not-allowed border-transparent"
+                                                    : user.is_verified
+                                                        ? "bg-red-900/10 text-red-400 border-red-900/30 hover:bg-red-900/30"
+                                                        : "bg-green-600 text-white border-transparent hover:bg-green-500 shadow-lg shadow-green-900/20"
+                                                    }`}
+                                                title={!isSuperAdmin ? "Тільки головний адміністратор може це робити" : ""}
+                                            >
+                                                {user.is_verified ? "Заблокувати" : "Активувати"}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-      </div>
-
-      {/* ПОШУК */}
-      <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 mb-6">
-         <div className="relative max-w-md">
-            <input 
-                type="text" 
-                placeholder="Пошук за Компанією, Email, ЄДРПОУ..." 
-                className="w-full bg-black border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-blue-500 outline-none"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-            />
-            <Search size={18} className="absolute left-3 top-3 text-gray-500"/>
-         </div>
-      </div>
-
-      {/* ТАБЛИЦЯ */}
-      <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-[#222] text-gray-400 uppercase text-xs">
-                    <tr>
-                        <th className="p-4">Компанія / ЄДРПОУ</th>
-                        <th className="p-4">Представник / Email</th>
-                        <th className="p-4">Телефон</th>
-                        <th className="p-4">Дата реєстрації</th>
-                        <th className="p-4 text-center">Статус</th>
-                        <th className="p-4 text-right">Дія</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                    {loading ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-500">Завантаження...</td></tr>
-                    ) : filteredUsers.length === 0 ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-500">Клієнтів не знайдено</td></tr>
-                    ) : (
-                        filteredUsers.map((user) => (
-                            <tr key={user.id} className="hover:bg-white/5 transition group">
-                                <td className="p-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-blue-900/20 text-blue-400 rounded-lg mt-1">
-                                            <Building2 size={18}/>
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-white text-base">{user.company_name || "Приватна особа"}</div>
-                                            <div className="text-xs text-gray-500 font-mono flex items-center gap-1 mt-1">
-                                                <FileText size={10}/> {user.edrpou || "ЄДРПОУ не вказано"}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-4">
-                                    <div>
-                                        <div className="flex items-center gap-2 text-white font-medium mb-1">
-                                            <User size={16} className="text-gray-500"/> {user.full_name || "Без імені"}
-                                        </div>
-                                        {user.email && (
-                                            <div className="flex items-center gap-2 text-xs text-blue-400 font-mono bg-blue-900/10 px-2 py-0.5 rounded w-fit">
-                                                <Mail size={12}/> {user.email}
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="p-4 text-gray-300">
-                                    <div className="flex items-center gap-2 text-sm"><Phone size={14} className="text-gray-500"/> {user.phone || "-"}</div>
-                                </td>
-                                <td className="p-4 text-gray-500 text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <Calendar size={14}/>
-                                        {user.created_at ? format(new Date(user.created_at), 'd MMM yyyy', { locale: uk }) : '-'}
-                                    </div>
-                                </td>
-                                <td className="p-4 text-center">
-                                    {user.is_verified ? (
-                                        <span className="inline-flex items-center gap-1.5 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-bold border border-green-900/50">
-                                            <CheckCircle size={12}/> Активний
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5 text-yellow-400 bg-yellow-900/20 px-3 py-1 rounded-full text-xs font-bold border border-yellow-900/50 animate-pulse">
-                                            <ShieldAlert size={12}/> Очікує
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="p-4 text-right">
-                                    <button 
-                                        onClick={() => toggleVerification(user.id, user.is_verified)}
-                                        disabled={!isSuperAdmin}
-                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition border ${
-                                            !isSuperAdmin
-                                            ? "bg-gray-800 text-gray-500 cursor-not-allowed border-transparent"
-                                            : user.is_verified 
-                                                ? "bg-red-900/10 text-red-400 border-red-900/30 hover:bg-red-900/30" 
-                                                : "bg-green-600 text-white border-transparent hover:bg-green-500 shadow-lg shadow-green-900/20"
-                                        }`}
-                                        title={!isSuperAdmin ? "Тільки головний адміністратор може це робити" : ""}
-                                    >
-                                        {user.is_verified ? "Заблокувати" : "Активувати"}
-                                    </button>
-                                </td>
-                            </tr>
-                        ))
-                    )}
-                </tbody>
-            </table>
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
