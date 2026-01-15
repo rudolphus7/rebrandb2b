@@ -162,7 +162,8 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                     price: variant.price,
                     color: variant.color,
                     size: variant.size,
-                    vendorArticle: product.vendor_article
+                    vendorArticle: product.vendor_article,
+                    slug: product.slug
                 });
             }
         });

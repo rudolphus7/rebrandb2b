@@ -81,7 +81,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             e.stopPropagation();
             toggleItem(product.id);
           }}
-          className={`absolute top-2 right-2 md:top-3 md:right-3 text-gray-400 hover:text-red-500 transition bg-white/80 dark:bg-black/50 p-2 md:p-2 rounded-full backdrop-blur-sm opacity-100 md:opacity-0 group-hover:opacity-100 z-20 shadow-sm ${isDefaultActive ? 'text-red-500 opacity-100' : ''}`}
+          className={`absolute top-2 right-2 md:top-3 md:right-3 text-gray-400 hover:text-red-500 transition bg-white/80 dark:bg-black/50 p-2 md:p-2 rounded-full backdrop-blur-sm opacity-100 md:opacity-0 group-hover:opacity-100 z-20 shadow-sm ${isDefaultActive ? 'text-red-500 opacity-100 md:opacity-100' : ''}`}
         >
           <Heart size={16} className="w-4 h-4 md:w-[18px] md:h-[18px]" fill={isDefaultActive ? "currentColor" : "none"} />
         </button>

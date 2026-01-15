@@ -38,13 +38,15 @@ export default function CartDrawer() {
             </div>
           ) : (
             items.map((item) => (
-              <div key={item.id} className="flex gap-4">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-white/5">
+              <div key={item.id} className="flex gap-4 group">
+                <Link href={`/product/${item.slug}`} onClick={toggleCart} className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={item.image || ''} alt={item.title} className="w-full h-full object-contain p-1" />
-                </div>
+                </Link>
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white line-clamp-2 mb-1">{item.title}</h3>
+                  <Link href={`/product/${item.slug}`} onClick={toggleCart}>
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white line-clamp-2 mb-1 underline decoration-gray-300 hover:decoration-blue-500 hover:text-blue-500 transition-all active:opacity-70">{item.title}</h3>
+                  </Link>
                   <p className="text-xs text-gray-500 mb-2">
                     Арт: {item.vendorArticle} | {item.color} {item.size !== 'One Size' && `| ${item.size}`}
                   </p>

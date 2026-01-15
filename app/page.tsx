@@ -139,7 +139,8 @@ export default function Home() {
       // quantity: 1,  <-- ВИДАЛЕНО, бо addItem додає це автоматично
       color: 'Standard',
       size: 'One Size',
-      vendorArticle: product.vendor_article
+      vendorArticle: product.vendor_article,
+      slug: product.slug
     });
   };
 

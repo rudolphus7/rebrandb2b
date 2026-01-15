@@ -18,7 +18,8 @@ export default function WishlistItem({ product }: { product: any }) {
             image: product.image_url,
             color: 'Standard',
             size: 'One Size',
-            vendorArticle: product.vendor_article
+            vendorArticle: product.vendor_article,
+            slug: product.slug
         });
     };
 
