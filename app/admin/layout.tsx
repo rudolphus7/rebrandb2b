@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ShoppingBag, Layers, Image as ImageIcon,
-  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2, ShieldAlert, Heart, FileText, MessageSquare
+  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2, ShieldAlert, Heart, FileText, MessageSquare, Menu, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -32,6 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -71,6 +72,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAccess();
   }, [router]);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -93,16 +99,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // 3. Інтерфейс Адмінки
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] text-gray-900 dark:text-white flex font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] text-gray-900 dark:text-white flex flex-col md:flex-row font-sans transition-colors duration-300">
+
+      {/* MOBILE HEADER */}
+      <div className="md:hidden bg-white dark:bg-[#111] border-b border-gray-200 dark:border-white/10 p-4 flex items-center justify-between sticky top-0 z-40">
+        <Link href="/" className="text-xl font-black italic tracking-tighter text-black dark:text-white">
+          REBRAND <span className="text-xs font-normal text-blue-600 dark:text-blue-500 not-italic align-top">CORE</span>
+        </Link>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* BACKDROP */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
-      <aside className="w-64 bg-white dark:bg-[#111] border-r border-gray-200 dark:border-white/10 flex flex-col fixed h-full left-0 top-0 overflow-y-auto z-50 transition-colors duration-300">
-        <div className="p-6 border-b border-white/10">
+      <aside className={`
+          fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-[#111] border-r border-gray-200 dark:border-white/10 
+          flex flex-col transition-transform duration-300 ease-in-out
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0 md:relative md:h-screen md:sticky md:top-0
+      `}>
+        <div className="p-6 border-b border-white/10 hidden md:block">
           <Link href="/" className="text-2xl font-black italic tracking-tighter text-black dark:text-white block">
             REBRAND <span className="text-xs font-normal text-blue-600 dark:text-blue-500 not-italic align-top">CORE</span>
           </Link>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {/* Mobile header inside sidebar for close button */}
+          <div className="md:hidden flex justify-between items-center mb-6 pl-2">
+            <span className="font-bold text-gray-400">Меню</span>
+            <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-500">
+              <X size={20} />
+            </button>
+          </div>
+
           {MENU_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -144,7 +182,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 ml-64 p-8 bg-gray-50 dark:bg-[#0a0a0a] transition-colors duration-300">
+      <main className="flex-1 p-4 md:p-8 bg-gray-50 dark:bg-[#0a0a0a] transition-colors duration-300 min-h-screen">
         <div className="max-w-6xl mx-auto">
           {children}
         </div>

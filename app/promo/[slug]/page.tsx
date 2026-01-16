@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
+import IsolatedContent from "@/components/IsolatedContent";
 
 // Revalidate every minute so updates appear quickly but invalidation isn't hammed
 export const revalidate = 60;
@@ -57,12 +58,10 @@ export default async function PromoPage({ params }: { params: Promise<{ slug: st
                 <header className="mb-12 text-center">
                     {page.image_url && (
                         <div className="relative w-full aspect-[21/9] rounded-3xl overflow-hidden mb-8 shadow-2xl">
-                            <Image
+                            <img
                                 src={page.image_url}
                                 alt={page.title}
-                                fill
-                                className="object-cover"
-                                priority
+                                className="absolute inset-0 w-full h-full object-cover"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                             <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12 text-left">
@@ -81,9 +80,10 @@ export default async function PromoPage({ params }: { params: Promise<{ slug: st
                 </header>
 
                 {/* Content */}
-                <div
-                    className="prose prose-lg dark:prose-invert max-w-none prose-img:rounded-2xl prose-headings:font-bold prose-headings:uppercase prose-a:text-blue-500"
-                    dangerouslySetInnerHTML={{ __html: page.content || '' }}
+                {/* Content - Isolated Shadow DOM */}
+                <IsolatedContent
+                    content={page.content || ''}
+                    className="max-w-none"
                 />
 
             </article>
