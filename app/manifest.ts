@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
     return {
-        name: 'Rebrand Studio B2B',
-        short_name: 'Rebrand',
-        description: 'Wholesale portal for Rebrand Studio',
+        name: 'REBRAND B2B',
+        short_name: 'REBRAND B2B',
+        description: 'Платформа для клієнтів REBRAND STUDIO',
         start_url: '/',
         display: 'standalone',
         background_color: '#000000',
@@ -14,6 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
                 src: '/favicon.png',
                 sizes: 'any',
                 type: 'image/png',
+                purpose: 'any maskable' as any,
             },
         ],
     };

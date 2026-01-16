@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "B2B Portal",
   description: "Wholesale portal",
   icons: {
-    icon: '/favicon1.ico',
-    shortcut: '/favicon1.ico',
-    apple: '/favicon1.ico',
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
   },
 };
 
