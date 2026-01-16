@@ -81,6 +81,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <CartProvider>
             <WishlistProvider>
                 <ThemeProvider>
+                    <GlobalPopupManager />
                     {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
                     {children}
                     {!isAdmin && <CartDrawer />}
