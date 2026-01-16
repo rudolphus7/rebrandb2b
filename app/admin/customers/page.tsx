@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import {
     Search, CheckCircle, User, Building2,
@@ -136,7 +137,10 @@ export default function AdminCustomers() {
                                                     <Building2 size={18} />
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-white text-base">{user.company_name || "Приватна особа"}</div>
+                                                    {/* Link to details */}
+                                                    <Link href={`/admin/customers/${user.id}`} className="font-bold text-white text-base hover:text-blue-400 transition hover:underline">
+                                                        {user.company_name || "Приватна особа"}
+                                                    </Link>
                                                     <div className="text-xs text-gray-500 font-mono flex items-center gap-1 mt-1">
                                                         <FileText size={10} /> {user.edrpou || "ЄДРПОУ не вказано"}
                                                     </div>

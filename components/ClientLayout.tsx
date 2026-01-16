@@ -10,6 +10,7 @@ import { Suspense, useEffect } from 'react';
 import { supabase } from "@/lib/supabaseClient";
 
 import GlobalPopupManager from "./GlobalPopupManager";
+import ActivityTracker from "./ActivityTracker";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -82,6 +83,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <WishlistProvider>
                 <ThemeProvider>
                     <GlobalPopupManager />
+                    <ActivityTracker />
                     {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
                     {children}
                     {!isAdmin && <CartDrawer />}
