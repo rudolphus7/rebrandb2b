@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Wholesale portal",
   icons: {
     icon: '/favicon1.ico',
+    shortcut: '/favicon1.ico',
+    apple: '/favicon1.ico',
   },
 };
 
