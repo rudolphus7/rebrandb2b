@@ -4,6 +4,7 @@ import { useWishlist } from "@/components/WishlistContext";
 import { Trash2, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/components/CartContext";
+import Image from "next/image";
 
 export default function WishlistItem({ product }: { product: any }) {
     const { toggleItem } = useWishlist();
@@ -26,7 +27,15 @@ export default function WishlistItem({ product }: { product: any }) {
     return (
         <div className="bg-white dark:bg-[#1a1a1a] rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 flex flex-col sm:flex-row group transition-colors duration-300">
             <Link href={`/product/${product.slug}`} className="w-full sm:w-48 aspect-square sm:aspect-auto bg-black relative">
-                {product.image_url && <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={product.title} />}
+                {product.image_url && (
+                    <Image
+                        src={product.image_url}
+                        fill
+                        sizes="(max-width: 640px) 100vw, 300px"
+                        className="object-cover group-hover:scale-105 transition duration-500"
+                        alt={product.title}
+                    />
+                )}
             </Link>
 
             <div className="flex-1 p-6 flex flex-col">

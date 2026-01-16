@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { useWishlist } from './WishlistContext';
+import Image from 'next/image';
 
 interface ProductCardProps {
   product: {
@@ -38,7 +39,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     return new Intl.NumberFormat('uk-UA', {
       style: 'decimal',
       maximumFractionDigits: 0,
-    }).format(price) + ' грн';
+    }).format(price).replace(/,/g, ' ') + ' ₴';
   };
 
   const hasDiscount = product.old_price && product.old_price > product.base_price;
@@ -54,10 +55,11 @@ export default function ProductCard({ product }: ProductCardProps) {
       {/* ФОТО (Клікабельне посилання на товар) */}
       <Link href={`/product/${product.slug}`} className="relative aspect-[4/5] overflow-hidden bg-gray-50 dark:bg-black p-0 block">
         {currentImage ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+          <Image
             src={currentImage}
             alt={product.title}
+            fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
@@ -105,12 +107,18 @@ export default function ProductCard({ product }: ProductCardProps) {
             {variantsToShow.map((v, i) => (
               <div
                 key={i}
-                className="w-6 h-6 md:w-8 md:h-8 rounded md:rounded-lg border border-gray-200 dark:border-white/10 p-0.5 cursor-pointer hover:border-black dark:hover:border-white transition-colors"
+                className="relative w-6 h-6 md:w-8 md:h-8 rounded md:rounded-lg border border-gray-200 dark:border-white/10 p-0.5 cursor-pointer hover:border-black dark:hover:border-white transition-colors overflow-hidden"
                 onMouseEnter={() => setCurrentImage(v.image)} // При наведенні міняємо велике фото
                 onMouseLeave={() => setCurrentImage(product.image_url)} // Прибиранні - повертаємо дефолтне
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={v.image} alt={v.color} className="w-full h-full object-cover rounded-[2px] md:rounded-sm" title={v.color} />
+                <Image
+                  src={v.image}
+                  alt={v.color}
+                  fill
+                  sizes="32px"
+                  className="object-cover rounded-[2px] md:rounded-sm"
+                  title={v.color}
+                />
               </div>
             ))}
             {moreCount > 0 && (
@@ -132,7 +140,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               </span>
             )}
             <span className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white leading-none">
-              {formatPrice(product.base_price).replace(' грн', '')} <span className="text-[10px] md:text-xs font-normal text-gray-500 relative -top-0.5">грн</span>
+              {formatPrice(product.base_price)}
             </span>
           </div>
 

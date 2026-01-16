@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
+import { useSearchParams } from 'next/navigation';
 import {
     ShoppingBag,
     FileText,
@@ -32,6 +33,9 @@ const LABELS_MAP: Record<string, { text: string, className: string }> = {
 export default function ProductClient({ product, variants }: ProductClientProps) {
     const { addItem } = useCart();
     const { toggleItem, isInWishlist } = useWishlist();
+    const searchParams = useSearchParams();
+    const colorParam = searchParams.get('color');
+
     const isWishlisted = isInWishlist(product.id);
     const labelConfig = product.label ? LABELS_MAP[product.label] : null;
 
@@ -53,7 +57,10 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     }, [variants]);
 
     // --- 2. СТАН (State) ---
-    const [selectedColor, setSelectedColor] = useState<string>(uniqueColors[0] || 'Standard');
+    // Initialize with query param if valid, otherwise fallback to first color or 'Standard'
+    const [selectedColor, setSelectedColor] = useState<string>(
+        (colorParam && uniqueColors.includes(colorParam)) ? colorParam : (uniqueColors[0] || 'Standard')
+    );
     const [activeTab, setActiveTab] = useState<'features' | 'description'>('features');
     const [quantities, setQuantities] = useState<Record<string, number>>({});
 
@@ -117,7 +124,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
     // --- ФОРМАТУВАННЯ (Formatting) ---
     const formatPrice = (price: number) =>
-        new Intl.NumberFormat('uk-UA', { style: 'decimal', maximumFractionDigits: 0 }).format(price);
+        new Intl.NumberFormat('uk-UA', { style: 'decimal', maximumFractionDigits: 0 }).format(price).replace(/,/g, ' ') + ' ₴';
 
     // --- ЛОГІКА ВВОДУ КІЛЬКОСТІ (Quantity Logic) ---
     const handleQuantityChange = (variantId: string, delta: number, max: number) => {
@@ -281,14 +288,14 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
                             {/* Title & Price Header */}
                             <div>
-                                <h1 className="text-2xl md:text-4xl lg:text-5xl font-black leading-[1.1] mb-4 tracking-tight">
+                                <h1 className="text-2xl md:text-4xl lg:text-5xl font-black leading-[1.1] mb-6 tracking-tight">
                                     {product.title}
                                 </h1>
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-baseline gap-3">
-                                        <span className="text-3xl font-bold">{formatPrice(basePrice)}</span>
+                                    <div className="flex items-baseline gap-4">
+                                        <span className="text-4xl md:text-6xl font-black tracking-tighter">{formatPrice(basePrice)}</span>
                                         {oldPrice && (
-                                            <span className="text-lg text-gray-400 line-through decoration-red-500/50">{formatPrice(oldPrice)}</span>
+                                            <span className="text-xl text-gray-400 line-through decoration-red-500/50">{formatPrice(oldPrice)}</span>
                                         )}
                                     </div>
                                     <div className="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-white/10 px-2 py-1 rounded">

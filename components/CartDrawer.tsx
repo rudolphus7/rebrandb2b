@@ -2,6 +2,7 @@
 
 import { useCart } from './CartContext';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function CartDrawer() {
   const { items, removeItem, updateQuantity, totalPrice, isCartOpen, toggleCart } = useCart();
@@ -39,12 +40,17 @@ export default function CartDrawer() {
           ) : (
             items.map((item) => (
               <div key={item.id} className="flex gap-4 group">
-                <Link href={`/product/${item.slug}`} onClick={toggleCart} className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image || ''} alt={item.title} className="w-full h-full object-contain p-1" />
+                <Link href={`/product/${item.slug}?color=${encodeURIComponent(item.color)}`} onClick={toggleCart} className="relative w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
+                  <Image
+                    src={item.image || ''}
+                    alt={item.title}
+                    fill
+                    sizes="80px"
+                    className="object-contain p-1"
+                  />
                 </Link>
                 <div className="flex-1">
-                  <Link href={`/product/${item.slug}`} onClick={toggleCart}>
+                  <Link href={`/product/${item.slug}?color=${encodeURIComponent(item.color)}`} onClick={toggleCart}>
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white line-clamp-2 mb-1 underline decoration-gray-300 hover:decoration-blue-500 hover:text-blue-500 transition-all active:opacity-70">{item.title}</h3>
                   </Link>
                   <p className="text-xs text-gray-500 mb-2">

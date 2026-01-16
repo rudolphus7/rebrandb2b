@@ -90,26 +90,27 @@ export async function getProducts(params: SearchParams) {
         return q;
     };
 
-    // 3. Get TOTAL Count (Valid + Zeros)
-    // We use 'head: true' to avoid fetching data, just count.
-    const { count: totalCount, error: countError } = await createBaseQuery('id', { count: 'exact', head: true });
+    // 3. Parallel Execution for Counts
+    // We can fetch totalCount and validCount in parallel since they both rely on the base query which is ready.
+    const [totalCountRes, validCountRes] = await Promise.all([
+        createBaseQuery('id', { count: 'exact', head: true }),
+        createBaseQuery('id', { count: 'exact', head: true }).gt('base_price', 0)
+    ]);
 
-    if (countError) throw new Error(countError.message);
+    if (totalCountRes.error) throw new Error(totalCountRes.error.message);
+    if (validCountRes.error) throw new Error(validCountRes.error.message);
 
-    // 4. Get Valid Count (Price > 0)
-    const { count: validCountOrNull, error: validError } = await createBaseQuery('id', { count: 'exact', head: true })
-        .gt('base_price', 0);
-
-    if (validError) throw new Error(validError.message);
-    const validCount = validCountOrNull || 0;
+    const totalCount = totalCountRes.count;
+    const validCount = validCountRes.count || 0;
 
     let rawProducts: any[] = [];
 
-    // 5. Select Fields Logic
+    // 5. Select Fields Logic (Optimized)
+    const baseFields = 'id, title, slug, base_price, old_price, image_url, vendor_article, label';
     // IMPORTANT: Use inner join for variants if we are filtering by them, otherwise normal join
     const selectFields = (params.color?.length || params.inStock === 'true')
-        ? `*, categories(slug), product_variants!inner(color, general_color, price, stock, available, image_url)`
-        : `*, categories(slug), product_variants(color, general_color, price, stock, available, image_url)`;
+        ? `${baseFields}, categories(slug), product_variants!inner(color, general_color, price, stock, available, image_url)`
+        : `${baseFields}, categories(slug), product_variants(color, general_color, price, stock, available, image_url)`;
 
 
     // 6. Determine Fetch Strategy
@@ -135,22 +136,24 @@ export async function getProducts(params: SearchParams) {
     else {
         // Part 1: Remaining Valid items
         const validEnd = validCount - 1;
-        const { data: dataValid } = await createBaseQuery(selectFields)
-            .gt('base_price', 0)
-            .order('created_at', { ascending: false })
-            .range(from, validEnd);
 
-        // Part 2: Starting Zero items
-        const zeroStart = 0;
-        const itemsNeeded = (to - from + 1) - (dataValid?.length || 0);
-        const zeroEnd = itemsNeeded - 1;
+        // We can ALSO parallelize these two data fetches if we are in Scenario C!
+        const offset = 0;
+        const limitZero = (to - from + 1) - (validEnd - from + 1); // itemsNeeded
+        const zeroEnd = limitZero - 1;
 
-        const { data: dataZero } = await createBaseQuery(selectFields)
-            .eq('base_price', 0)
-            .order('created_at', { ascending: false })
-            .range(zeroStart, zeroEnd);
+        const [validDataRes, zeroDataRes] = await Promise.all([
+            createBaseQuery(selectFields)
+                .gt('base_price', 0)
+                .order('created_at', { ascending: false })
+                .range(from, validEnd),
+            createBaseQuery(selectFields)
+                .eq('base_price', 0)
+                .order('created_at', { ascending: false })
+                .range(offset, zeroEnd)
+        ]);
 
-        rawProducts = [...(dataValid || []), ...(dataZero || [])];
+        rawProducts = [...(validDataRes.data || []), ...(zeroDataRes.data || [])];
     }
 
 
