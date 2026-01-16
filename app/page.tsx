@@ -231,7 +231,7 @@ export default function Home() {
                   <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-4xl md:text-6xl font-black leading-none mb-2 text-white uppercase">{currentBanner.title}</motion.h2>
                   <motion.h3 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="text-3xl md:text-5xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 uppercase">{currentBanner.subtitle}</motion.h3>
                   <p className="text-gray-300 text-lg mb-8 max-w-lg line-clamp-2">{currentBanner.description}</p>
-                  <Link href="/catalog" className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition inline-block">Детальніше</Link>
+                  <Link href={currentBanner.link || "/catalog"} className="bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200 transition inline-block">Детальніше</Link>
                 </div>
               </div>
             </motion.div>

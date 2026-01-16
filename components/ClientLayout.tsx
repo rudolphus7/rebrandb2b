@@ -9,6 +9,8 @@ import { WishlistProvider } from '@/components/WishlistContext';
 import { Suspense, useEffect } from 'react';
 import { supabase } from "@/lib/supabaseClient";
 
+import GlobalPopupManager from "./GlobalPopupManager";
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     // Hide Header and Sidebar on admin pages

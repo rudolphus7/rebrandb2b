@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ShoppingBag, Layers, Image as ImageIcon,
-  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2, ShieldAlert, Heart
+  Settings, LogOut, RefreshCw, Package, Gift, Users, UserCircle, Loader2, ShieldAlert, Heart, FileText, MessageSquare
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -15,6 +15,8 @@ const MENU_ITEMS = [
   { name: "Клієнти", href: "/admin/customers", icon: Users },
   { name: "Товари", href: "/admin/products", icon: ShoppingBag },
   { name: "Категорії", href: "/admin/categories", icon: Layers },
+  { name: "Промо Сторінки", href: "/admin/pages", icon: FileText },
+  { name: "Поп-апи", href: "/admin/popups", icon: MessageSquare },
   { name: "Лояльність", href: "/admin/loyalty", icon: Gift },
   { name: "Банери & Слайдер", href: "/admin/banners", icon: ImageIcon },
   { name: "Синхронізація (1C/XML)", href: "/admin/sync", icon: RefreshCw },
