@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { ArrowLeft, Package, User, MapPin, CreditCard, Clock, Calendar } from 'lucide-react';
 import Link from 'next/link';
+import BrandingBadge from '@/components/BrandingBadge';
 
 export default function AdminOrderDetailsPage() {
     const { id } = useParams();
@@ -149,6 +150,16 @@ export default function AdminOrderDetailsPage() {
                                             <span>x</span>
                                             <span className="font-bold">{item.price} грн</span>
                                         </div>
+                                        {/* Branding Info */}
+                                        {order.has_branding && order.branding_details && (
+                                            <div className="mt-2">
+                                                {order.branding_details
+                                                    .filter((b: any) => b.itemIndex === idx)
+                                                    .map((branding: any, bIdx: number) => (
+                                                        <BrandingBadge key={bIdx} branding={branding} />
+                                                    ))}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="font-bold text-lg text-right">
                                         {item.price * item.quantity} грн

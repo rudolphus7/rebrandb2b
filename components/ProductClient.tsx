@@ -18,6 +18,7 @@ import {
     Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import BrandingConfigurator from '@/components/BrandingConfigurator';
 import { BrandingOptions } from '@/lib/brandingTypes';
 import { calculateBrandingPrice } from '@/lib/brandingPricing';
@@ -69,16 +70,15 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     const [quantities, setQuantities] = useState<Record<string, number>>({});
 
     // Branding state
-    const [brandingEnabled, setBrandingEnabled] = useState(false);
     const [brandingOptions, setBrandingOptions] = useState<BrandingOptions>({
         enabled: false,
         placement: 'chest-center',
         size: 'medium',
         method: 'screen-print',
         price: calculateBrandingPrice('chest-center', 'medium', 'screen-print'),
+        logoPreview: '',
     });
     const [logoFile, setLogoFileState] = useState<File | null>(null);
-    const [logoPreview, setLogoPreview] = useState<string>('');
 
     // Auto-select first size for simplified single-item purchase logic if needed, 
     // but requested design implies "matrix" or "bulk" might be too complex. 
@@ -171,7 +171,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     const totalSelectedPrice = Object.entries(quantities).reduce((sum, [id, qty]) => {
         const v = variants.find(v => v.id === id);
         const itemPrice = v ? v.price * qty : 0;
-        const brandingPrice = brandingEnabled ? brandingOptions.price * qty : 0;
+        const brandingPrice = brandingOptions.enabled ? brandingOptions.price * qty : 0;
         return sum + itemPrice + brandingPrice;
     }, 0);
 
@@ -191,9 +191,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                     size: variant.size,
                     vendorArticle: product.vendor_article,
                     slug: product.slug,
-                    branding: brandingEnabled ? {
+                    branding: brandingOptions.enabled ? {
                         enabled: true,
-                        logoPreview: logoPreview,
+                        logoPreview: brandingOptions.logoPreview,
                         placement: brandingOptions.placement,
                         size: brandingOptions.size,
                         method: brandingOptions.method,
@@ -202,16 +202,22 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                 });
 
                 // Store logo file separately in cart context
-                if (brandingEnabled && logoFile) {
+                if (brandingOptions.enabled && logoFile) {
                     setLogoFile(cartItemId, logoFile);
                 }
             }
         });
         setQuantities({});
         // Reset branding state after adding to cart
-        setBrandingEnabled(false);
+        setBrandingOptions({
+            enabled: false,
+            placement: 'chest-center',
+            size: 'medium',
+            method: 'screen-print',
+            price: calculateBrandingPrice('chest-center', 'medium', 'screen-print'),
+            logoPreview: '',
+        });
         setLogoFileState(null);
-        setLogoPreview('');
     };
 
     // Helper for simplified price display
@@ -428,12 +434,9 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     <label className="flex items-center gap-3 cursor-pointer group">
                                         <input
                                             type="checkbox"
-                                            checked={brandingEnabled}
+                                            checked={brandingOptions.enabled}
                                             onChange={(e) => {
-                                                setBrandingEnabled(e.target.checked);
-                                                if (e.target.checked) {
-                                                    setBrandingOptions(prev => ({ ...prev, enabled: true }));
-                                                }
+                                                setBrandingOptions(prev => ({ ...prev, enabled: e.target.checked }));
                                             }}
                                             className="w-5 h-5 rounded border-2 border-gray-300 dark:border-white/20 text-blue-600 focus:ring-2 focus:ring-blue-500 transition-all"
                                         />
@@ -442,23 +445,32 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                             <span className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                 Додати брендування
                                             </span>
+                                            {brandingOptions.logoPreview && (
+                                                <motion.span
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="flex items-center gap-1 bg-green-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm"
+                                                >
+                                                    <Check size={10} /> ФАЙЛ ДОДАНО
+                                                </motion.span>
+                                            )}
                                         </div>
                                     </label>
-                                    {brandingEnabled && (
+                                    {brandingOptions.enabled && (
                                         <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
                                             +{brandingOptions.price} ₴/шт
                                         </span>
                                     )}
                                 </div>
 
-                                {brandingEnabled && (
+                                {brandingOptions.enabled && (
                                     <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/30">
                                         <BrandingConfigurator
                                             value={brandingOptions}
                                             onChange={setBrandingOptions}
                                             onLogoChange={(file, preview) => {
                                                 setLogoFileState(file);
-                                                setLogoPreview(preview);
+                                                setBrandingOptions(prev => ({ ...prev, logoPreview: preview }));
                                             }}
                                         />
                                     </div>

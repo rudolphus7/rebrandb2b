@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/components/CartContext";
+import BrandingBadge from "@/components/BrandingBadge";
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
 import { PLACEMENT_LABELS, SIZE_LABELS, METHOD_LABELS } from "@/lib/brandingTypes";
 
@@ -231,12 +232,34 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Prepare branding details for database
+    const brandingDetails = cart
+      .map((item, index) => {
+        if (item.branding?.enabled) {
+          return {
+            itemIndex: index,
+            itemTitle: `${item.title} ${item.size !== 'One Size' ? item.size : ''}`.trim(),
+            placement: item.branding.placement,
+            size: item.branding.size,
+            method: item.branding.method,
+            price: item.branding.price,
+            logoFileName: getLogoFile(item.id)?.name || 'logo.file',
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    const hasBranding = brandingDetails.length > 0;
+
     const orderData = {
       user_email: formData.email,
       total_price: totalPrice,
       discount_bonuses: bonusesToUse,
       final_price: payAmount,
       items: cart,
+      has_branding: hasBranding,
+      branding_details: hasBranding ? brandingDetails : null,
       delivery_data: {
         city: formData.deliveryCity,
         cityRef: selectedCityRef, // Save Ref for future TTN
@@ -592,9 +615,9 @@ export default function CheckoutPage() {
                         {item.size && item.size !== 'One Size' ? `Розмір: ${item.size}` : ""} | x{item.quantity}
                       </span>
                       {item.branding?.enabled && (
-                        <span className="text-xs text-blue-500 dark:text-blue-400 font-bold mt-0.5">
-                          🎨 Брендування (+{item.branding.price} ₴/шт)
-                        </span>
+                        <div className="mt-2">
+                          <BrandingBadge branding={item.branding} />
+                        </div>
                       )}
                     </div>
                     <span className="font-bold text-gray-900 dark:text-white whitespace-nowrap">

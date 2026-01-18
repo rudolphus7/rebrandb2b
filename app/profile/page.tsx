@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 import ProductImage from "@/components/ProductImage"; // Виправлено шлях
 import { LOYALTY_TIERS, getCurrentTier, getNextTier } from "@/lib/loyaltyUtils";
+import BrandingBadge from "@/components/BrandingBadge";
 
 // --- КАСТОМІЗАЦІЯ РІВНІВ (FIX: Додано поле shadow) ---
 const TIER_STYLES: Record<string, { bg: string, cardGradient: string, border: string, text: string, icon: any, iconColor: string, shadow: string }> = {
@@ -467,21 +468,33 @@ export default function UserProfile() {
                                   {Array.isArray(order.items) && order.items.map((item: any, i: number) => {
                                     if (!item) return null;
                                     return (
-                                      <div key={i} className="flex gap-4 bg-white dark:bg-zinc-800/50 p-2 rounded-lg border border-gray-100 dark:border-transparent transition-colors">
-                                        <div className="w-12 h-12 bg-gray-100 dark:bg-black rounded overflow-hidden relative flex-shrink-0">
-                                          <ProductImage
-                                            src={item.image_url || item.image || ''}
-                                            alt={item.title || 'Товар'}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                        <div className="flex-1 min-w-0 flex justify-between items-center">
-                                          <div>
-                                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate w-32 sm:w-auto">{item.title || "Без назви"}</div>
-                                            <div className="text-xs text-gray-500 dark:text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
+                                      <div key={i} className="space-y-2">
+                                        <div className="flex gap-4 bg-white dark:bg-zinc-800/50 p-2 rounded-lg border border-gray-100 dark:border-transparent transition-colors text-gray-900 dark:text-white">
+                                          <div className="w-12 h-12 bg-gray-100 dark:bg-black rounded overflow-hidden relative flex-shrink-0">
+                                            <ProductImage
+                                              src={item.image_url || item.image || ''}
+                                              alt={item.title || 'Товар'}
+                                              className="w-full h-full object-cover"
+                                            />
                                           </div>
-                                          <div className="font-bold text-sm text-gray-900 dark:text-white">{item.price * item.quantity} ₴</div>
+                                          <div className="flex-1 min-w-0 flex justify-between items-center">
+                                            <div>
+                                              <div className="text-sm font-medium truncate w-32 sm:w-auto">{item.title || "Без назви"}</div>
+                                              <div className="text-xs text-gray-500 dark:text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
+                                            </div>
+                                            <div className="font-bold text-sm">{item.price * item.quantity} ₴</div>
+                                          </div>
                                         </div>
+                                        {/* Branding Details */}
+                                        {order.has_branding && order.branding_details && (
+                                          <div className="mt-2 ml-16">
+                                            {order.branding_details
+                                              .filter((b: any) => b.itemIndex === i)
+                                              .map((branding: any, bIdx: number) => (
+                                                <BrandingBadge key={bIdx} branding={branding} />
+                                              ))}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}

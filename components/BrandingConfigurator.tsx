@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, FileText, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     BrandingOptions,
     PrintPlacement,
@@ -20,7 +21,19 @@ interface BrandingConfiguratorProps {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_FORMATS = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+const ACCEPTED_FORMATS = [
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/svg+xml',
+    'image/tiff',
+    'image/tif',
+    'application/pdf',
+    'application/postscript', // AI, EPS
+    'application/illustrator',
+    'image/x-eps',
+    'image/eps',
+];
 
 export default function BrandingConfigurator({
     value,
@@ -35,7 +48,7 @@ export default function BrandingConfigurator({
         setError('');
 
         if (!ACCEPTED_FORMATS.includes(file.type)) {
-            setError('Підтримуються тільки PNG, JPG, SVG файли');
+            setError('Підтримуються: PNG, JPG, SVG, PDF, AI, EPS, TIFF');
             return false;
         }
 
@@ -50,12 +63,18 @@ export default function BrandingConfigurator({
     const handleFileSelect = (file: File) => {
         if (!handleFileValidation(file)) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const preview = e.target?.result as string;
-            onLogoChange(file, preview);
-        };
-        reader.readAsDataURL(file);
+        // For image files, create preview
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = e.target?.result as string;
+                onLogoChange(file, preview);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // For non-image files (PDF, AI, EPS), use file name as preview
+            onLogoChange(file, `file://${file.name}`);
+        }
     };
 
     const handleDrag = (e: React.DragEvent) => {
@@ -120,62 +139,94 @@ export default function BrandingConfigurator({
                     Завантажити логотип
                 </label>
 
-                {!value.logoPreview ? (
-                    <div
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragActive
+                <AnimatePresence mode="wait">
+                    {!value.logoPreview ? (
+                        <motion.div
+                            key="upload-zone"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragActive
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                 : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 bg-gray-50 dark:bg-black/20'
-                            }`}
-                    >
-                        <Upload className="mx-auto mb-3 text-gray-400" size={32} />
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Перетягніть файл сюди або натисніть для вибору
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            PNG, JPG, SVG до 10MB
-                        </p>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept={ACCEPTED_FORMATS.join(',')}
-                            onChange={handleInputChange}
-                            className="hidden"
-                        />
-                    </div>
-                ) : (
-                    <div className="relative border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 bg-white dark:bg-black/20">
-                        <div className="flex items-center gap-4">
-                            <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-lg flex items-center justify-center overflow-hidden">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={value.logoPreview}
-                                    alt="Logo preview"
-                                    className="max-w-full max-h-full object-contain"
-                                />
+                                }`}
+                        >
+                            <Upload className="mx-auto mb-3 text-gray-400" size={32} />
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Перетягніть файл сюди або натисніть для вибору
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                PNG, JPG, SVG, PDF, AI, EPS, TIFF до 10MB
+                            </p>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={ACCEPTED_FORMATS.join(',')}
+                                onChange={handleInputChange}
+                                className="hidden"
+                            />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="success-zone"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="relative border-2 border-green-500 dark:border-green-400 rounded-2xl p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 shadow-lg"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border-2 border-green-200 dark:border-green-700 shadow-sm relative group">
+                                    {value.logoPreview?.startsWith('data:image') ? (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img
+                                            src={value.logoPreview}
+                                            alt="Logo preview"
+                                            className="max-w-full max-h-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center p-2">
+                                            <FileText className="w-10 h-10 text-blue-500" />
+                                            <span className="text-[8px] text-gray-500 mt-1 text-center font-bold">
+                                                {value.logoPreview?.replace('file://', '').split('.').pop()?.toUpperCase()}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-green-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <CheckCircle2 className="text-green-600" size={24} />
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <CheckCircle2 className="text-green-600 dark:text-green-400" size={18} />
+                                        <p className="text-sm font-bold text-green-700 dark:text-green-400">
+                                            Логотип успішно завантажено!
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-green-600 dark:text-green-500 font-medium">
+                                        ✓ Готово до нанесення на товар
+                                    </p>
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <span className="text-[10px] bg-green-100 dark:bg-green-800/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                            Файл прийнято
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleRemoveLogo}
+                                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors group"
+                                    title="Видалити логотип"
+                                >
+                                    <X size={20} className="text-gray-400 group-hover:text-red-500" />
+                                </button>
                             </div>
-                            <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <ImageIcon size={16} className="text-green-500" />
-                                    Логотип завантажено
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Готово до нанесення
-                                </p>
-                            </div>
-                            <button
-                                onClick={handleRemoveLogo}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors"
-                            >
-                                <X size={20} className="text-gray-400" />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {error && (
                     <p className="text-xs text-red-500 mt-2 font-medium">{error}</p>
@@ -196,8 +247,8 @@ export default function BrandingConfigurator({
                                 type="button"
                                 onClick={() => updateOption('placement', placement)}
                                 className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${value.placement === placement
-                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                        : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                    : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
                                     }`}
                             >
                                 {PLACEMENT_LABELS[placement]}
@@ -218,8 +269,8 @@ export default function BrandingConfigurator({
                             type="button"
                             onClick={() => updateOption('size', size)}
                             className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${value.size === size
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                    : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
                                 }`}
                         >
                             {SIZE_LABELS[size]}
@@ -240,8 +291,8 @@ export default function BrandingConfigurator({
                             type="button"
                             onClick={() => updateOption('method', method)}
                             className={`p-3 rounded-xl border-2 text-left text-sm font-medium transition-all ${value.method === method
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                    : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-700 dark:text-gray-300'
                                 }`}
                         >
                             {METHOD_LABELS[method]}
