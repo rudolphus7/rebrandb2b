@@ -253,6 +253,7 @@ export default function CheckoutPage() {
     const hasBranding = brandingDetails.length > 0;
 
     const orderData = {
+      user_id: userId,
       user_email: formData.email,
       total_price: totalPrice,
       discount_bonuses: bonusesToUse,

@@ -80,7 +80,7 @@ export async function getProducts(params: SearchParams) {
         }
 
         if (onlyInStock) {
-            q = q.gt('product_variants.stock', 0);
+            q = q.gt('product_variants.available', 0);
         }
 
         if (params.label) {
@@ -157,15 +157,23 @@ export async function getProducts(params: SearchParams) {
     }
 
 
-    // 6. Map and Return (Existing Logic)
+    // 6. Map and Return (Enhanced with inStock filtering)
+    const onlyInStock = params.inStock === 'true';
+
     const products = rawProducts.map((product: any) => {
-        const totalAvailable = product.product_variants?.reduce(
+        // Filter variants if onlyInStock is requested
+        let variants = product.product_variants || [];
+        if (onlyInStock) {
+            variants = variants.filter((v: any) => (v.available ?? v.stock ?? 0) > 0);
+        }
+
+        const totalAvailable = variants.reduce(
             (sum: number, variant: any) => sum + (variant.available ?? variant.stock ?? 0),
             0
         );
 
         const uniqueVariantsMap = new Map();
-        product.product_variants?.forEach((v: any) => {
+        variants.forEach((v: any) => {
             if (v.color && v.color !== 'N/A' && v.image_url) {
                 if (!uniqueVariantsMap.has(v.color)) {
                     uniqueVariantsMap.set(v.color, { color: v.color, image: v.image_url });
@@ -173,10 +181,22 @@ export async function getProducts(params: SearchParams) {
             }
         });
         const displayVariants = Array.from(uniqueVariantsMap.values());
-        const productColors = Array.from(new Set(product.product_variants?.map((v: any) => v.color).filter((c: any) => c !== 'N/A')));
+        const productColors = Array.from(new Set(variants.map((v: any) => v.color).filter((c: any) => c !== 'N/A')));
+
+        // If filtering by stock, and the main image doesn't match an available variant,
+        // use the first available variant's image as the primary one.
+        let defaultImage = product.image_url;
+        if (onlyInStock && displayVariants.length > 0) {
+            // If the main image is not among the available variant images, swap it
+            const availableImages = displayVariants.map(v => v.image);
+            if (!availableImages.includes(product.image_url)) {
+                defaultImage = availableImages[0];
+            }
+        }
 
         return {
             ...product,
+            image_url: defaultImage,
             total_available: totalAvailable,
             display_variants: displayVariants,
             colors: productColors

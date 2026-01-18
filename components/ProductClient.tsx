@@ -68,6 +68,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
     );
     const [activeTab, setActiveTab] = useState<'features' | 'description'>('features');
     const [quantities, setQuantities] = useState<Record<string, number>>({});
+    const [showInStockOnly, setShowInStockOnly] = useState(false);
 
     // Branding state
     const [brandingOptions, setBrandingOptions] = useState<BrandingOptions>({
@@ -349,28 +350,55 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                             {/* Divider */}
                             <div className="h-px bg-gray-100 dark:bg-white/10 w-full" />
 
+                            {/* Prominent Stock Filter Toggle */}
+                            <div className="flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/20">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-xl ${showInStockOnly ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-400'}`}>
+                                        <Package size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Наявність</h4>
+                                        <p className="text-[10px] text-gray-500 uppercase font-black tracking-tight">{showInStockOnly ? 'Тільки доступне' : 'Весь асортимент'}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowInStockOnly(!showInStockOnly)}
+                                    className={`relative w-14 h-7 rounded-full transition-all duration-500 p-1 flex items-center shadow-inner ${showInStockOnly ? 'bg-blue-500' : 'bg-gray-300 dark:bg-white/20'}`}
+                                >
+                                    <motion.div
+                                        animate={{ x: showInStockOnly ? 28 : 0 }}
+                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                        className="w-5 h-5 rounded-full bg-white shadow-md"
+                                    />
+                                </button>
+                            </div>
+
                             {/* Color Selector */}
                             {uniqueColors.length > 1 && (
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Колір</label>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block">Колір</label>
+                                    </div>
                                     <div className="flex flex-wrap gap-3">
-                                        {uniqueColors.map(color => {
-                                            const v = variants.find(item => item.color === color);
-                                            return (
-                                                <button
-                                                    key={color}
-                                                    onClick={() => setSelectedColor(color)}
-                                                    className={`group relative px-1 py-1 rounded-full border transition-all ${selectedColor === color ? 'border-black dark:border-white' : 'border-transparent hover:border-gray-200'}`}
-                                                >
-                                                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 relative">
-                                                        {v?.image_url && <img src={v.image_url} alt={color} className="w-full h-full object-cover" />}
-                                                    </div>
-                                                    <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white px-1.5 rounded z-10`}>
-                                                        {color}
-                                                    </span>
-                                                </button>
-                                            )
-                                        })}
+                                        {uniqueColors
+                                            .filter(color => !showInStockOnly || variants.some(v => v.color === color && (v.available ?? 0) > 0))
+                                            .map(color => {
+                                                const v = variants.find(item => item.color === color);
+                                                return (
+                                                    <button
+                                                        key={color}
+                                                        onClick={() => setSelectedColor(color)}
+                                                        className={`group relative px-1 py-1 rounded-full border transition-all ${selectedColor === color ? 'border-black dark:border-white' : 'border-transparent hover:border-gray-200'}`}
+                                                    >
+                                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 relative">
+                                                            {v?.image_url && <img src={v.image_url} alt={color} className="w-full h-full object-cover" />}
+                                                        </div>
+                                                        <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white px-1.5 rounded z-10`}>
+                                                            {color}
+                                                        </span>
+                                                    </button>
+                                                )
+                                            })}
                                     </div>
                                 </div>
                             )}
@@ -383,47 +411,49 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-2">
-                                    {currentColorVariants.map(variant => {
-                                        const qty = quantities[variant.id] || 0;
-                                        const isAvailable = variant.available > 0;
-                                        return (
-                                            <div key={variant.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-black bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-[#111]'}`}>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-sm">{variant.size === 'One Size' ? variant.color : variant.size}</span>
-                                                    <span className={`text-xs font-medium ${isAvailable ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
-                                                        {isAvailable ? `В наявності: ${variant.available} шт.` : 'Немає'}
-                                                    </span>
-                                                </div>
-
-                                                {isAvailable ? (
-                                                    <div className="flex items-center gap-2">
-                                                        {qty > 0 && (
-                                                            <button
-                                                                onClick={() => handleQuantityChange(variant.id, -1, variant.available)}
-                                                                className="w-8 h-8 flex items-center justify-center bg-white dark:bg-[#222] text-black dark:text-white rounded-full shadow-sm hover:bg-gray-100"
-                                                            >
-                                                                <Minus size={14} />
-                                                            </button>
-                                                        )}
-
-                                                        <input
-                                                            type="number"
-                                                            className="w-12 h-8 text-center border border-gray-200 dark:border-white/20 rounded-lg bg-gray-50 dark:bg-white/5 font-bold outline-none focus:border-black dark:focus:border-white transition-colors"
-                                                            value={qty > 0 ? qty : ''}
-                                                            onChange={(e) => handleInputChange(variant.id, e.target.value, variant.available)}
-                                                            placeholder="0"
-                                                        />
-
-                                                        <button onClick={() => handleQuantityChange(variant.id, 1, variant.available)} className="w-8 h-8 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-full shadow-sm hover:opacity-90">
-                                                            <Plus size={14} />
-                                                        </button>
+                                    {currentColorVariants
+                                        .filter(variant => !showInStockOnly || (variant.available ?? 0) > 0)
+                                        .map(variant => {
+                                            const qty = quantities[variant.id] || 0;
+                                            const isAvailable = variant.available > 0;
+                                            return (
+                                                <div key={variant.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-black bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-[#111]'}`}>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-sm">{variant.size === 'One Size' ? variant.color : variant.size}</span>
+                                                        <span className={`text-xs font-medium ${isAvailable ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                                            {isAvailable ? `В наявності: ${variant.available} шт.` : 'Немає'}
+                                                        </span>
                                                     </div>
-                                                ) : (
-                                                    <span className="text-[10px] font-bold text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded">Розпродано</span>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
+
+                                                    {isAvailable ? (
+                                                        <div className="flex items-center gap-2">
+                                                            {qty > 0 && (
+                                                                <button
+                                                                    onClick={() => handleQuantityChange(variant.id, -1, variant.available)}
+                                                                    className="w-8 h-8 flex items-center justify-center bg-white dark:bg-[#222] text-black dark:text-white rounded-full shadow-sm hover:bg-gray-100"
+                                                                >
+                                                                    <Minus size={14} />
+                                                                </button>
+                                                            )}
+
+                                                            <input
+                                                                type="number"
+                                                                className="w-12 h-8 text-center border border-gray-200 dark:border-white/20 rounded-lg bg-gray-50 dark:bg-white/5 font-bold outline-none focus:border-black dark:focus:border-white transition-colors"
+                                                                value={qty > 0 ? qty : ''}
+                                                                onChange={(e) => handleInputChange(variant.id, e.target.value, variant.available)}
+                                                                placeholder="0"
+                                                            />
+
+                                                            <button onClick={() => handleQuantityChange(variant.id, 1, variant.available)} className="w-8 h-8 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-full shadow-sm hover:opacity-90">
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded">Розпродано</span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
                                 </div>
                             </div>
 
@@ -527,11 +557,31 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
                 {/* === НИЖНІЙ БЛОК: ЗВЕДЕНА МАТРИЦЯ === */}
                 <div className="bg-[#1a1a1a] text-white rounded-[32px] p-8 lg:p-12 shadow-2xl overflow-hidden border border-white/5 transition-colors mt-12 mb-12">
-                    <div className="flex items-center justify-between mb-10">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 gap-6">
                         <h3 className="text-3xl font-black text-white">Загальна наявність на складах</h3>
-                        <div className="text-sm text-gray-400 flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-500"></div> Обрано
-                            <div className="w-2 h-2 rounded-full bg-gray-500 ml-2"></div> Доступно
+
+                        <div className="flex flex-wrap items-center gap-6">
+                            {/* Stock Filter in Matrix */}
+                            <div className="flex items-center gap-4 bg-white/5 p-2 pr-4 rounded-2xl border border-white/10">
+                                <button
+                                    onClick={() => setShowInStockOnly(!showInStockOnly)}
+                                    className={`relative w-12 h-6 rounded-full transition-all duration-500 p-0.5 flex items-center shadow-inner ${showInStockOnly ? 'bg-blue-500' : 'bg-gray-700'}`}
+                                >
+                                    <motion.div
+                                        animate={{ x: showInStockOnly ? 24 : 0 }}
+                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                        className="w-5 h-5 rounded-full bg-white shadow-sm"
+                                    />
+                                </button>
+                                <span className="text-xs font-bold uppercase tracking-widest text-gray-300">
+                                    {showInStockOnly ? 'Тільки в наявності' : 'Показати всі'}
+                                </span>
+                            </div>
+
+                            <div className="text-sm text-gray-400 flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500"></div> Обрано
+                                <div className="w-2 h-2 rounded-full bg-gray-500 ml-2"></div> Доступно
+                            </div>
                         </div>
                     </div>
 
@@ -542,67 +592,81 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                     <th className="py-5 pl-6 font-bold text-gray-400 text-xs uppercase tracking-widest border-b border-white/10 w-72">
                                         Модель / Колір
                                     </th>
-                                    {allSizes.map(size => (
-                                        <th key={size} className="py-5 font-bold text-white text-center text-sm w-24 border-b border-white/10 bg-[#222]">
-                                            {size === 'One Size' ? 'Універсальний' : size}
-                                        </th>
-                                    ))}
+                                    {allSizes.map(size => {
+                                        const isColumnVisible = !showInStockOnly || variants.some(vr => vr.size === size && (vr.available ?? 0) > 0);
+                                        if (!isColumnVisible) return null;
+
+                                        return (
+                                            <th key={size} className="py-5 font-bold text-white text-center text-sm w-24 border-b border-white/10 bg-[#222]">
+                                                {size === 'One Size' ? 'Універсальний' : size}
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {uniqueColors.map(color => {
-                                    const variantWithImg = variants.find(v => v.color === color);
-                                    const imgUrl = variantWithImg?.image_url || product.image_url;
-                                    const isCurrentRow = selectedColor === color;
+                                {uniqueColors
+                                    .filter(color => !showInStockOnly || variants.some(v => v.color === color && (v.available ?? 0) > 0))
+                                    .map(color => {
+                                        const variantWithImg = variants.find(v => v.color === color);
+                                        const imgUrl = variantWithImg?.image_url || product.image_url;
+                                        const isCurrentRow = selectedColor === color;
 
-                                    return (
-                                        <tr
-                                            key={color}
-                                            onClick={() => setSelectedColor(color)}
-                                            className={`group cursor-pointer transition-all duration-300 ${isCurrentRow ? 'bg-blue-900/10' : 'hover:bg-white/5'}`}
-                                        >
-                                            <td className="py-5 pl-6 pr-6">
-                                                <div className="flex items-center gap-5">
-                                                    <div className={`w-14 h-16 rounded-xl overflow-hidden border p-1 flex-shrink-0 shadow-sm transition-all ${isCurrentRow ? 'border-blue-500' : 'border-white/10 bg-white'}`}>
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img src={imgUrl} alt={color} className="w-full h-full object-contain" />
+                                        return (
+                                            <tr
+                                                key={color}
+                                                onClick={() => setSelectedColor(color)}
+                                                className={`group cursor-pointer transition-all duration-300 ${isCurrentRow ? 'bg-blue-900/10' : 'hover:bg-white/5'}`}
+                                            >
+                                                <td className="py-5 pl-6 pr-6">
+                                                    <div className="flex items-center gap-5">
+                                                        <div className={`w-14 h-16 rounded-xl overflow-hidden border p-1 flex-shrink-0 shadow-sm transition-all ${isCurrentRow ? 'border-blue-500' : 'border-white/10 bg-white'}`}>
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img src={imgUrl} alt={color} className="w-full h-full object-contain" />
+                                                        </div>
+                                                        <div className={`font-bold text-base transition-colors ${isCurrentRow ? 'text-blue-400' : 'text-white'}`}>{color}</div>
                                                     </div>
-                                                    <div className={`font-bold text-base transition-colors ${isCurrentRow ? 'text-blue-400' : 'text-white'}`}>{color}</div>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {allSizes.map(size => {
-                                                const v = variants.find(vr => vr.color === color && vr.size === size);
-                                                const available = v ? v.available : 0;
-                                                const qty = v ? quantities[v.id] || 0 : 0;
-                                                const isSelected = qty > 0;
+                                                {allSizes.map(size => {
+                                                    const v = variants.find(vr => vr.color === color && vr.size === size);
+                                                    const available = v ? v.available : 0;
+                                                    const qty = v ? quantities[v.id] || 0 : 0;
+                                                    const isSelected = qty > 0;
 
-                                                return (
-                                                    <td key={size} className="py-5 text-center align-middle relative group/cell">
-                                                        {available > 0 ? (
-                                                            <div className="flex flex-col items-center justify-center">
-                                                                <div
-                                                                    className={`text-base font-bold transition-all duration-300 ${isSelected ? 'text-blue-400 scale-125' : 'text-white group-hover/cell:scale-110'}`}
-                                                                >
-                                                                    {available}
-                                                                </div>
-                                                                {isSelected && (
-                                                                    <div className="absolute -top-1 right-2 w-5 h-5 bg-blue-500 rounded-full text-[10px] flex items-center justify-center font-bold text-white shadow-lg">
-                                                                        {qty}
+                                                    // If showInStockOnly is true, and this specific SIZE is out of stock across ALL shown colors,
+                                                    // we might want to hide the column. But for consistency in a matrix, we usually just show it empty or hide it entirely if no row has it.
+                                                    // The user asked to hide data where there is no stock.
+
+                                                    const isColumnVisible = !showInStockOnly || variants.some(vr => vr.size === size && (vr.available ?? 0) > 0);
+                                                    if (!isColumnVisible) return null;
+
+                                                    return (
+                                                        <td key={size} className="py-5 text-center align-middle relative group/cell">
+                                                            {available > 0 ? (
+                                                                <div className="flex flex-col items-center justify-center">
+                                                                    <div
+                                                                        className={`text-base font-bold transition-all duration-300 ${isSelected ? 'text-blue-400 scale-125' : 'text-white group-hover/cell:scale-110'}`}
+                                                                    >
+                                                                        {available}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center opacity-10">
-                                                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                )
-                                            })}
-                                        </tr>
-                                    );
-                                })}
+                                                                    {isSelected && (
+                                                                        <div className="absolute -top-1 right-2 w-5 h-5 bg-blue-500 rounded-full text-[10px] flex items-center justify-center font-bold text-white shadow-lg">
+                                                                            {qty}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center opacity-10">
+                                                                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    )
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
                             </tbody>
                         </table>
                     </div>

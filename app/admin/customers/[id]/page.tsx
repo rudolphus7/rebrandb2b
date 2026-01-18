@@ -46,13 +46,21 @@ export default function AdminCustomerDetails() {
         setLoading(true);
         // 1. Profile
         const { data: profile } = await supabase.from("profiles").select("*").eq("id", id).single();
-        // 2. Orders
-        const { data: userOrders } = await supabase.from("orders").select("*").eq("user_id", id).order("created_at", { ascending: false });
+
+        // 2. Orders - Link by BOTH user_id and user_email for better visibility
+        let query = supabase.from("orders").select("*");
+
+        if (profile?.email) {
+            query = query.or(`user_id.eq.${id},user_email.eq.${profile.email.trim().toLowerCase()}`);
+        } else {
+            query = query.eq("user_id", id);
+        }
+
+        const { data: userOrders } = await query.order("created_at", { ascending: false });
 
         setUser(profile);
         setOrders(userOrders || []);
 
-        // Initial simplified dash stats usually don't need full event list yet
         setLoading(false);
     }
 
