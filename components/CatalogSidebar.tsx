@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import { Search, X, ChevronDown, ChevronUp, Menu as MenuIcon, Filter } from 'lucide-react';
 import Link from 'next/link';
+import { getColorLabel, getColorHex } from '@/lib/colors';
 
 interface Category {
   id: string;
@@ -298,20 +299,32 @@ export function CatalogSidebar({ categories, availableColors, maxPrice, isOpen =
       <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 p-5 transition-colors">
         <h3 className="font-bold mb-4 text-gray-900 dark:text-white">Колір</h3>
         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-          {availableColors.map(color => (
-            <label key={color} className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-400 cursor-pointer hover:text-black dark:hover:text-white p-1 rounded transition-colors group">
-              <div className="relative flex items-center justify-center">
-                <input
-                  type="checkbox"
-                  checked={selectedColors.includes(color)}
-                  onChange={() => toggleColor(color)}
-                  className="peer w-4 h-4 rounded border border-gray-600 bg-transparent checked:bg-blue-500 checked:border-blue-500 appearance-none transition-colors cursor-pointer"
+          {availableColors.map(color => {
+            const label = getColorLabel(color);
+            const hex = getColorHex(color);
+            return (
+              <label key={color} className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-400 cursor-pointer hover:text-black dark:hover:text-white p-1 rounded transition-colors group">
+                <div className="relative flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedColors.includes(color)}
+                    onChange={() => toggleColor(color)}
+                    className="peer w-4 h-4 rounded border border-gray-600 bg-transparent checked:bg-blue-500 checked:border-blue-500 appearance-none transition-colors cursor-pointer"
+                  />
+                  <svg className="absolute w-3 h-3 text-white hidden peer-checked:block pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                {/* Color Dot */}
+                <div
+                  className="w-4 h-4 rounded-full border border-gray-200 dark:border-white/10"
+                  style={{ backgroundColor: hex }}
+                  title={label}
                 />
-                <svg className="absolute w-3 h-3 text-white hidden peer-checked:block pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-              </div>
-              {color}
-            </label>
-          ))}
+                <span className={selectedColors.includes(color) ? "font-bold text-black dark:text-white" : ""}>
+                  {label}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </div>
     </div>

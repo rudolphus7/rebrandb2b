@@ -8,7 +8,7 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // 1. Створюємо клієнт Supabase для роботи з куками
+  // 1. Створюємо клієнт Supabase для роботи з куками (Recommended SSR Pattern)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,6 +19,7 @@ export async function middleware(request: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options })
+          // Ми створюємо нову відповідь з оновленими куками
           response = NextResponse.next({
             request: { headers: request.headers },
           })
@@ -35,26 +36,38 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 2. Отримуємо сесію користувача
+  // 2. Отримання сесії (getUser автоматично оновлює токени за потреби)
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 3. ЛОГІКА ЗАХИСТУ /admin
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    
-    // А. Якщо не залогінений -> на вхід
+  const pathname = request.nextUrl.pathname;
+
+  // 3. УНІВЕРСАЛЬНИЙ ЗАХИСТ СТОРІНОК
+  // Якщо користувач не авторизований і це не головна сторінка, не API і не статичні файли
+  if (!user && pathname !== '/') {
+    // Перевіряємо, чи це не системні запити
+    const isPublicAsset = pathname.includes('.') || pathname.startsWith('/_next') || pathname.startsWith('/api');
+
+    if (!isPublicAsset) {
+      const redirectUrl = new URL('/', request.url)
+      redirectUrl.searchParams.set('next', pathname)
+      return NextResponse.redirect(redirectUrl)
+    }
+  }
+
+  // 4. ЗАХИСТ АДМІНКИ (додаткова перевірка ролі)
+  if (pathname.startsWith('/admin')) {
     if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      const redirectUrl = new URL('/', request.url)
+      redirectUrl.searchParams.set('next', pathname)
+      return NextResponse.redirect(redirectUrl)
     }
 
-    // Б. Перевірка ролі (робимо запит в базу)
-    // Увага: цей запит виконується на сервері, це швидко і безпечно
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    // В. Якщо не адмін -> на головну
     if (!profile || profile.role !== 'admin') {
       return NextResponse.redirect(new URL('/', request.url))
     }
@@ -66,7 +79,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Запускаємо middleware на всіх шляхах, окрім статичних файлів та api
+     * Запускаємо middleware на всіх шляхах
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],

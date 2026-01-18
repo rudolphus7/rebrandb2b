@@ -55,6 +55,7 @@ export async function getProducts(params: SearchParams) {
         // even for count queries. If selectStr is just 'id', we append the inner join.
         let finalSelect = selectStr;
         if (filteringVariants && selectStr === 'id') {
+            // Use products.id to avoid ambiguity and ensure inner join works for counting
             finalSelect = 'id, product_variants!inner(id)';
         }
 
@@ -97,18 +98,27 @@ export async function getProducts(params: SearchParams) {
         createBaseQuery('id', { count: 'exact', head: true }).gt('base_price', 0)
     ]);
 
-    if (totalCountRes.error) throw new Error(totalCountRes.error.message);
-    if (validCountRes.error) throw new Error(validCountRes.error.message);
+    if (totalCountRes.error) {
+        const err = totalCountRes.error;
+        console.error("Total Count Error Details:", JSON.stringify(err, null, 2));
+        throw new Error(`Total Count Error [${err.code}]: ${err.message}. Hint: ${err.hint || 'none'}. Details: ${err.details || 'none'}`);
+    }
+    if (validCountRes.error) {
+        const err = validCountRes.error;
+        console.error("Valid Count Error Details:", JSON.stringify(err, null, 2));
+        throw new Error(`Valid Count Error [${err.code}]: ${err.message}. Hint: ${err.hint || 'none'}. Details: ${err.details || 'none'}`);
+    }
 
     const totalCount = totalCountRes.count;
     const validCount = validCountRes.count || 0;
 
     let rawProducts: any[] = [];
 
-    // 5. Select Fields Logic (Optimized)
-    const baseFields = 'id, title, slug, base_price, old_price, image_url, vendor_article, label';
-    // IMPORTANT: Use inner join for variants if we are filtering by them, otherwise normal join
-    const selectFields = (params.color?.length || params.inStock === 'true')
+    const baseFields = 'id, title, slug, base_price, old_price, image_url, vendor_article, label, created_at';
+    const selectedColors = params.color?.split(',').filter(Boolean) || [];
+    const filteringVariants = selectedColors.length > 0 || params.inStock === 'true';
+
+    const selectFields = filteringVariants
         ? `${baseFields}, categories(slug), product_variants!inner(color, general_color, price, stock, available, image_url)`
         : `${baseFields}, categories(slug), product_variants(color, general_color, price, stock, available, image_url)`;
 
@@ -183,11 +193,16 @@ export async function getProducts(params: SearchParams) {
         const displayVariants = Array.from(uniqueVariantsMap.values());
         const productColors = Array.from(new Set(variants.map((v: any) => v.color).filter((c: any) => c !== 'N/A')));
 
-        // If filtering by stock, and the main image doesn't match an available variant,
-        // use the first available variant's image as the primary one.
+        // PRIORITY 1: If filtering by color, pick a variant image matching that color
         let defaultImage = product.image_url;
-        if (onlyInStock && displayVariants.length > 0) {
-            // If the main image is not among the available variant images, swap it
+        if (selectedColors.length > 0) {
+            const prioritizedVariant = variants.find((v: any) => selectedColors.includes(v.general_color));
+            if (prioritizedVariant?.image_url) {
+                defaultImage = prioritizedVariant.image_url;
+            }
+        }
+        // PRIORITY 2: If filtering by stock, ensure image is from an available variant
+        else if (onlyInStock && displayVariants.length > 0) {
             const availableImages = displayVariants.map(v => v.image);
             if (!availableImages.includes(product.image_url)) {
                 defaultImage = availableImages[0];

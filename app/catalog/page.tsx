@@ -4,6 +4,7 @@ import Link from 'next/link';
 import CatalogLayout from '@/components/CatalogLayout';
 
 import { getProducts, SearchParams } from '@/lib/catalog';
+import { COLOR_MAP } from '@/lib/colors';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,23 +21,28 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   // Використовуємо спільну логіку для отримання товарів
   const { products, count, page, totalPages } = await getProducts(params);
 
-  // Додаткові дані для сайдбару (Категорії та Кольори) - залишаємо тут, бо це потрібно тільки при першому рендері сторінки
-  const [categoriesRes, colorsRes] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('id, name, slug, parent_id')
-      .order('name'),
+  // Додаткові дані для сайдбару (Категорії)
+  const { data: categoriesData } = await supabase
+    .from('categories')
+    .select('id, name, slug, parent_id')
+    .order('name');
 
-    supabase
-      .from('product_variants')
-      .select('general_color')
-      .neq('general_color', 'Other')
-      .neq('general_color', null)
-      .limit(2000)
-  ]);
+  const categories = categoriesData || [];
 
-  const categories = categoriesRes.data || [];
-  const availableColors = Array.from(new Set(colorsRes.data?.map(i => i.general_color))).sort();
+  // РОЗУМНЕ ВИЗНАЧЕННЯ КОЛЬОРІВ: Перевіряємо наявність для кожної групи з нашого довідника
+  // Це набагато краще ніж limit(10000), бо ми гарантовано знайдемо всі доступні кольори
+  const activeColorsCheck = await Promise.all(
+    COLOR_MAP.map(async (group) => {
+      const { count } = await supabase
+        .from('product_variants')
+        .select('id', { count: 'exact', head: true })
+        .eq('general_color', group.key)
+        .limit(1);
+      return count && count > 0 ? group.key : null;
+    })
+  );
+
+  const availableColors = activeColorsCheck.filter((c): c is string => c !== null);
 
   return (
     <div className="bg-background min-h-screen font-sans text-foreground transition-colors duration-300">

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { useWishlist } from './WishlistContext';
 import Image from 'next/image';
@@ -34,6 +34,11 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Стейт для зміни головної картинки при наведенні на мініатюру
   const [currentImage, setCurrentImage] = useState(product.image_url);
+
+  // СИНХРОНІЗАЦІЯ: Якщо пропси змінилися (наприклад, через фільтр), оновлюємо стейт
+  useEffect(() => {
+    setCurrentImage(product.image_url);
+  }, [product.image_url]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('uk-UA', {

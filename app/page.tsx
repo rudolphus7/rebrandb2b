@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -38,6 +38,8 @@ const DEFAULT_SLIDES = [
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get('next');
   const { addItem } = useCart();
 
   const [session, setSession] = useState<any>(null);
@@ -162,7 +164,11 @@ export default function Home() {
 
   const handleLogin = async (e: string, p: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
-    if (error) alert(error.message);
+    if (error) {
+      alert(error.message);
+    } else if (nextParam) {
+      router.push(nextParam);
+    }
   };
 
   const handleLogout = async () => {
