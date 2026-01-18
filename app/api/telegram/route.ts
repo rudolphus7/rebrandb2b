@@ -45,7 +45,7 @@ ${items.map((item: any, i: number) => {
       const itemTotal = item.price * item.quantity;
       const brandingTotal = item.branding?.enabled ? item.branding.price * item.quantity : 0;
       const brandingInfo = item.branding?.enabled
-        ? `\n   🎨 <b>Брендування:</b> ${PLACEMENT_LABELS[item.branding.placement]}, ${SIZE_LABELS[item.branding.size]}, ${METHOD_LABELS[item.branding.method]} (+${item.branding.price} грн/шт = ${brandingTotal} грн)`
+        ? `\n   🎨 <b>Брендування:</b> ${PLACEMENT_LABELS[item.branding.placement as keyof typeof PLACEMENT_LABELS]}, ${SIZE_LABELS[item.branding.size as keyof typeof SIZE_LABELS]}, ${METHOD_LABELS[item.branding.method as keyof typeof METHOD_LABELS]} (+${item.branding.price} грн/шт = ${brandingTotal} грн)`
         : '';
 
       return `${i + 1}. ${item.title}${item.size && item.size !== 'One Size' ? ` (${item.size})` : ''} x${item.quantity} - ${itemTotal} грн${brandingInfo}`;
@@ -86,7 +86,7 @@ ${comment ? `\n💬 <b>Коментар:</b> ${comment}` : ''}
       const item = items[index];
       if (!item || !item.branding) continue;
 
-      const caption = `🎨 <b>Логотип для замовлення #${orderId}</b>\n\n📦 Товар: ${item.title}${item.size && item.size !== 'One Size' ? ` (${item.size})` : ''}\n📍 Розміщення: ${PLACEMENT_LABELS[item.branding.placement]}\n📏 Розмір: ${SIZE_LABELS[item.branding.size]}\n🖨️ Метод: ${METHOD_LABELS[item.branding.method]}`;
+      const caption = `🎨 <b>Логотип для замовлення #${orderId}</b>\n\n📦 Товар: ${item.title}${item.size && item.size !== 'One Size' ? ` (${item.size})` : ''}\n📍 Розміщення: ${PLACEMENT_LABELS[item.branding.placement as keyof typeof PLACEMENT_LABELS]}\n📏 Розмір: ${SIZE_LABELS[item.branding.size as keyof typeof SIZE_LABELS]}\n🖨️ Метод: ${METHOD_LABELS[item.branding.method as keyof typeof METHOD_LABELS]}`;
 
       const fileFormData = new FormData();
       fileFormData.append('chat_id', CHAT_ID!);
