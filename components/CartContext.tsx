@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { BrandingOptions } from '@/lib/brandingTypes';
 
 export interface CartItem {
   id: string;
@@ -13,6 +14,7 @@ export interface CartItem {
   color: string;
   size: string;
   vendorArticle: string;
+  branding?: BrandingOptions;
 }
 
 interface CartContextType {
@@ -24,6 +26,11 @@ interface CartContextType {
   totalPrice: number;
   isCartOpen: boolean;
   toggleCart: () => void;
+  // Logo file management (not persisted in localStorage)
+  logoFiles: Map<string, File>;
+  setLogoFile: (itemId: string, file: File) => void;
+  getLogoFile: (itemId: string) => File | undefined;
+  clearLogoFiles: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -31,22 +38,39 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [logoFiles, setLogoFiles] = useState<Map<string, File>>(new Map());
 
   // Завантажуємо кошик з localStorage при запуску
   useEffect(() => {
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       try {
-        setItems(JSON.parse(savedCart));
+        const parsedItems = JSON.parse(savedCart);
+        // Remove logo File objects as they can't be serialized
+        const cleanedItems = parsedItems.map((item: CartItem) => {
+          if (item.branding?.logo) {
+            const { logo, ...restBranding } = item.branding;
+            return { ...item, branding: restBranding };
+          }
+          return item;
+        });
+        setItems(cleanedItems);
       } catch (e) {
         console.error('Error parsing cart', e);
       }
     }
   }, []);
 
-  // Зберігаємо кошик при кожній зміні
+  // Зберігаємо кошик при кожній зміні (without File objects)
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(items));
+    const itemsToSave = items.map(item => {
+      if (item.branding?.logo) {
+        const { logo, ...restBranding } = item.branding;
+        return { ...item, branding: restBranding };
+      }
+      return item;
+    });
+    localStorage.setItem('cart', JSON.stringify(itemsToSave));
   }, [items]);
 
   const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
@@ -73,13 +97,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    setLogoFiles(new Map());
+  };
+
   const toggleCart = () => setIsCartOpen((prev) => !prev);
 
-  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Logo file management functions
+  const setLogoFile = (itemId: string, file: File) => {
+    setLogoFiles(prev => new Map(prev).set(itemId, file));
+  };
+
+  const getLogoFile = (itemId: string) => {
+    return logoFiles.get(itemId);
+  };
+
+  const clearLogoFiles = () => {
+    setLogoFiles(new Map());
+  };
+
+  // Calculate total price including branding costs
+  const totalPrice = items.reduce((sum, item) => {
+    const itemPrice = item.price * item.quantity;
+    const brandingPrice = item.branding?.enabled ? (item.branding.price * item.quantity) : 0;
+    return sum + itemPrice + brandingPrice;
+  }, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalPrice, isCartOpen, toggleCart }}>
+    <CartContext.Provider value={{
+      items,
+      addItem,
+      removeItem,
+      updateQuantity,
+      clearCart,
+      totalPrice,
+      isCartOpen,
+      toggleCart,
+      logoFiles,
+      setLogoFile,
+      getLogoFile,
+      clearLogoFiles
+    }}>
       {children}
     </CartContext.Provider>
   );

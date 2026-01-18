@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/components/CartContext";
 import { calculateMaxWriteOff, calculateCashback, getCurrentTier } from "@/lib/loyaltyUtils";
+import { PLACEMENT_LABELS, SIZE_LABELS, METHOD_LABELS } from "@/lib/brandingTypes";
 
 const CITIES = ["Київ", "Львів", "Одеса", "Дніпро", "Харків", "Івано-Франківськ", "Калуш"];
 
@@ -37,7 +38,7 @@ export default function CheckoutPage() {
   // --- ВИПРАВЛЕННЯ ТУТ ---
   // Ми беремо 'items' з контексту, але перейменовуємо його в 'cart', 
   // щоб не переписувати весь файл знизу.
-  const { items: cart, totalPrice, clearCart } = useCart();
+  const { items: cart, totalPrice, clearCart, getLogoFile, clearLogoFiles } = useCart();
 
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -315,30 +316,46 @@ export default function CheckoutPage() {
       console.error("CRM Sync Error (Background):", crmError);
     }
 
-    // 4. Telegram Notification
+    // 4. Telegram Notification with Logo Files
     try {
+      const telegramFormData = new FormData();
+
+      // Add order data as JSON string
+      telegramFormData.append('orderData', JSON.stringify({
+        orderId: newOrder.id,
+        email: formData.email,
+        phone: formData.phone,
+        name: formData.fullName,
+        total: totalPrice,
+        pay_amount: payAmount,
+        bonuses_used: bonusesToUse,
+        items: cart,
+        delivery: `${formData.deliveryCity}, ${formData.deliveryWarehouse}`,
+        payment: formData.paymentMethod,
+        comment: formData.comment,
+      }));
+
+      // Add logo files for items with branding
+      cart.forEach((item, index) => {
+        if (item.branding?.enabled) {
+          const logoFile = getLogoFile(item.id);
+          if (logoFile) {
+            telegramFormData.append(`logo_${index}`, logoFile, `logo_${item.id}.${logoFile.name.split('.').pop()}`);
+            telegramFormData.append(`logo_${index}_itemId`, item.id);
+          }
+        }
+      });
+
       await fetch("/api/telegram", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: newOrder.id,
-          email: formData.email,
-          phone: formData.phone,
-          name: formData.fullName,
-          total: totalPrice,
-          pay_amount: payAmount,
-          bonuses_used: bonusesToUse,
-          items: cart,
-          delivery: `${formData.deliveryCity}, ${formData.deliveryWarehouse}`,
-          payment: formData.paymentMethod,
-          comment: formData.comment,
-        }),
+        body: telegramFormData, // NO Content-Type header - browser sets it with boundary
       });
     } catch (e) {
       console.warn("Telegram error", e);
     }
 
     clearCart();
+    clearLogoFiles();
     router.push("/order-success");
   };
 
@@ -459,9 +476,9 @@ export default function CheckoutPage() {
                     {npError ? (
                       <div className="p-3 text-sm text-red-500 font-bold">{npError}</div>
                     ) : npCities.length > 0 ? (
-                      npCities.map((city) => (
+                      npCities.map((city, cityIndex) => (
                         <div
-                          key={city.Ref}
+                          key={`${city.Ref}-${cityIndex}`}
                           onMouseDown={() => handleCitySelect(city)}
                           className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-600/50 cursor-pointer transition flex justify-between"
                         >
@@ -574,9 +591,14 @@ export default function CheckoutPage() {
                       <span className="text-xs text-gray-400 dark:text-gray-500">
                         {item.size && item.size !== 'One Size' ? `Розмір: ${item.size}` : ""} | x{item.quantity}
                       </span>
+                      {item.branding?.enabled && (
+                        <span className="text-xs text-blue-500 dark:text-blue-400 font-bold mt-0.5">
+                          🎨 Брендування (+{item.branding.price} ₴/шт)
+                        </span>
+                      )}
                     </div>
                     <span className="font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                      {item.price * item.quantity} ₴
+                      {(item.price + (item.branding?.price || 0)) * item.quantity} ₴
                     </span>
                   </div>
                 ))}

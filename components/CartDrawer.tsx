@@ -3,6 +3,7 @@
 import { useCart } from './CartContext';
 import Link from 'next/link';
 import Image from 'next/image';
+import { PLACEMENT_LABELS, SIZE_LABELS, METHOD_LABELS } from '@/lib/brandingTypes';
 
 export default function CartDrawer() {
   const { items, removeItem, updateQuantity, totalPrice, isCartOpen, toggleCart } = useCart();
@@ -57,6 +58,36 @@ export default function CartDrawer() {
                     Арт: {item.vendorArticle} | {item.color} {item.size !== 'One Size' && `| ${item.size}`}
                   </p>
 
+                  {/* Branding Info */}
+                  {item.branding?.enabled && (
+                    <div className="mb-2 p-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                          🎨 З брендуванням
+                        </span>
+                      </div>
+                      {item.branding.logoPreview && (
+                        <div className="flex items-center gap-2 mb-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.branding.logoPreview}
+                            alt="Logo preview"
+                            className="w-6 h-6 object-contain bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-white/10"
+                          />
+                          <span className="text-[9px] text-gray-600 dark:text-gray-400">Логотип</span>
+                        </div>
+                      )}
+                      <div className="text-[9px] text-gray-600 dark:text-gray-400 space-y-0.5">
+                        <div>📍 {PLACEMENT_LABELS[item.branding.placement]}</div>
+                        <div>📏 {SIZE_LABELS[item.branding.size]}</div>
+                        <div>🖨️ {METHOD_LABELS[item.branding.method]}</div>
+                      </div>
+                      <div className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
+                        +{item.branding.price} ₴/шт
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <div className="flex items-center border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white">
                       <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-2 py-1 hover:bg-gray-50 dark:hover:bg-white/10">-</button>
@@ -64,7 +95,9 @@ export default function CartDrawer() {
                       <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-2 py-1 hover:bg-gray-50 dark:hover:bg-white/10">+</button>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900 dark:text-white">{formatPrice(item.price * item.quantity)}</p>
+                      <p className="font-bold text-gray-900 dark:text-white">
+                        {formatPrice((item.price + (item.branding?.price || 0)) * item.quantity)}
+                      </p>
                       <button onClick={() => removeItem(item.id)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 underline mt-1">Видалити</button>
                     </div>
                   </div>
