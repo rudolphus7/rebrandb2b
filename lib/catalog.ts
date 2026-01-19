@@ -51,12 +51,12 @@ export async function getProducts(params: SearchParams) {
         // Check if we are filtering by variants
         const filteringVariants = selectedColors.length > 0 || onlyInStock;
 
-        // Fix: If filtering by variants (color or stock), we MUST include the relation in the select
-        // even for count queries. If selectStr is just 'id', we append the inner join.
         let finalSelect = selectStr;
-        if (filteringVariants && selectStr === 'id') {
-            // Use products.id to avoid ambiguity and ensure inner join works for counting
-            finalSelect = 'id, product_variants!inner(id)';
+        if (filteringVariants && !finalSelect.includes('product_variants')) {
+            // Ensure join is present if we are filtering by variants but it's not in the select
+            finalSelect = finalSelect === 'id'
+                ? 'id, product_variants!inner(id)'
+                : `${finalSelect}, product_variants!inner(id)`;
         }
 
         let q = supabase.from('products').select(finalSelect, opts);
@@ -81,9 +81,6 @@ export async function getProducts(params: SearchParams) {
         }
 
         if (onlyInStock) {
-            // Robust stock filtering: try available, fallback to stock if possible
-            // Note: PostgREST doesn't support easy fallback in .gt, 
-            // but we'll use 'available' as the primary since we are adding it via migration.
             q = q.gt('product_variants.available', 0);
         }
 
@@ -104,21 +101,29 @@ export async function getProducts(params: SearchParams) {
         ]);
 
         if (totalCountRes.error) {
-            console.error("Total Count Error:", totalCountRes.error);
+            console.error("Total Count Error Details:", {
+                code: totalCountRes.error.code,
+                message: totalCountRes.error.message,
+                details: totalCountRes.error.details,
+                hint: totalCountRes.error.hint
+            });
             // Fallback: try without variant filtering if it failed
             if (params.inStock === 'true' || params.color) {
-                console.warn("Retrying count without variant filters...");
+                console.warn("Retrying count without variant filters due to error...");
                 const fallbackRes = await supabase.from('products').select('id', { count: 'exact', head: true });
                 totalCount = fallbackRes.count || 0;
             } else {
-                throw totalCountRes.error;
+                throw new Error(`Total count failed [${totalCountRes.error.code}]: ${totalCountRes.error.message || 'Unknown error'}`);
             }
         } else {
             totalCount = totalCountRes.count || 0;
         }
 
         if (validCountRes.error) {
-            console.error("Valid Count Error:", validCountRes.error);
+            console.error("Valid Count Error Details:", {
+                code: validCountRes.error.code,
+                message: validCountRes.error.message
+            });
             validCount = totalCount; // Simplified fallback
         } else {
             validCount = validCountRes.count || 0;
@@ -142,20 +147,24 @@ export async function getProducts(params: SearchParams) {
     // 6. Determine Fetch Strategy
     // Scenario A: Request is fully within Valid Items
     if (to < validCount) {
-        const { data } = await createBaseQuery(selectFields)
+        const { data, error } = await createBaseQuery(selectFields)
             .gt('base_price', 0)
             .order('created_at', { ascending: false })
             .range(from, to);
+
+        if (error) console.error("Data Fetch Error (Scenario A):", JSON.stringify(error, null, 2));
         rawProducts = data || [];
     }
     // Scenario B: Request is fully within Zero Items
     else if (from >= validCount) {
         const offset = from - validCount;
         const limit = to - from;
-        const { data } = await createBaseQuery(selectFields)
+        const { data, error } = await createBaseQuery(selectFields)
             .eq('base_price', 0)
             .order('created_at', { ascending: false })
             .range(offset, offset + limit);
+
+        if (error) console.error("Data Fetch Error (Scenario B):", JSON.stringify(error, null, 2));
         rawProducts = data || [];
     }
     // Scenario C: Request overlaps
@@ -178,6 +187,9 @@ export async function getProducts(params: SearchParams) {
                 .order('created_at', { ascending: false })
                 .range(offset, zeroEnd)
         ]);
+
+        if (validDataRes.error) console.error("Data Fetch Error (Scenario C - Valid):", { code: validDataRes.error.code, message: validDataRes.error.message });
+        if (zeroDataRes.error) console.error("Data Fetch Error (Scenario C - Zero):", { code: zeroDataRes.error.code, message: zeroDataRes.error.message });
 
         rawProducts = [...(validDataRes.data || []), ...(zeroDataRes.data || [])];
     }
@@ -219,8 +231,8 @@ export async function getProducts(params: SearchParams) {
         }
         // PRIORITY 2: If filtering by stock, ensure image is from an available variant
         else if (onlyInStock && displayVariants.length > 0) {
-            const availableImages = displayVariants.map(v => v.image);
-            if (!availableImages.includes(product.image_url)) {
+            const availableImages = displayVariants.map(v => v.image).filter(Boolean);
+            if (availableImages.length > 0 && !availableImages.includes(product.image_url)) {
                 defaultImage = availableImages[0];
             }
         }
