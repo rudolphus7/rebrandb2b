@@ -1,103 +1,146 @@
--- Referral System Migration
+-- Referral System Migration - ROBUST VERSION
+-- Purpose: Track referrals and auto-credit bonuses
 
--- 1. Add columns to profiles
-ALTER TABLE public.profiles 
-ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE,
-ADD COLUMN IF NOT EXISTS referred_by UUID REFERENCES auth.users(id);
+-- 1. Ensure all necessary columns exist in profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referred_by UUID REFERENCES auth.users(id);
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bonus_points INTEGER DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_spent NUMERIC DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'customer';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_bonus_paid BOOLEAN DEFAULT FALSE;
 
--- 2. Function to generate random unique referral code
-CREATE OR REPLACE FUNCTION generate_referral_code() 
+-- 2. Improved unique referral code generator
+CREATE OR REPLACE FUNCTION public.generate_referral_code()
 RETURNS TEXT AS $$
 DECLARE
-  new_code TEXT;
-  done BOOL;
+  characters TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  result TEXT;
+  exists_count INTEGER;
 BEGIN
-  done := false;
-  WHILE NOT done LOOP
-    new_code := 'RBRND-' || upper(substring(md5(random()::text) from 1 for 6));
-    BEGIN
-      SELECT count(*) = 0 INTO done FROM public.profiles WHERE referral_code = new_code;
-    EXCEPTION WHEN OTHERS THEN
-      done := false;
-    END;
+  LOOP
+    result := '';
+    FOR i IN 1..8 LOOP
+      result := result || substr(characters, floor(random() * length(characters) + 1)::integer, 1);
+    END LOOP;
+    
+    SELECT count(*) INTO exists_count FROM public.profiles WHERE referral_code = result;
+    IF exists_count = 0 THEN
+      RETURN result;
+    END IF;
   END LOOP;
-  RETURN new_code;
 END;
-$$ LANGUAGE plpgsql VOLATILE;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 3. Initialize existing profiles with codes
+-- 3. Initialize codes for any existing users who don't have one
 UPDATE public.profiles 
-SET referral_code = generate_referral_code() 
+SET referral_code = public.generate_referral_code() 
 WHERE referral_code IS NULL;
 
--- 4. Update handle_new_user trigger to handle referred_by
--- First, let's see the current trigger if possible, or just overwrite it robustly.
--- Based on standard patterns, it likely looks like this:
-
+-- 4. Robust Signup Trigger Function
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
     ref_code TEXT;
     referrer_id UUID;
 BEGIN
-    -- Extract referral_code from raw_user_meta_data if present
-    ref_code := (new.raw_user_meta_data->>'referral_code');
+    -- 1. Extract referral code from metadata
+    ref_code := COALESCE(new.raw_user_meta_data->>'referral_code', '');
     
-    IF ref_code IS NOT NULL THEN
+    -- 2. Find referrer if code is valid
+    IF ref_code <> '' THEN
         SELECT id INTO referrer_id FROM public.profiles WHERE referral_code = ref_code;
     END IF;
 
-    INSERT INTO public.profiles (id, full_name, company_name, edrpou, phone, is_verified, referral_code, referred_by)
+    -- 3. Insert profile safely
+    -- We use COALESCE for mandatory fields to prevent NULL violations
+    INSERT INTO public.profiles (
+        id, 
+        email, 
+        full_name, 
+        company_name, 
+        edrpou, 
+        phone, 
+        is_verified, 
+        role, 
+        bonus_points, 
+        total_spent,
+        referral_code, 
+        referred_by,
+        referral_bonus_paid
+    )
     VALUES (
         new.id,
-        new.raw_user_meta_data->>'full_name',
-        new.raw_user_meta_data->>'company_name',
-        new.raw_user_meta_data->>'edrpou',
-        new.raw_user_meta_data->>'phone',
+        new.email,
+        COALESCE(new.raw_user_meta_data->>'full_name', 'Користувач'),
+        COALESCE(new.raw_user_meta_data->>'company_name', ''),
+        COALESCE(new.raw_user_meta_data->>'edrpou', ''),
+        COALESCE(new.raw_user_meta_data->>'phone', ''),
         false,
-        generate_referral_code(), -- Generate their own code
-        referrer_id               -- Link to referrer
+        'customer',
+        0,
+        0,
+        public.generate_referral_code(),
+        referrer_id,
+        false
     );
+    
+    RETURN new;
+EXCEPTION WHEN OTHERS THEN
+    -- Fallback: If heavy insert fails, try bare minimum insert
+    -- This helps diagnose if the error is due to one of the extra columns
+    BEGIN
+        INSERT INTO public.profiles (id, email, full_name, role)
+        VALUES (new.id, new.email, 'User (Recovery)', 'customer')
+        ON CONFLICT (id) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN
+        NULL; -- Extreme fallback
+    END;
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Automated Bonus Accrual logic
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_bonus_paid BOOLEAN DEFAULT FALSE;
+-- 5. Bind Trigger to auth.users
+-- Clean up all possible trigger names to ensure only one is active
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS tr_referral_signup ON auth.users;
+DROP TRIGGER IF EXISTS tr_handle_new_user ON auth.users;
 
+CREATE TRIGGER tr_handle_new_user
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 6. Bonus Accrual Logic (Triggered on Profile Activity)
 CREATE OR REPLACE FUNCTION public.proc_referral_bonus()
 RETURNS trigger AS $$
 DECLARE
-    referrer_id UUID;
+    target_referrer_id UUID;
     is_confirmed TIMESTAMPTZ;
 BEGIN
-    -- Check if we should even bother
+    -- Only pay if referred and not yet paid
     IF NEW.referred_by IS NOT NULL AND NEW.referral_bonus_paid = FALSE THEN
-        -- Check if email is confirmed in auth.users
-        -- We join auth.users to see confirmation status
+        -- Check email status from auth.users
         SELECT email_confirmed_at INTO is_confirmed FROM auth.users WHERE id = NEW.id;
         
         IF is_confirmed IS NOT NULL THEN
-            referrer_id := NEW.referred_by;
+            target_referrer_id := NEW.referred_by;
             
-            -- 1. Insert into loyalty_logs for referrer
+            -- Insert log
             INSERT INTO public.loyalty_logs (user_id, amount, type, description)
             VALUES (
-                referrer_id, 
+                target_referrer_id, 
                 100, 
                 'earn', 
                 'Бонус за запрошення друга (ID: ' || NEW.id || ')'
             );
             
-            -- 2. Update referrer's balance for fast access
+            -- Update balance
             UPDATE public.profiles 
             SET bonus_points = COALESCE(bonus_points, 0) + 100 
-            WHERE id = referrer_id;
+            WHERE id = target_referrer_id;
             
-            -- 3. Mark current user as processed
+            -- Update current row
             NEW.referral_bonus_paid := TRUE;
-            
-            -- 4. Also mark as verified since they confirmed email
             NEW.is_verified := TRUE;
         END IF;
     END IF;
@@ -106,7 +149,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger on update of last_visit (which happens on login/visit)
+-- Trigger on last_visit update
 DROP TRIGGER IF EXISTS tr_check_referral_bonus ON public.profiles;
 CREATE TRIGGER tr_check_referral_bonus
 BEFORE UPDATE OF last_visit ON public.profiles

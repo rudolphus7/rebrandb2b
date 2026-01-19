@@ -53,6 +53,7 @@
         .reward-badge {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 12px;
             background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
             padding: 12px 32px;
@@ -62,6 +63,8 @@
             font-size: 1.5rem;
             box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
             animation: pulse 2s infinite;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .reward-badge span {
@@ -312,6 +315,12 @@
 
             .link-placeholder {
                 font-size: 0.9rem;
+            }
+
+            .reward-badge {
+                font-size: 1.1rem;
+                padding: 10px 20px;
+                flex-wrap: wrap;
             }
         }
     </style>
