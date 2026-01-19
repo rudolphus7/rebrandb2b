@@ -8,7 +8,7 @@ import {
   User, Package, Star, MapPin, LogOut, ArrowLeft,
   Settings, CreditCard, Gift, ShieldCheck, Camera,
   ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
-  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck, Copy, Check
+  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck, Copy, Check, Users
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
@@ -103,7 +103,9 @@ export default function UserProfile() {
     edrpou: "",
     birthday: "",
     bonus_points: 0,
-    total_spent: 0
+    total_spent: 0,
+    referral_code: "",
+    invited_count: 0
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -133,11 +135,19 @@ export default function UserProfile() {
     const calculatedPoints = logsData ? logsData.reduce((acc: number, log: any) => acc + (log.type === 'earn' ? log.amount : -log.amount), 0) : 0;
     const totalSpentMoney = ordersData ? ordersData.reduce((acc: number, o: any) => acc + (o.total_price || 0), 0) : 0;
 
+    // Fetch invited users count
+    const { count: invitedCount } = await supabase
+      .from("profiles")
+      .select("*", { count: 'exact', head: true })
+      .eq("referred_by", userId);
+
     setProfile({
       ...profileData,
       edrpou: profileData?.edrpou || "",
       bonus_points: calculatedPoints,
-      total_spent: totalSpentMoney
+      total_spent: totalSpentMoney,
+      referral_code: profileData?.referral_code || "",
+      invited_count: invitedCount || 0
     });
 
     setOrders(ordersData || []);
@@ -309,6 +319,7 @@ export default function UserProfile() {
             { id: "profile", icon: User, label: "Мій Профіль" },
             { id: "orders", icon: Package, label: "Історія Замовлень" },
             { id: "loyalty", icon: Gift, label: "Бонуси & Tier" },
+            { id: "referral", icon: Users, label: "Реферальна система" },
             { id: "addresses", icon: MapPin, label: "Адреси доставки" },
           ].map((item) => (
 
@@ -635,6 +646,73 @@ export default function UserProfile() {
                     <div className={`font-mono font-bold ${log.type === 'earn' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.type === 'earn' ? '+' : '-'}{log.amount}</div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- РЕФЕРАЛЬНА СИСТЕМА --- */}
+          {activeTab === "referral" && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+              <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">Реферальна програма</h1>
+              <p className="text-gray-500 dark:text-zinc-500 mb-8">Запрошуйте партнерів та отримуйте привілеї.</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                {/* Statistics */}
+                <div className="bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-white/10 rounded-2xl p-8 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Запрошено клієнтів</h3>
+                    <div className="text-5xl font-black text-blue-500">{profile.invited_count}</div>
+                  </div>
+                  <div className="mt-6 p-4 bg-blue-500/5 rounded-xl border border-blue-500/10 text-xs text-blue-500 font-medium">
+                    Кожна реєстрація за вашим посиланням додає клієнта у вашу мережу.
+                  </div>
+                </div>
+
+                {/* Referral Link */}
+                <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-2xl p-8">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Ваше посилання</h3>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl font-mono text-sm break-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/?ref=${profile.referral_code}` : `https://myshop.com/?ref=${profile.referral_code}`}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/?ref=${profile.referral_code}`;
+                        navigator.clipboard.writeText(url);
+                        alert("Посилання скопійовано!");
+                      }}
+                      className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-gray-800 dark:hover:bg-blue-500 dark:hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      <Copy size={16} /> Копіювати посилання
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-zinc-900 to-black border border-white/5 rounded-3xl p-8 md:p-12 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px]"></div>
+                <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center text-center md:text-left">
+                  <div className="p-6 bg-blue-600 rounded-3xl shadow-2xl shadow-blue-600/20">
+                    <QrCode size={48} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-black text-white uppercase mb-4">Як це працює?</h2>
+                    <ul className="space-y-3 text-gray-400">
+                      <li className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">1</div>
+                        Надішліть посилання своєму колезі або партнеру.
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">2</div>
+                        Після реєстрації та підтвердження пошти він з'явиться у вашому списку.
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">3</div>
+                        Отримуйте ексклюзивні бонуси та підвищуйте свій статус лояльності за кожного запрошеного.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}

@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 import GlobalPopupManager from "./GlobalPopupManager";
 import ActivityTracker from "./ActivityTracker";
+import ReferralTracker from "./ReferralTracker";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -85,6 +86,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     <GlobalPopupManager />
                     <Suspense fallback={null}>
                         <ActivityTracker />
+                        <ReferralTracker />
                     </Suspense>
                     {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
                     {children}

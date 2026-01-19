@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, useMotionTemplate, useMotionValue, AnimatePresence } from "framer-motion";
 import { ArrowRight, Lock, User, Hexagon, Building2, FileText, Phone, AlertCircle, CheckCircle } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { getReferralCookie } from "@/lib/referral";
 
 export default function LoginPage({ onLogin }: { onLogin: (e: any, p: any) => void }) {
   // Режими
@@ -58,6 +59,8 @@ export default function LoginPage({ onLogin }: { onLogin: (e: any, p: any) => vo
     } else {
       // --- ЛОГІКА РЕЄСТРАЦІЇ ---
       try {
+        const refCode = getReferralCookie();
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -67,7 +70,8 @@ export default function LoginPage({ onLogin }: { onLogin: (e: any, p: any) => vo
               full_name: fullName,
               company_name: companyName,
               edrpou: edrpou,
-              phone: phone
+              phone: phone,
+              referral_code: refCode // Pass the code here
             }
           }
         });

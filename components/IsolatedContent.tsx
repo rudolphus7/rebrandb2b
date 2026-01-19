@@ -5,9 +5,10 @@ import { useEffect, useRef } from 'react';
 interface IsolatedContentProps {
     content: string;
     className?: string; // Wrapper class on the light DOM host
+    referralCode?: string;
 }
 
-export default function IsolatedContent({ content, className }: IsolatedContentProps) {
+export default function IsolatedContent({ content, className, referralCode }: IsolatedContentProps) {
     const hostRef = useRef<HTMLDivElement>(null);
     const shadowRef = useRef<ShadowRoot | null>(null);
 
@@ -21,23 +22,55 @@ export default function IsolatedContent({ content, className }: IsolatedContentP
 
         // Update content
         if (shadowRef.current) {
-            // We can inject a small reset or base styles if needed, 
-            // but for "landing pages" usually we want pure isolation or inherited fonts.
-            // Inherited properties (font-family, color) WILL penetrate Shadow DOM.
-            // Non-inherited (margin, padding, styles) will NOT.
-            // <style> tags inside 'content' will allow users to style THIS content 
-            // without affecting the main page. Perfect.
+            let processedContent = content;
+            const referralUrl = referralCode ? `${window.location.origin}/?ref=${referralCode}` : "";
+
+            if (referralCode) {
+                processedContent = processedContent.replace(/{{REFERRAL_LINK}}/g, referralUrl);
+            }
 
             shadowRef.current.innerHTML = `
                 <style>
                     :host { display: block; }
-                    /* Optional: Add basic typography defaults if they are not inheriting well */
                     img { max-width: 100%; height: auto; }
                 </style>
-                ${content}
+                ${processedContent}
             `;
+
+            // Handle referral actions
+            if (referralCode) {
+                const actionZone = shadowRef.current.querySelector('#referral-action-zone');
+                if (actionZone) {
+                    actionZone.classList.add('is-visible');
+
+                    const copyBtn = shadowRef.current.querySelector('[data-action="copy"]');
+                    const shareBtn = shadowRef.current.querySelector('[data-action="share"]');
+
+                    if (copyBtn) {
+                        copyBtn.addEventListener('click', () => {
+                            navigator.clipboard.writeText(referralUrl);
+                            alert('Йоу! Посилання скопійовано! 💎');
+                        });
+                    }
+
+                    if (shareBtn) {
+                        // Hide share button if not supported
+                        if (!navigator.share) {
+                            shareBtn.classList.add('hidden');
+                        } else {
+                            shareBtn.addEventListener('click', () => {
+                                navigator.share({
+                                    title: 'Приєднуйся до REBRAND STUDIO',
+                                    text: 'Ставай партнером та отримуй бонуси!',
+                                    url: referralUrl,
+                                }).catch(() => console.log('Share cancelled'));
+                            });
+                        }
+                    }
+                }
+            }
         }
-    }, [content]);
+    }, [content, referralCode]);
 
     return <div ref={hostRef} className={className} />;
 }

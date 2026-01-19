@@ -1,24 +1,25 @@
-import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import IsolatedContent from "@/components/IsolatedContent";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
 // Revalidate every minute
 export const revalidate = 60;
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 interface PageProps {
     params: Promise<{ cmsPath: string[] }>;
 }
 
 export async function generateStaticParams() {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const { data: pages } = await supabase.from("promo_pages").select("slug");
-    return pages?.map(({ slug }) => ({
+    return pages?.map(({ slug }: { slug: string }) => ({
         cmsPath: slug.split('/').filter(Boolean)
     })) || [];
 }
@@ -26,6 +27,13 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps) {
     const pathSegments = (await params).cmsPath;
     const slug = pathSegments.join('/');
+
+    const cookieStore = await cookies();
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+            get(name: string) { return cookieStore.get(name)?.value; },
+        },
+    });
 
     const { data: page } = await supabase
         .from("promo_pages")
@@ -44,6 +52,20 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function CMSPage({ params }: PageProps) {
     const pathSegments = (await params).cmsPath;
     const slug = pathSegments.join('/');
+
+    const cookieStore = await cookies();
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+            get(name: string) { return cookieStore.get(name)?.value; },
+        },
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    let referralCode = "";
+    if (session?.user) {
+        const { data: profile } = await supabase.from("profiles").select("referral_code").eq("id", session.user.id).single();
+        referralCode = profile?.referral_code || "";
+    }
 
     const { data: page } = await supabase
         .from("promo_pages")
@@ -94,6 +116,7 @@ export default async function CMSPage({ params }: PageProps) {
                 <IsolatedContent
                     content={page.content || ''}
                     className="max-w-none"
+                    referralCode={referralCode}
                 />
             </article>
         </div>
