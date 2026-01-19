@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 import IsolatedContent from "@/components/IsolatedContent";
 
-export default function AdminPromoPages() {
+export default function AdminCMSPages() {
     const router = useRouter();
     const [pages, setPages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -113,7 +113,7 @@ export default function AdminPromoPages() {
                     </div>
                     <div className="flex items-center gap-3">
                         {editingId !== 'new' && (
-                            <Link href={`/promo/${formData.slug}`} target="_blank" className="text-sm font-bold text-blue-500 hover:underline flex items-center gap-1">
+                            <Link href={`/${formData.slug}`} target="_blank" className="text-sm font-bold text-blue-500 hover:underline flex items-center gap-1">
                                 <Globe size={14} /> Відкрити на сайті
                             </Link>
                         )}
@@ -154,9 +154,10 @@ export default function AdminPromoPages() {
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold uppercase text-gray-500">Slug (URL адреса)</label>
                                         <div className="flex items-center">
-                                            <span className="bg-gray-100 dark:bg-white/5 border border-r-0 border-gray-200 dark:border-white/10 p-3 rounded-l-lg text-gray-500 text-sm">/promo/</span>
+                                            <span className="bg-gray-100 dark:bg-white/5 border border-r-0 border-gray-200 dark:border-white/10 p-3 rounded-l-lg text-gray-500 text-sm">/</span>
                                             <input type="text" className="w-full bg-gray-50 dark:bg-black border border-gray-200 dark:border-white/10 rounded-r-lg p-3 outline-none focus:border-blue-500 transition font-mono text-sm"
                                                 value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                                                placeholder="referal/promo-winter"
                                             />
                                         </div>
                                     </div>
@@ -226,7 +227,7 @@ export default function AdminPromoPages() {
                                         <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
                                         <div className="w-3 h-3 rounded-full bg-green-400"></div>
                                         <div className="ml-4 flex-1 bg-white dark:bg-black/20 h-5 rounded text-[10px] flex items-center px-2 text-gray-400 font-mono">
-                                            myshop.com/promo/{formData.slug || '...'}
+                                            myshop.com/{formData.slug || '...'}
                                         </div>
                                     </div>
                                 )}
@@ -285,7 +286,7 @@ export default function AdminPromoPages() {
     return (
         <div>
             <div className="flex items-center justify-between mb-8">
-                <h1 className="text-3xl font-bold">Промо Сторінки</h1>
+                <h1 className="text-3xl font-bold">Сторінки</h1>
                 <button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition">
                     <Plus size={20} /> Створити сторінку
                 </button>
@@ -318,7 +319,7 @@ export default function AdminPromoPages() {
 
                                 <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 dark:border-white/5">
                                     <span className="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded truncate max-w-[150px]">
-                                        /promo/{page.slug}
+                                        /{page.slug}
                                     </span>
                                     <span className="text-xs text-gray-400">
                                         {new Date(page.created_at).toLocaleDateString()}
