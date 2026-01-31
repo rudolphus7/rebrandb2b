@@ -94,6 +94,7 @@ export default function UserProfile() {
 
   const [activeTab, setActiveTab] = useState("profile");
   const [orders, setOrders] = useState<any[]>([]);
+  const [constructorOrders, setConstructorOrders] = useState<any[]>([]);
   const [loyaltyLogs, setLoyaltyLogs] = useState<any[]>([]);
 
   const [profile, setProfile] = useState<any>({
@@ -130,6 +131,7 @@ export default function UserProfile() {
 
     const { data: profileData } = await supabase.from("profiles").select("*").eq("id", userId).single();
     const { data: ordersData } = await supabase.from("orders").select("*").eq("user_email", email).order("created_at", { ascending: false });
+    const { data: constOrdersData } = await supabase.from("constructor_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false });
     const { data: logsData } = await supabase.from("loyalty_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false });
 
     const calculatedPoints = logsData ? logsData.reduce((acc: number, log: any) => acc + (log.type === 'earn' ? log.amount : -log.amount), 0) : 0;
@@ -151,6 +153,7 @@ export default function UserProfile() {
     });
 
     setOrders(ordersData || []);
+    setConstructorOrders(constOrdersData || []);
     setLoyaltyLogs(logsData || []);
     setLoading(false);
   }
@@ -407,149 +410,225 @@ export default function UserProfile() {
           {activeTab === "orders" && (
             <div className="space-y-4">
               <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-white">Історія замовлень</h1>
-              {orders.length === 0 ? (
+
+              {orders.length === 0 && constructorOrders.length === 0 ? (
                 <div className="text-center py-20 bg-white dark:bg-zinc-900/50 rounded-2xl border border-gray-200 dark:border-white/10 border-dashed">
                   <Package size={48} className="mx-auto text-gray-300 dark:text-zinc-700 mb-4" />
                   <p className="text-gray-500 dark:text-zinc-500">Історія замовлень порожня.</p>
                   <button onClick={() => router.push('/catalog')} className="mt-4 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 font-bold text-sm">Перейти в каталог</button>
                 </div>
               ) : (
-                orders.map(order => (
-                  <div key={order.id} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden transition duration-300 shadow-sm dark:shadow-none">
-                    <div
-                      className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition"
-                      onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-gray-100 dark:bg-zinc-800 rounded-lg">
-                          <Package size={24} className={order.status === 'completed' ? 'text-green-600 dark:text-green-500' : 'text-blue-600 dark:text-blue-500'} />
+                <div className="space-y-4">
+                  {/* Constructor Orders first */}
+                  {constructorOrders.map(order => (
+                    <div key={order.id} className="bg-white dark:bg-zinc-900 border border-blue-500/30 dark:border-blue-500/20 rounded-xl overflow-hidden shadow-sm dark:shadow-none bg-gradient-to-br from-blue-500/5 to-transparent">
+                      <div
+                        className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition"
+                        onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+                            <Sparkles size={24} className="text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">Design #{order.id.toString().slice(0, 5)}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white shadow-lg shadow-blue-500/20">Constructor</span>
+                              <StatusBadge status={order.status} />
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-zinc-500 flex items-center gap-2 mt-1">
+                              <Clock size={12} /> {format(new Date(order.created_at), 'd MMMM yyyy, HH:mm', { locale: uk })}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">#{order.id.toString().slice(0, 6)}</span>
-                            <StatusBadge status={order.status} />
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <span className="block text-gray-500 dark:text-zinc-500 text-xs uppercase">Сума</span>
+                            <span className="text-xl font-bold text-gray-900 dark:text-white font-black">₴{order.total_price}</span>
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-zinc-500 flex items-center gap-2 mt-1">
-                            <Clock size={12} /> {format(new Date(order.created_at), 'd MMMM yyyy, HH:mm', { locale: uk })}
-                          </div>
+                          <ChevronDown size={20} className={`text-gray-400 dark:text-zinc-500 transition-transform ${expandedOrder === order.id ? "rotate-180" : ""}`} />
                         </div>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <span className="block text-gray-500 dark:text-zinc-500 text-xs uppercase">Сума</span>
-                          <span className="text-xl font-bold text-gray-900 dark:text-white">{order.final_price || order.total_price} ₴</span>
-                        </div>
-                        <ChevronDown size={20} className={`text-gray-400 dark:text-zinc-500 transition-transform ${expandedOrder === order.id ? "rotate-180" : ""}`} />
-                      </div>
+
+                      <AnimatePresence>
+                        {expandedOrder === order.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-black/30"
+                          >
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                              <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase">Ваш дизайн</h4>
+                                <div className="aspect-square w-full max-w-[300px] bg-white rounded-2xl border border-white/10 shadow-xl overflow-hidden flex items-center justify-center p-4">
+                                  <img src={order.design_preview} alt="Custom Design" className="w-full h-full object-contain" />
+                                </div>
+                              </div>
+                              <div className="space-y-6">
+                                <div>
+                                  <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3">ДЕТАЛІ ЗАМОВЛЕННЯ</h4>
+                                  <div className="space-y-2 bg-white dark:bg-zinc-800/40 p-4 rounded-xl border border-white/5">
+                                    <div className="flex justify-between items-center"><span className="text-xs text-zinc-500">Товар:</span><span className="text-sm font-bold">{order.product_title}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs text-zinc-500">Кількість:</span><span className="text-sm font-bold">{order.quantity} шт</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs text-zinc-500">Метод друку:</span><span className="text-sm font-bold uppercase">{order.print_method}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs text-zinc-500">Розмір принту:</span><span className="text-sm font-bold uppercase">{order.print_size}</span></div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-white/5"><span className="text-xs text-zinc-500">Загалом:</span><span className="text-lg font-black text-blue-500">₴{order.total_price}</span></div>
+                                  </div>
+                                </div>
+                                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                                  <div className="flex gap-3 items-center text-yellow-500 text-xs font-bold">
+                                    <Clock size={16} /> ОЧІКУЙТЕ ДЗВІНКА МЕНЕДЖЕРА
+                                  </div>
+                                  <p className="text-[10px] text-zinc-500 mt-2">Ми перевіримо макет на технічну відповідність та зв'яжемося з вами для підтвердження оплати.</p>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
+                  ))}
 
-                    <AnimatePresence>
-                      {expandedOrder === order.id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-black/30"
-                        >
-                          <div className="p-6">
-                            <div className="flex justify-end gap-3 mb-6">
-                              {/* КНОПКА РАХУНКУ */}
-                              <button
-                                onClick={() => printDocument(order, 'invoice')}
-                                className="flex items-center gap-2 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-zinc-700 px-4 py-2 rounded-lg font-bold text-xs transition border border-gray-200 dark:border-white/10 shadow-sm"
-                              >
-                                <Printer size={16} /> Рахунок
-                              </button>
+                  <div className="h-4"></div>
 
-                              {/* КНОПКА НАКЛАДНОЇ */}
-                              {(order.status === 'completed' || order.status === 'shipped') && (
-                                <button
-                                  onClick={() => printDocument(order, 'waybill')}
-                                  className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-xs transition shadow-lg shadow-blue-500/20"
-                                >
-                                  <FileText size={16} /> Видаткова накладна
-                                </button>
-                              )}
+                  {/* Regular Orders */}
+                  {orders.map(order => (
+                    <div key={order.id} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden transition duration-300 shadow-sm dark:shadow-none">
+                      <div
+                        className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition"
+                        onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-gray-100 dark:bg-zinc-800 rounded-lg">
+                            <Package size={24} className={order.status === 'completed' ? 'text-green-600 dark:text-green-500' : 'text-blue-600 dark:text-blue-500'} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">#{order.id.toString().slice(0, 6)}</span>
+                              <StatusBadge status={order.status} />
                             </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                              <div>
-                                <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3">Товари в замовленні</h4>
-                                <div className="space-y-3">
-                                  {Array.isArray(order.items) && order.items.map((item: any, i: number) => {
-                                    if (!item) return null;
-                                    return (
-                                      <div key={i} className="space-y-2">
-                                        <div className="flex gap-4 bg-white dark:bg-zinc-800/50 p-2 rounded-lg border border-gray-100 dark:border-transparent transition-colors text-gray-900 dark:text-white">
-                                          <div className="w-12 h-12 bg-gray-100 dark:bg-black rounded overflow-hidden relative flex-shrink-0">
-                                            <ProductImage
-                                              src={item.image_url || item.image || ''}
-                                              alt={item.title || 'Товар'}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          </div>
-                                          <div className="flex-1 min-w-0 flex justify-between items-center">
-                                            <div>
-                                              <div className="text-sm font-medium truncate w-32 sm:w-auto">{item.title || "Без назви"}</div>
-                                              <div className="text-xs text-gray-500 dark:text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
-                                            </div>
-                                            <div className="font-bold text-sm">{item.price * item.quantity} ₴</div>
-                                          </div>
-                                        </div>
-                                        {/* Branding Details */}
-                                        {order.has_branding && order.branding_details && (
-                                          <div className="mt-2 ml-16">
-                                            {order.branding_details
-                                              .filter((b: any) => b.itemIndex === i)
-                                              .map((branding: any, bIdx: number) => (
-                                                <BrandingBadge key={bIdx} branding={branding} />
-                                              ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              <div>
-                                <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3">Деталі доставки</h4>
-                                <div className="bg-white dark:bg-zinc-800/30 p-4 rounded-xl space-y-2 text-sm border border-gray-100 dark:border-transparent">
-                                  <div className="flex gap-2 text-gray-700 dark:text-gray-300"><User size={16} className="text-blue-500" /> {order.delivery_data?.fullName}</div>
-                                  <div className="flex gap-2 text-gray-700 dark:text-gray-300"><MapPin size={16} className="text-blue-500" /> {order.delivery_data?.city}, {order.delivery_data?.warehouse}</div>
-                                  <div className="flex gap-2 text-gray-700 dark:text-gray-300"><Truck size={16} className="text-blue-500" /> {order.delivery_data?.phone}</div>
-                                  {/* ТТН ОНОВЛЕНО */}
-                                  {order.delivery_data?.ttn && (
-                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
-                                      <div className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Номер накладної (ТТН):</div>
-                                      <div className="flex items-center gap-3">
-                                        <span className="font-mono text-lg text-gray-900 dark:text-white font-bold bg-gray-100 dark:bg-black/50 px-2 py-1 rounded border border-gray-200 dark:border-white/10">
-                                          {order.delivery_data.ttn}
-                                        </span>
-                                        <button
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(order.delivery_data.ttn);
-                                            setCopiedTtn(order.delivery_data.ttn);
-                                            setTimeout(() => setCopiedTtn(null), 2000);
-                                          }}
-                                          className="text-xs text-blue-500 hover:text-blue-700 dark:hover:text-white transition flex items-center gap-1"
-                                        >
-                                          {copiedTtn === order.delivery_data.ttn ? <Check size={12} /> : <Copy size={12} />}
-                                          {copiedTtn === order.delivery_data.ttn ? "Скопійовано" : "Копіювати"}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                            <div className="text-xs text-gray-500 dark:text-zinc-500 flex items-center gap-2 mt-1">
+                              <Clock size={12} /> {format(new Date(order.created_at), 'd MMMM yyyy, HH:mm', { locale: uk })}
                             </div>
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ))
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <span className="block text-gray-500 dark:text-zinc-500 text-xs uppercase">Сума</span>
+                            <span className="text-xl font-bold text-gray-900 dark:text-white">{order.final_price || order.total_price} ₴</span>
+                          </div>
+                          <ChevronDown size={20} className={`text-gray-400 dark:text-zinc-500 transition-transform ${expandedOrder === order.id ? "rotate-180" : ""}`} />
+                        </div>
+                      </div>
 
+                      <AnimatePresence>
+                        {expandedOrder === order.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-black/30"
+                          >
+                            <div className="p-6">
+                              <div className="flex justify-end gap-3 mb-6">
+                                {/* КНОПКА РАХУНКУ */}
+                                <button
+                                  onClick={() => printDocument(order, 'invoice')}
+                                  className="flex items-center gap-2 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-zinc-700 px-4 py-2 rounded-lg font-bold text-xs transition border border-gray-200 dark:border-white/10 shadow-sm"
+                                >
+                                  <Printer size={16} /> Рахунок
+                                </button>
+
+                                {/* КНОПКА НАКЛАДНОЇ */}
+                                {(order.status === 'completed' || order.status === 'shipped') && (
+                                  <button
+                                    onClick={() => printDocument(order, 'waybill')}
+                                    className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-xs transition shadow-lg shadow-blue-500/20"
+                                  >
+                                    <FileText size={16} /> Видаткова накладна
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div>
+                                  <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3">Товари в замовленні</h4>
+                                  <div className="space-y-3">
+                                    {Array.isArray(order.items) && order.items.map((item: any, i: number) => {
+                                      if (!item) return null;
+                                      return (
+                                        <div key={i} className="space-y-2">
+                                          <div className="flex gap-4 bg-white dark:bg-zinc-800/50 p-2 rounded-lg border border-gray-100 dark:border-transparent transition-colors text-gray-900 dark:text-white">
+                                            <div className="w-12 h-12 bg-gray-100 dark:bg-black rounded overflow-hidden relative flex-shrink-0">
+                                              <ProductImage
+                                                src={item.image_url || item.image || ''}
+                                                alt={item.title || 'Товар'}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            </div>
+                                            <div className="flex-1 min-w-0 flex justify-between items-center">
+                                              <div>
+                                                <div className="text-sm font-medium truncate w-32 sm:w-auto">{item.title || "Без назви"}</div>
+                                                <div className="text-xs text-gray-500 dark:text-zinc-500">{item.quantity} шт x {item.price} ₴ {item.selectedSize && `(${item.selectedSize})`}</div>
+                                              </div>
+                                              <div className="font-bold text-sm">{item.price * item.quantity} ₴</div>
+                                            </div>
+                                          </div>
+                                          {/* Branding Details */}
+                                          {order.has_branding && order.branding_details && (
+                                            <div className="mt-2 ml-16">
+                                              {order.branding_details
+                                                .filter((b: any) => b.itemIndex === i)
+                                                .map((branding: any, bIdx: number) => (
+                                                  <BrandingBadge key={bIdx} branding={branding} />
+                                                ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3">Деталі доставки</h4>
+                                  <div className="bg-white dark:bg-zinc-800/30 p-4 rounded-xl space-y-2 text-sm border border-gray-100 dark:border-transparent">
+                                    <div className="flex gap-2 text-gray-700 dark:text-gray-300"><User size={16} className="text-blue-500" /> {order.delivery_data?.fullName}</div>
+                                    <div className="flex gap-2 text-gray-700 dark:text-gray-300"><MapPin size={16} className="text-blue-500" /> {order.delivery_data?.city}, {order.delivery_data?.warehouse}</div>
+                                    <div className="flex gap-2 text-gray-700 dark:text-gray-300"><Truck size={16} className="text-blue-500" /> {order.delivery_data?.phone}</div>
+                                    {/* ТТН ОНОВЛЕНО */}
+                                    {order.delivery_data?.ttn && (
+                                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
+                                        <div className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Номер накладної (ТТН):</div>
+                                        <div className="flex items-center gap-3">
+                                          <span className="font-mono text-lg text-gray-900 dark:text-white font-bold bg-gray-100 dark:bg-black/50 px-2 py-1 rounded border border-gray-200 dark:border-white/10">
+                                            {order.delivery_data.ttn}
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(order.delivery_data.ttn);
+                                              setCopiedTtn(order.delivery_data.ttn);
+                                              setTimeout(() => setCopiedTtn(null), 2000);
+                                            }}
+                                            className="text-xs text-blue-500 hover:text-blue-700 dark:hover:text-white transition flex items-center gap-1"
+                                          >
+                                            {copiedTtn === order.delivery_data.ttn ? <Check size={12} /> : <Copy size={12} />}
+                                            {copiedTtn === order.delivery_data.ttn ? "Скопійовано" : "Копіювати"}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}

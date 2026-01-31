@@ -120,9 +120,26 @@ export default function ProductClient({ product, variants }: ProductClientProps)
         const variantWithImage = currentColorVariants.find(v => getVariantImage(v));
         const mainImg = getVariantImage(variantWithImage) || product.image_url;
 
-        const images = [mainImg];
+        let images = [mainImg];
 
-        // Add other variant images if they exist and are unique
+        // 1. Add images from the centralized table
+        if (product.product_images && product.product_images.length > 0) {
+            // Priority 1: Images for the selected color
+            if (selectedColor) {
+                const colorImages = product.product_images
+                    .filter((img: any) => img.color === selectedColor)
+                    .map((img: any) => img.image_url);
+                images = [...images, ...colorImages];
+            }
+
+            // Priority 2: General/Main images
+            const generalImages = product.product_images
+                .filter((img: any) => !img.color || img.is_main)
+                .map((img: any) => img.image_url);
+            images = [...images, ...generalImages];
+        }
+
+        // 2. Add other variant images (Legacy fallback)
         currentColorVariants.forEach(v => {
             const img = getVariantImage(v);
             if (img && !images.includes(img)) images.push(img);
@@ -130,7 +147,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
 
         if (product.image_url && !images.includes(product.image_url)) images.push(product.image_url);
 
-        return images.filter(Boolean);
+        return Array.from(new Set(images.filter(Boolean)));
     }, [product, currentColorVariants]);
 
     const [mainImage, setMainImage] = useState(galleryImages[0]);

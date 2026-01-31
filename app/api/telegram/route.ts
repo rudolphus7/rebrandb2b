@@ -70,7 +70,22 @@ ${comment ? `\n💬 <b>Коментар:</b> ${comment}` : ''}
       console.error('Telegram message error:', await messageResponse.text());
     }
 
-    // 2. Send logo files
+    // 2. Send visualization if present
+    const visualization = formData.get('visualization') as File;
+    if (visualization) {
+      const vizFormData = new FormData();
+      vizFormData.append('chat_id', CHAT_ID!);
+      vizFormData.append('photo', visualization);
+      vizFormData.append('caption', `🖼️ <b>Візуалізація замовлення #${orderId}</b>`);
+      vizFormData.append('parse_mode', 'HTML');
+
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        body: vizFormData,
+      });
+    }
+
+    // 3. Send logo files
     const logoEntries: Array<{ file: File; itemId: string; index: number }> = [];
 
     for (const [key, value] of formData.entries()) {

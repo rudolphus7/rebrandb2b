@@ -30,6 +30,20 @@ const resolveCategoryIds = async (categorySlug: string | undefined, supabase: an
     return []; // Empty array triggers "force empty" logic
 };
 
+
+export const getCategories = async () => {
+    const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+    if (error) {
+        console.error("Error fetching categories:", error);
+        return [];
+    }
+    return data;
+};
+
 export async function getProducts(params: SearchParams) {
     const page = parseInt(params.page || '1');
     const from = (page - 1) * ITEMS_PER_PAGE;
@@ -135,13 +149,13 @@ export async function getProducts(params: SearchParams) {
 
     let rawProducts: any[] = [];
 
-    const baseFields = 'id, title, slug, base_price, old_price, image_url, vendor_article, label, created_at';
+    const baseFields = 'id, title, base_price, old_price, label, image_url, description, vendor_article, slug, material, specifications';
     const selectedColors = params.color?.split(',').filter(Boolean) || [];
     const filteringVariants = selectedColors.length > 0 || params.inStock === 'true';
 
     const selectFields = filteringVariants
-        ? `${baseFields}, categories(slug), product_variants!inner(color, general_color, price, stock, available, image_url)`
-        : `${baseFields}, categories(slug), product_variants(color, general_color, price, stock, available, image_url)`;
+        ? `${baseFields}, categories(slug), product_variants!inner(*), product_images(*)`
+        : `${baseFields}, categories(slug), product_variants(*), product_images(*)`;
 
 
     // 6. Determine Fetch Strategy
