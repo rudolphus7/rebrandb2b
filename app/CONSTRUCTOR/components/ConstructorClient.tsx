@@ -635,52 +635,87 @@ export default function ConstructorClient({ initialProducts, categories }: Props
             // We need to merge product image and canvas content safely
             const captureMergedPreview = async (): Promise<string> => {
                 return new Promise(async (resolve) => {
+                    // First, try to get the product image
+                    if (!currentImageUrl) {
+                        console.warn('No product image URL, exporting design only');
+                        return resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
+                    }
+
                     const tempCanvas = document.createElement('canvas');
-                    const size = 600;
+                    const size = 800; // Higher resolution for better quality
                     tempCanvas.width = size;
                     tempCanvas.height = size;
-                    const ctx = tempCanvas.getContext('2d');
-                    if (!ctx) return resolve(canvas.toDataURL({ format: 'png', multiplier: 0.5 }));
+                    const ctx = tempCanvas.getContext('2d', { alpha: true });
 
-                    // We use blob to avoid "Tainted canvases may not be exported" security error
+                    if (!ctx) {
+                        console.warn('Failed to get canvas context');
+                        return resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
+                    }
+
+                    // Fill with white background first (so we can see the product)
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, size, size);
+
                     try {
-                        // Use a timeout for the fetch to avoid hanging on slow cross-origin requests
+                        console.log('Fetching product image:', currentImageUrl);
+
+                        // Use proxy to avoid CORS issues
+                        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(currentImageUrl)}`;
+
+                        // Use a timeout for the fetch to avoid hanging
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-                        const response = await fetch(currentImageUrl || '', {
+                        const response = await fetch(proxyUrl, {
                             signal: controller.signal,
-                            mode: 'cors',
                             cache: 'force-cache'
                         });
                         clearTimeout(timeoutId);
 
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
                         const blob = await response.blob();
                         const blobUrl = URL.createObjectURL(blob);
 
-                        const img = new Image();
-                        img.onload = () => {
-                            ctx.drawImage(img, 0, 0, size, size);
+                        const productImg = new Image();
+
+                        productImg.onload = () => {
+                            console.log('Product image loaded successfully');
+
+                            // Draw product image (centered and scaled to fit)
+                            ctx.drawImage(productImg, 0, 0, size, size);
                             URL.revokeObjectURL(blobUrl);
 
-                            // Draw canvas overlay
-                            const canvasData = canvas.toDataURL({ format: 'png', multiplier: 1 });
-                            const overlayImg = new Image();
-                            overlayImg.onload = () => {
-                                ctx.drawImage(overlayImg, 0, 0, size, size);
-                                resolve(tempCanvas.toDataURL('image/png', 0.8));
-                            };
-                            overlayImg.src = canvasData;
+                            // Now overlay the canvas design on top
+                            // Export canvas with proper settings to preserve transparency
+                            const fabricCanvasElement = canvas.getElement();
+                            if (fabricCanvasElement) {
+                                // Scale the design to match the temp canvas size
+                                ctx.drawImage(fabricCanvasElement, 0, 0, size, size);
+
+                                console.log('Design overlay applied successfully');
+                                resolve(tempCanvas.toDataURL('image/png', 0.95));
+                            } else {
+                                console.warn('Could not get canvas element, returning product only');
+                                resolve(tempCanvas.toDataURL('image/png', 0.95));
+                            }
                         };
-                        img.onerror = () => {
-                            console.warn('Image load failed after blob fetch, falling back to design-only.');
-                            resolve(canvas.toDataURL({ format: 'png', multiplier: 0.5 }));
+
+                        productImg.onerror = (err) => {
+                            console.error('Product image load failed:', err);
+                            URL.revokeObjectURL(blobUrl);
+                            // Fallback: just export the design
+                            resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
                         };
-                        img.src = blobUrl;
+
+                        productImg.src = blobUrl;
+
                     } catch (e) {
-                        console.error('Preview capture proxy/CORS error:', e);
-                        // Fallback: Export only the design (on transparent background) if product image fails
-                        resolve(canvas.toDataURL({ format: 'png', multiplier: 0.5 }));
+                        console.error('Preview capture error:', e);
+                        // Fallback: Export design only
+                        resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
                     }
                 });
             };
@@ -719,6 +754,7 @@ export default function ConstructorClient({ initialProducts, categories }: Props
 
             // 4. Send to Telegram for Manager
             try {
+                console.log('Preparing Telegram notification...');
                 const tgFormData = new FormData();
                 const orderId = data?.[0]?.id || `CONSTR-${Date.now()}`;
 
@@ -748,25 +784,40 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                 }));
 
                 // Add visualization blob
+                console.log('Converting design thumbnail to blob...');
                 const vizResponse = await fetch(designThumbnail);
                 const visualizationBlob = await vizResponse.blob();
+                console.log('Visualization blob size:', visualizationBlob.size, 'bytes');
                 tgFormData.append('visualization', visualizationBlob, `visualization_${orderId}.png`);
 
                 // Collect and add source files from canvas
                 const canvasObjects = canvas.getObjects();
+                console.log('Found', canvasObjects.length, 'canvas objects');
                 canvasObjects.forEach((obj: any, idx) => {
                     if (obj._sourceFile) {
+                        console.log(`Adding logo file ${idx}:`, obj._sourceFile.name);
                         tgFormData.append(`logo_${idx}`, obj._sourceFile);
                         tgFormData.append(`logo_${idx}_itemId`, 'constructor_item');
                     }
                 });
 
-                await fetch('/api/telegram', {
+                console.log('Sending to Telegram API...');
+                const tgResponse = await fetch('/api/telegram', {
                     method: 'POST',
                     body: tgFormData
                 });
+
+                if (!tgResponse.ok) {
+                    const errorText = await tgResponse.text();
+                    console.error('Telegram API error:', tgResponse.status, errorText);
+                    throw new Error(`Telegram API failed: ${tgResponse.status}`);
+                }
+
+                const tgResult = await tgResponse.json();
+                console.log('Telegram notification sent successfully:', tgResult);
             } catch (tgError) {
-                console.warn('Telegram notification failed:', tgError);
+                console.error('Telegram notification failed:', tgError);
+                // Don't block the order, just log the error
             }
 
             alert('Замовлення успішно оформлено! Наш менеджер зв\'яжеться з вами найближчим часом.');
@@ -1187,8 +1238,8 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                 <div className="relative flex-1 flex flex-col items-center justify-center p-4 md:p-12">
                     <div className="relative w-full max-w-[450px] md:max-w-none md:w-[800px] md:h-[800px] aspect-square bg-[#1a1a1a] rounded-[32px] md:rounded-[48px] shadow-2xl overflow-hidden border border-white/5 flex items-center justify-center">
                         {currentImageUrl && <img src={currentImageUrl} alt="Product" className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90 transition-opacity" />}
-                        <div className="absolute inset-0 z-10 flex items-center justify-center p-6 md:p-16">
-                            <canvas ref={canvasRef} className="max-w-full max-h-full drop-shadow-2xl" />
+                        <div className="absolute inset-0 z-10 flex items-center justify-center">
+                            <canvas ref={canvasRef} className="w-full h-full" />
                         </div>
                     </div>
 
