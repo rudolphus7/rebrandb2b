@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-brand-primary: #1a1a1a;
+  --color-brand-secondary: #f5f5f5;
+  --color-brand-accent: #3b82f6;
+  --color-brand-dark: #0a0a0a;
+  --color-brand-light: #ffffff;
+}
+
+:root {
+  --constructor-bg: #121212;
+  --panel-bg: rgba(26, 26, 26, 0.8);
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+.glass {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+}
+
+.constructor-container {
+  display: grid;
+  grid-template-columns: 320px 1fr 350px;
+  height: 100vh;
+  background-color: var(--constructor-bg);
+  color: white;
+  overflow: hidden;
+}
+
+.canvas-area {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #1e1e1e 0%, #0a0a0a 100%);
+  overflow: hidden;
+}
+
+.sidebar {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  z-index: 10;
+}
+
+.toolbar-item {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.toolbar-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.mask-fade-right {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
