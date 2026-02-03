@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FB Communication Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+  <div id="app">
+    <header class="navbar">
+      <div class="logo">
+        <i data-lucide="message-square"></i>
+        <span>CommsCenter</span>
+      </div>
+      <div class="user-status" id="userStatus">
+        <button id="loginBtn" class="btn btn-primary">
+          <i data-lucide="facebook"></i> Login with Facebook
+        </button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Login View -->
+      <section id="loginView" class="view active">
+        <div class="hero">
+          <h1>Manage Your Community</h1>
+          <p>Connect your Facebook Page to start managing messages and comments in one place.</p>
+          <div class="glass-card">
+            <div class="input-group">
+              <label for="appIdInput">Facebook App ID</label>
+              <input type="text" id="appIdInput" placeholder="Enter your FB App ID to initialize">
+            </div>
+            <button id="initBtn" class="btn btn-secondary">Initialize SDK</button>
+          </div>
+
+          <div class="setup-guide">
+            <h3><i data-lucide="alert-circle"></i> Setup Instructions</h3>
+            <p>If you see an "Invalid Scopes" error, check your App Type:</p>
+            <ol>
+              <li>Go to <a href="https://developers.facebook.com/apps/" target="_blank">Facebook Developers</a></li>
+              <li>Create New App &rarr; Select <strong>Other</strong> &rarr; Next</li>
+              <li>Select <strong>Business</strong> (Manage a business...)</li>
+              <li><strong>Do NOT</strong> select "Consumer" or "None".</li>
+              <li>Use the new App ID to initialize.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard View -->
+      <section id="dashboardView" class="view hidden">
+        <div class="dashboard-header">
+          <h2>Page Overview</h2>
+          <div class="page-badge">
+            <span class="label">Page ID:</span>
+            <span class="value">965040846691414</span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="icon-box blue"><i data-lucide="message-circle"></i></div>
+            <div class="info">
+              <h3>Unread Messages</h3>
+              <p class="number" id="unreadMessages">-</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="icon-box green"><i data-lucide="mic"></i></div>
+            <div class="info">
+              <h3>New Comments</h3>
+              <p class="number" id="newComments">-</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="icon-box purple"><i data-lucide="users"></i></div>
+            <div class="info">
+              <h3>New Followers</h3>
+              <p class="number" id="newFollowers">-</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-split">
+          <div class="panel">
+            <div class="panel-header">
+              <h3><i data-lucide="inbox"></i> Recent Messages</h3>
+              <button class="btn-icon" onclick="refreshMessages()"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div class="list-container" id="messagesList">
+              <div class="empty-state">
+                <p>Loading messages...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3><i data-lucide="message-square"></i> Recent Comments</h3>
+              <button class="btn-icon" onclick="refreshComments()"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div class="list-container" id="commentsList">
+              <div class="empty-state">
+                <p>Loading comments...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Conversation View -->
+      <section id="conversationView" class="view hidden">
+        <div class="chat-layout">
+          <div class="chat-header">
+            <button class="btn btn-secondary" id="backToDashBtn">
+              <i data-lucide="arrow-left"></i> Back
+            </button>
+            <h3 id="chatTitle">Conversation</h3>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <!-- Messages go here -->
+            <div class="empty-state">Select a conversation to view messages</div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="replyInput" placeholder="Type a reply...">
+            <button class="btn btn-primary" id="sendReplyBtn">
+              <i data-lucide="send"></i> Send
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+
+</html>
