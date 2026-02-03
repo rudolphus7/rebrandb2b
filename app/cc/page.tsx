@@ -13,8 +13,8 @@ export default function CommunicationCenter() {
             let FB_APP_ID = localStorage.getItem('fb_app_id') || '';
             let currentAccessToken = '';
             let pageAccessToken = '';
-            let activeConversationId = null;
-            let activeReceiverId = null;
+            let activeConversationId: string | null = null;
+            let activeReceiverId: string | null = null;
 
             // DOM Elements
             const views = {
@@ -143,9 +143,18 @@ export default function CommunicationCenter() {
             function statusChangeCallback(response: any) {
                 if (response.status === 'connected') {
                     currentAccessToken = response.authResponse.accessToken;
+                    // Persist for auto-logging in later
+                    localStorage.setItem('fb_user_access_token', currentAccessToken);
                     showDashboard(currentAccessToken);
                 } else {
-                    showLogin();
+                    // Check if we have a persisted token before showing login
+                    const savedToken = localStorage.getItem('fb_user_access_token');
+                    if (savedToken) {
+                        currentAccessToken = savedToken;
+                        showDashboard(savedToken);
+                    } else {
+                        showLogin();
+                    }
                 }
             }
 
@@ -160,6 +169,7 @@ export default function CommunicationCenter() {
                 (window as any).FB.login(function (response: any) {
                     if (response.status === 'connected') {
                         currentAccessToken = response.authResponse.accessToken;
+                        localStorage.setItem('fb_user_access_token', currentAccessToken);
                         showDashboard(currentAccessToken);
                     } else {
                         showToast('Login cancelled');
@@ -186,6 +196,11 @@ export default function CommunicationCenter() {
             }
 
             function showDashboard(userAccessToken: string) {
+                if (!userAccessToken) {
+                    showLogin();
+                    return;
+                }
+
                 views.login.classList.add('hidden');
                 views.login.classList.remove('active');
                 views.dashboard.classList.remove('hidden');
@@ -202,6 +217,7 @@ export default function CommunicationCenter() {
             }
 
             function logout() {
+                localStorage.removeItem('fb_user_access_token');
                 (window as any).FB.logout(function (response: any) {
                     showLogin();
                 });
@@ -210,7 +226,7 @@ export default function CommunicationCenter() {
             async function fetchPageData(userToken: string) {
                 showToast('Fetching page data...');
 
-                (window as any).FB.api('/me/accounts', function (response: any) {
+                (window as any).FB.api('/me/accounts', { access_token: userToken }, function (response: any) {
                     if (response && !response.error) {
                         const page = response.data.find((p: any) => p.id === PAGE_ID);
                         if (page) {
@@ -223,7 +239,14 @@ export default function CommunicationCenter() {
                         }
                     } else {
                         console.error(response.error);
-                        showToast('Error fetching accounts');
+                        // If token is invalid (Error 190), clear it and show login
+                        if (response.error && response.error.code === 190) {
+                            localStorage.removeItem('fb_user_access_token');
+                            showToast('Session expired. Please login again.');
+                            showLogin();
+                        } else {
+                            showToast('Error fetching accounts');
+                        }
                     }
                 });
             }
@@ -487,33 +510,33 @@ export default function CommunicationCenter() {
     return (
         <div id="app">
             <Script src="https://unpkg.com/lucide@latest" strategy="beforeInteractive" />
-            <header class="navbar">
-                <div class="logo">
+            <header className="navbar">
+                <div className="logo">
                     <i data-lucide="message-square"></i>
                     <span>CommsCenter</span>
                 </div>
-                <div class="user-status" id="userStatus">
-                    <button id="loginBtn" class="btn btn-primary">
+                <div className="user-status" id="userStatus">
+                    <button id="loginBtn" className="btn btn-primary">
                         <i data-lucide="facebook"></i> Login with Facebook
                     </button>
                 </div>
             </header>
 
-            <main class="container">
+            <main className="container">
                 {/* Login View */}
-                <section id="loginView" class="view active">
-                    <div class="hero">
+                <section id="loginView" className="view active">
+                    <div className="hero">
                         <h1>Manage Your Community</h1>
                         <p>Connect your Facebook Page to start managing messages and comments in one place.</p>
-                        <div class="glass-card">
-                            <div class="input-group">
+                        <div className="glass-card">
+                            <div className="input-group">
                                 <label htmlFor="appIdInput">Facebook App ID</label>
                                 <input type="text" id="appIdInput" placeholder="Enter your FB App ID to initialize" />
                             </div>
-                            <button id="initBtn" class="btn btn-secondary">Initialize SDK</button>
+                            <button id="initBtn" className="btn btn-secondary">Initialize SDK</button>
                         </div>
 
-                        <div class="setup-guide">
+                        <div className="setup-guide">
                             <h3><i data-lucide="alert-circle"></i> Setup Instructions</h3>
                             <p>If you see an "Invalid Scopes" error, check your App Type:</p>
                             <ol>
@@ -528,59 +551,59 @@ export default function CommunicationCenter() {
                 </section>
 
                 {/* Dashboard View */}
-                <section id="dashboardView" class="view hidden">
-                    <div class="dashboard-header">
+                <section id="dashboardView" className="view hidden">
+                    <div className="dashboard-header">
                         <h2>Page Overview</h2>
-                        <div class="page-badge">
-                            <span class="label">Page ID:</span>
-                            <span class="value">965040846691414</span>
+                        <div className="page-badge">
+                            <span className="label">Page ID:</span>
+                            <span className="value">965040846691414</span>
                         </div>
                     </div>
 
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="icon-box blue"><i data-lucide="message-circle"></i></div>
-                            <div class="info">
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="icon-box blue"><i data-lucide="message-circle"></i></div>
+                            <div className="info">
                                 <h3>Unread Messages</h3>
-                                <p class="number" id="unreadMessages">-</p>
+                                <p className="number" id="unreadMessages">-</p>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="icon-box green"><i data-lucide="mic"></i></div>
-                            <div class="info">
+                        <div className="stat-card">
+                            <div className="icon-box green"><i data-lucide="mic"></i></div>
+                            <div className="info">
                                 <h3>New Comments</h3>
-                                <p class="number" id="newComments">-</p>
+                                <p className="number" id="newComments">-</p>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="icon-box purple"><i data-lucide="users"></i></div>
-                            <div class="info">
+                        <div className="stat-card">
+                            <div className="icon-box purple"><i data-lucide="users"></i></div>
+                            <div className="info">
                                 <h3>New Followers</h3>
-                                <p class="number" id="newFollowers">-</p>
+                                <p className="number" id="newFollowers">-</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="content-split">
-                        <div class="panel">
-                            <div class="panel-header">
+                    <div className="content-split">
+                        <div className="panel">
+                            <div className="panel-header">
                                 <h3><i data-lucide="inbox"></i> Recent Messages</h3>
-                                <button class="btn-icon" onClick={() => (window as any).refreshMessages()}><i data-lucide="refresh-cw"></i></button>
+                                <button className="btn-icon" onClick={() => (window as any).refreshMessages()}><i data-lucide="refresh-cw"></i></button>
                             </div>
-                            <div class="list-container" id="messagesList">
-                                <div class="empty-state">
+                            <div className="list-container" id="messagesList">
+                                <div className="empty-state">
                                     <p>Loading messages...</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="panel">
-                            <div class="panel-header">
+                        <div className="panel">
+                            <div className="panel-header">
                                 <h3><i data-lucide="message-square"></i> Recent Comments</h3>
-                                <button class="btn-icon" onClick={() => (window as any).refreshComments()}><i data-lucide="refresh-cw"></i></button>
+                                <button className="btn-icon" onClick={() => (window as any).refreshComments()}><i data-lucide="refresh-cw"></i></button>
                             </div>
-                            <div class="list-container" id="commentsList">
-                                <div class="empty-state">
+                            <div className="list-container" id="commentsList">
+                                <div className="empty-state">
                                     <p>Loading comments...</p>
                                 </div>
                             </div>
@@ -589,21 +612,21 @@ export default function CommunicationCenter() {
                 </section>
 
                 {/* Conversation View */}
-                <section id="conversationView" class="view hidden">
-                    <div class="chat-layout">
-                        <div class="chat-header">
-                            <button class="btn btn-secondary" id="backToDashBtn">
+                <section id="conversationView" className="view hidden">
+                    <div className="chat-layout">
+                        <div className="chat-header">
+                            <button className="btn btn-secondary" id="backToDashBtn">
                                 <i data-lucide="arrow-left"></i> Back
                             </button>
                             <h3 id="chatTitle">Conversation</h3>
                         </div>
-                        <div class="chat-messages" id="chatMessages">
+                        <div className="chat-messages" id="chatMessages">
                             {/* Messages go here */}
-                            <div class="empty-state">Select a conversation to view messages</div>
+                            <div className="empty-state">Select a conversation to view messages</div>
                         </div>
-                        <div class="chat-input-area">
+                        <div className="chat-input-area">
                             <input type="text" id="replyInput" placeholder="Type a reply..." />
-                            <button class="btn btn-primary" id="sendReplyBtn">
+                            <button className="btn btn-primary" id="sendReplyBtn">
                                 <i data-lucide="send"></i> Send
                             </button>
                         </div>
@@ -611,7 +634,7 @@ export default function CommunicationCenter() {
                 </section>
             </main>
 
-            <div id="toast" class="toast hidden"></div>
+            <div id="toast" className="toast hidden"></div>
         </div>
     );
 }
