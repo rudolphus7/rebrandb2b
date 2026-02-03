@@ -22,7 +22,22 @@ const sendReplyBtn = document.getElementById('sendReplyBtn');
 const replyInput = document.getElementById('replyInput');
 
 // Initialize
-function init() {
+async function init() {
+    // Try to fetch config from Vercel API if available
+    try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+            const config = await res.json();
+            if (config.appId) {
+                FB_APP_ID = config.appId;
+                localStorage.setItem('fb_app_id', FB_APP_ID);
+            }
+        }
+    } catch (e) {
+        // Fallback to local storage or manual entry
+        console.log("Using local config");
+    }
+
     if (FB_APP_ID) {
         const card = document.querySelector('.glass-card');
         if (card) card.style.display = 'none';
@@ -207,9 +222,9 @@ function loadPageStats(token) {
 
 function loadMessages(token) {
     // Requires pages_messaging permission
-    // Request participants to correctly identify the user even if Page updated last
-    FB.api(`/${PAGE_ID}/conversations?fields=id,updated_time,participants,messages.limit(1){message,from}`, { access_token: token }, function (response) {
+    FB.api(`/${PAGE_ID}/conversations?fields=id,updated_time,participants,messages.limit(1){message,from,attachments}`, { access_token: token }, function (response) {
         const container = document.getElementById('messagesList');
+        // Don't wipe while silent refreshing list
         container.innerHTML = '';
 
         if (response && !response.data) {
@@ -219,7 +234,6 @@ function loadMessages(token) {
 
         if (response.data.length > 0) {
             response.data.forEach(conv => {
-                // Find the participant that is not the current Page
                 const participant = conv.participants && conv.participants.data ?
                     conv.participants.data.find(p => p.id !== PAGE_ID) : null;
 
@@ -229,14 +243,21 @@ function loadMessages(token) {
                 const senderId = participant.id;
 
                 const lastMsgObj = conv.messages && conv.messages.data[0] ? conv.messages.data[0] : null;
-                const lastMsg = lastMsgObj ? lastMsgObj.message : 'Attachment/Media';
+                let lastMsg = 'No content';
 
-                // Avatar
+                if (lastMsgObj) {
+                    if (lastMsgObj.message) {
+                        lastMsg = lastMsgObj.message;
+                    } else if (lastMsgObj.attachments && lastMsgObj.attachments.data) {
+                        const type = lastMsgObj.attachments.data[0].type || 'file';
+                        lastMsg = `[${type}] Attachment`;
+                    }
+                }
+
                 const picUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=random`;
 
                 const card = document.createElement('div');
                 card.className = 'message-card';
-                // Pass senderId for sending replies
                 card.onclick = () => openConversation(conv.id, senderName, picUrl, senderId);
 
                 card.innerHTML = `
@@ -265,38 +286,88 @@ function openConversation(convId, name, picUrl, senderId) {
     // Update Chat Header
     const title = document.getElementById('chatTitle');
     title.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; width:100%;">
             <img src="${picUrl || 'https://ui-avatars.com/api/?name=User'}" class="avatar">
-            <div class="user-info">
+            <div class="user-info" style="flex:1;">
                 <span>${name || 'Conversation'}</span>
                 <span class="status">Active Now</span>
             </div>
+            <a href="https://www.facebook.com/${senderId}" target="_blank" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+                <i data-lucide="external-link"></i> Profile
+            </a>
+            <button class="btn btn-secondary" style="padding:0.4rem;" onclick="refreshCurrentChat()">
+                <i data-lucide="refresh-cw"></i>
+            </button>
         </div>
     `;
+    lucide.createIcons();
 
+    loadChatMessages(convId);
+
+    // Start Polling for this conversation
+    if (window.chatInterval) clearInterval(window.chatInterval);
+    // Optimization: Poll every 10 seconds to save API limits. 
+    // Only polls if window is visible (!document.hidden)
+    window.chatInterval = setInterval(() => {
+        if (activeConversationId === convId && !document.hidden) {
+            loadChatMessages(convId, true); // true = silent update
+        }
+    }, 10000);
+}
+
+function loadChatMessages(convId, silent = false) {
     const container = document.getElementById('chatMessages');
-    container.innerHTML = '<div class="empty-state">Loading conversation...</div>';
+    if (!silent) container.innerHTML = '<div class="empty-state">Loading conversation...</div>';
 
     FB.api(`/${convId}/messages?fields=message,from,created_time,attachments,id`, { access_token: pageAccessToken }, function (response) {
-        container.innerHTML = '';
         if (response && response.data) {
+            const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
+            let html = '';
             const msgs = response.data.slice().reverse();
             msgs.forEach(msg => {
                 const isMe = msg.from.id === PAGE_ID;
-                const bubble = document.createElement('div');
-                bubble.className = `message-bubble ${isMe ? 'me' : 'them'}`;
+                let content = msg.message || '';
 
-                bubble.innerHTML = `
-                    ${msg.message ? msg.message : '<i>Attachment/Media</i>'}
-                    <span class="message-time">${new Date(msg.created_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                // Handle Attachments
+                if (msg.attachments && msg.attachments.data) {
+                    msg.attachments.data.forEach(att => {
+                        if (att.image_data) {
+                            content += `<br><img src="${att.image_data.url}" class="chat-image" style="max-width:200px; border-radius:8px; margin-top:5px;">`;
+                        } else if (att.video_data) {
+                            content += `<br><video src="${att.video_data.url}" controls style="max-width:200px; margin-top:5px;"></video>`;
+                        } else if (att.file_url) {
+                            content += `<br><a href="${att.file_url}" target="_blank" style="color:var(--accent-blue); text-decoration:underline;">[File] Download</a>`;
+                        }
+                    });
+                }
+
+                html += `
+                    <div class="message-bubble ${isMe ? 'me' : 'them'}">
+                        ${content}
+                        <span class="message-time">${new Date(msg.created_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                 `;
-                container.appendChild(bubble);
             });
-            container.scrollTop = container.scrollHeight;
-        } else {
+
+            if (silent) {
+                if (container.innerHTML !== html) {
+                    container.innerHTML = html;
+                    if (wasAtBottom) container.scrollTop = container.scrollHeight;
+                }
+            } else {
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            }
+
+        } else if (!silent) {
             container.innerHTML = '<div class="empty-state">Failed to load messages.</div>';
         }
     });
+}
+
+function refreshCurrentChat() {
+    if (activeConversationId) loadChatMessages(activeConversationId);
 }
 
 function sendMessage() {
