@@ -17,14 +17,17 @@ export default function CommunicationCenter() {
             let activeReceiverId: string | null = null;
 
             // DOM Elements
-            const views = {
-                login: document.getElementById('loginView'),
-                dashboard: document.getElementById('dashboardView'),
-                conversation: document.getElementById('conversationView')
-            };
+            const loginEl = document.getElementById('loginView');
+            const dashboardEl = document.getElementById('dashboardView');
+            const conversationEl = document.getElementById('conversationView');
 
-            // Allow null checks because React might re-render
-            if (!views.login) return;
+            if (!loginEl || !dashboardEl || !conversationEl) return;
+
+            const views = {
+                login: loginEl,
+                dashboard: dashboardEl,
+                conversation: conversationEl
+            };
 
             const loginBtn = document.getElementById('loginBtn');
             const initBtn = document.getElementById('initBtn');
@@ -130,7 +133,11 @@ export default function CommunicationCenter() {
                     if (d.getElementById(id)) { return; }
                     js = d.createElement(s); js.id = id;
                     js.src = "https://connect.facebook.net/en_US/sdk.js";
-                    fjs.parentNode.insertBefore(js, fjs);
+                    if (fjs && fjs.parentNode) {
+                        fjs.parentNode.insertBefore(js, fjs);
+                    } else {
+                        d.head.appendChild(js);
+                    }
                 }(document, 'script', 'facebook-jssdk'));
             }
 
