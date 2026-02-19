@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Upload, Type, Palette, Layout, Settings, Layers as LayersIcon, ChevronLeft, ChevronRight, Save, FileDown, ShoppingCart, Menu, X, ChevronUp, Trash2, Eraser } from 'lucide-react';
+import { Search, Upload, Type, Palette, Layout, Settings, Layers as LayersIcon, ChevronLeft, ChevronRight, Save, FileDown, ShoppingCart, Menu, X, ChevronUp, Trash2, Eraser, LayoutGrid, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { MOCK_IMPRINT_ZONES, ConstructorProduct } from '../lib/types';
 import * as fabric from 'fabric';
@@ -22,6 +22,7 @@ interface Category {
 interface Props {
     initialProducts: ConstructorProduct[];
     categories: Category[];
+    preSelectedProduct?: ConstructorProduct | null;
 }
 
 // Helper to match colors across languages (Ukr/Eng)
@@ -66,10 +67,22 @@ const isColorMatch = (dbColor: string | null | undefined, target: string | null 
     return b1 === b2 || b1.includes(b2) || b2.includes(b1);
 };
 
-export default function ConstructorClient({ initialProducts, categories }: Props) {
-    const [products, setProducts] = useState<ConstructorProduct[]>(initialProducts);
-    const [selectedProduct, setSelectedProduct] = useState<ConstructorProduct | null>(initialProducts[0] || null);
-    const [activeTab, setActiveTab] = useState<'catalog' | 'upload' | 'text' | 'settings'>('catalog');
+export default function ConstructorClient({ initialProducts, categories, preSelectedProduct }: Props) {
+    // If a pre-selected product was provided, inject it into the list and select it
+    const effectiveInitialProducts = React.useMemo(() => {
+        if (preSelectedProduct && !initialProducts.find(p => p.id === preSelectedProduct.id)) {
+            return [preSelectedProduct, ...initialProducts];
+        }
+        return initialProducts;
+    }, [initialProducts, preSelectedProduct]);
+
+    const [products, setProducts] = useState<ConstructorProduct[]>(effectiveInitialProducts);
+    const [selectedProduct, setSelectedProduct] = useState<ConstructorProduct | null>(
+        preSelectedProduct || effectiveInitialProducts[0] || null
+    );
+    const [activeTab, setActiveTab] = useState<'catalog' | 'upload' | 'text' | 'settings' | null>(
+        preSelectedProduct ? 'upload' : 'catalog'
+    );
     const router = useRouter();
     const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
     const [currentView, setCurrentView] = useState<'front' | 'back'>('front');
@@ -79,28 +92,39 @@ export default function ConstructorClient({ initialProducts, categories }: Props
     const [printSize, setPrintSize] = useState<PrintSize>('medium');
     const [user, setUser] = useState<any>(null);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-    const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [canvasSize, setCanvasSize] = useState(600);
+    const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
     const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
     const [isCropping, setIsCropping] = useState(false);
+    const [uploadedLogos, setUploadedLogos] = useState<string[]>([]);
+    const [showInStockOnly, setShowInStockOnly] = useState(false);
 
     // Hierarchical state
     const [selectedMainCat, setSelectedMainCat] = useState<string | null>(null);
     const [selectedSubCat, setSelectedSubCat] = useState<string | null>(null);
+
+    // Text State
+    const [textInput, setTextInput] = useState('');
+    const [selectedFont, setSelectedFont] = useState('Inter');
+    const fonts = ['Inter', 'Roboto', 'Montserrat', 'Georgia', 'Playfair Display', 'Oswald'];
 
     // Get unique colors for the current product
     const uniqueColorVariants = React.useMemo(() => {
         if (!selectedProduct?.product_variants) return [];
         const unique = new Map();
 
-        // Group by normalized color to avoid duplicates like "black" and "чорний"
         selectedProduct.product_variants.forEach(v => {
             if (v.color && v.color !== 'N/A' && v.image_url) {
-                // Find if we already have a matching color in the map
+                // Check stock if filter is active
+                const stock = (v.available ?? v.stock ?? v.quantity ?? 0);
+                if (showInStockOnly && stock <= 0) {
+                    return;
+                }
+
                 let matchFound = false;
                 for (let existingColor of unique.keys()) {
-                    // Stricter match for UI grouping: either exact same string or translation-matched broad color
-                    // BUT: do not group if they specify different details (in brackets or after slash)
                     const matches = isColorMatch(existingColor, v.color);
                     const bothSimple = !existingColor.includes('(') && !v.color.includes('(');
 
@@ -111,12 +135,13 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                 }
 
                 if (!matchFound) {
-                    unique.set(v.color, { color: v.color, image: v.image_url });
+                    const stock = (v.available ?? v.stock ?? v.quantity ?? 0);
+                    unique.set(v.color, { color: v.color, image: v.image_url, inStock: stock > 0 });
                 }
             }
         });
         return Array.from(unique.values());
-    }, [selectedProduct]);
+    }, [selectedProduct, showInStockOnly]);
 
     // Update selectedColor when product changes
     useEffect(() => {
@@ -127,6 +152,18 @@ export default function ConstructorClient({ initialProducts, categories }: Props
             setCurrentImageUrl(selectedProduct.image_url);
         }
     }, [selectedProduct]);
+
+    // Auto-switch to available color if current one becomes filtered out
+    useEffect(() => {
+        if (showInStockOnly && selectedColor && uniqueColorVariants.length > 0) {
+            const isCurrentAvailable = uniqueColorVariants.some(v => isColorMatch(v.color, selectedColor));
+            if (!isCurrentAvailable) {
+                const fallback = uniqueColorVariants[0];
+                setSelectedColor(fallback.color);
+                setCurrentImageUrl(fallback.image);
+            }
+        }
+    }, [showInStockOnly, uniqueColorVariants, selectedColor]);
 
     const [availableAngles, setAvailableAngles] = useState<string[]>([]);
 
@@ -201,8 +238,6 @@ export default function ConstructorClient({ initialProducts, categories }: Props
     }, [selectedProduct, selectedColor]);
     const [categoryName, setCategoryName] = useState('Всі товари');
 
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
     const mainCategories = categories.filter(c => !c.parent_id);
     const subCategories = selectedMainCat ? categories.filter(c => c.parent_id === selectedMainCat) : [];
 
@@ -213,7 +248,7 @@ export default function ConstructorClient({ initialProducts, categories }: Props
         });
     }, []);
 
-    // Dynamic Product Fetching on Category Change
+    // Dynamic Product Fetching on Category Change & Stock Filter
     useEffect(() => {
         const fetchProducts = async () => {
             setIsLoadingProducts(true);
@@ -224,7 +259,8 @@ export default function ConstructorClient({ initialProducts, categories }: Props
 
             const { products: fetchedProducts } = await getProducts({
                 category: categorySlug,
-                page: '1'
+                page: '1',
+                inStock: showInStockOnly ? 'true' : 'false'
             });
 
             if (fetchedProducts) {
@@ -239,10 +275,18 @@ export default function ConstructorClient({ initialProducts, categories }: Props
         if (selectedMainCat || selectedSubCat) {
             fetchProducts();
         } else {
-            setProducts(initialProducts);
+            // Local filtering for default initial products
+            let filtered = effectiveInitialProducts;
+            if (showInStockOnly) {
+                filtered = effectiveInitialProducts.filter(p => {
+                    const hasStock = p.product_variants?.some(v => (v.available ?? v.stock ?? 0) > 0);
+                    return hasStock;
+                });
+            }
+            setProducts(filtered);
             setCategoryName('Всі товари');
         }
-    }, [selectedMainCat, selectedSubCat, initialProducts, categories]);
+    }, [selectedMainCat, selectedSubCat, showInStockOnly, effectiveInitialProducts, categories]);
 
     // Initialize Canvas...
     // (Assuming identical initialization)
@@ -256,6 +300,19 @@ export default function ConstructorClient({ initialProducts, categories }: Props
             allowTouchScrolling: false,
         });
 
+        // Initialize global Fabric defaults for better UX across all objects
+        (fabric as any).Object.prototype.set({
+            transparentCorners: false,
+            cornerColor: '#3b82f6',
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 10,
+            cornerStyle: 'circle',
+            touchCornerSize: 24, // Larger handles for mobile
+            padding: 4,
+            borderDashArray: [5, 5],
+            borderColor: '#3b82f6',
+        });
+
         // Enable better touch handling for mobile
         const isMobile = 'ontouchstart' in window;
         if (isMobile) {
@@ -265,20 +322,14 @@ export default function ConstructorClient({ initialProducts, categories }: Props
             });
         }
 
-        // NO CONSTRAINTS - Allow free placement anywhere on canvas
-        // Removed object:moving constraint handler to allow logos anywhere
-
         // Keyboard Shortcut for Delete - BUT NOT when editing text
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 const activeObjects = fabricCanvas.getActiveObjects();
                 if (activeObjects.length > 0) {
-                    // Check if any active object is a text being edited
                     const isEditingText = activeObjects.some((obj: any) =>
                         obj.type === 'i-text' && obj.isEditing
                     );
-
-                    // Only delete objects if NOT editing text
                     if (!isEditingText) {
                         activeObjects.forEach(obj => fabricCanvas.remove(obj));
                         fabricCanvas.discardActiveObject();
@@ -289,33 +340,55 @@ export default function ConstructorClient({ initialProducts, categories }: Props
         };
 
         window.addEventListener('keydown', handleKeyDown);
-
         setCanvas(fabricCanvas);
 
         // Handle Responsive Scaling
         const resizeCanvas = () => {
-            const container = canvasRef.current?.parentElement;
+            const container = canvasRef.current?.parentElement?.parentElement;
             if (!container || !fabricCanvas) return;
+            if (!(fabricCanvas as any).lowerCanvasEl) return;
 
-            // On desktop we want it to be larger
-            const isMobile = window.innerWidth < 768;
-            const padding = isMobile ? 20 : 60;
-            const size = Math.min(container.clientWidth, container.clientHeight) - padding;
+            const rect = container.getBoundingClientRect();
+            const size = Math.floor(Math.min(rect.width, rect.height));
+            if (size <= 100) return;
 
-            // Base resolution for coordinates is still 600
             const scale = size / 600;
 
-            fabricCanvas.setZoom(scale);
-            fabricCanvas.setDimensions({ width: size, height: size });
-            fabricCanvas.renderAll();
+            try {
+                fabricCanvas.setZoom(scale);
+                fabricCanvas.setDimensions({
+                    width: size,
+                    height: size
+                });
+                setCanvasSize(size);
+                fabricCanvas.renderAll();
+            } catch (err) {
+                // Ignore silent errors during transition
+            }
         };
 
+        const resizeObserver = new ResizeObserver(() => {
+            resizeCanvas();
+        });
+
+        const observerContainer = canvasRef.current?.parentElement?.parentElement;
+        if (observerContainer) {
+            resizeObserver.observe(observerContainer);
+        }
+
         window.addEventListener('resize', resizeCanvas);
-        setTimeout(resizeCanvas, 100);
+
+        const timers = [
+            setTimeout(resizeCanvas, 100),
+            setTimeout(resizeCanvas, 500),
+            setTimeout(resizeCanvas, 1500)
+        ];
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('resize', resizeCanvas);
+            resizeObserver.disconnect();
+            timers.forEach(t => clearTimeout(t));
             fabricCanvas.dispose();
         };
     }, []);
@@ -437,8 +510,12 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                 canvas?.setActiveObject(img);
                 canvas?.renderAll();
 
+                // Add to upload history
+                setUploadedLogos(prev => [data, ...prev.slice(0, 11)]); // Keep last 12
+
                 // Auto-close on mobile for immediate feedback
                 setIsMobilePanelOpen(false);
+                setActiveTab(null);
             });
         };
         reader.readAsDataURL(file);
@@ -454,7 +531,7 @@ export default function ConstructorClient({ initialProducts, categories }: Props
         canvas?.renderAll();
     };
 
-    const applyLogoTint = (color: string) => {
+    const applyColorTint = (color: string) => {
         const activeObj = canvas?.getActiveObject() as any;
         if (!activeObj || activeObj.type !== 'image') return;
 
@@ -503,14 +580,19 @@ export default function ConstructorClient({ initialProducts, categories }: Props
 
     // Advanced Text Tools
     const addText = () => {
-        if (!canvas) return;
-        const text = new fabric.IText('Текст...', {
-            left: 200, top: 200, fontFamily: 'Inter', fill: '#ffffff', fontSize: 40, fontWeight: 'bold',
+        if (!canvas || !textInput.trim()) return;
+        const text = new fabric.IText(textInput, {
+            left: 200, top: 200,
+            fontFamily: selectedFont,
+            fill: '#ffffff',
+            fontSize: 40,
+            fontWeight: 'bold',
             minScaleLimit: 0.01
         });
         canvas.add(text);
         canvas.setActiveObject(text);
         canvas.renderAll();
+        setTextInput('');
     };
 
     const updateTextStyle = (style: { fontWeight?: string, fontStyle?: string, fill?: string, fontFamily?: string }) => {
@@ -625,6 +707,23 @@ export default function ConstructorClient({ initialProducts, categories }: Props
     const subtotal = unitPriceTotal * quantity;
     const discount = quantity >= 100 ? 0.15 : quantity >= 50 ? 0.1 : 0;
     const totalPrice = subtotal * (1 - discount);
+
+    const handleExportPDF = async () => {
+        if (!canvas) return;
+        alert('Експорт у PDF готується...');
+    };
+
+    const handleExportImage = () => {
+        if (!canvas) return;
+        const dataURL = canvas.toDataURL({
+            format: 'png',
+            multiplier: 2
+        });
+        const link = document.createElement('a');
+        link.download = `design-${Date.now()}.png`;
+        link.href = dataURL;
+        link.click();
+    };
 
     const handlePlaceOrder = async () => {
         if (!canvas || !selectedProduct) return;
@@ -899,80 +998,132 @@ export default function ConstructorClient({ initialProducts, categories }: Props
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-[#0a0a0a] text-white font-sans flex-col md:flex-row">
-            {/* Sidebar - Desktop Navigation */}
-            <aside className="hidden md:flex w-16 flex-col items-center py-6 border-r border-white/10 bg-black">
-                <div className="mb-10 text-blue-500 font-bold text-xl tracking-tighter">B2B</div>
-                <nav className="flex flex-col gap-8 flex-1">
-                    <TabButton active={activeTab === 'catalog'} onClick={() => setActiveTab('catalog')} icon={<Layout size={20} />} label="Товари" />
-                    <TabButton active={activeTab === 'upload'} onClick={() => setActiveTab('upload')} icon={<Upload size={20} />} label="Дизайн" />
-                    <TabButton active={activeTab === 'text'} onClick={() => setActiveTab('text')} icon={<Type size={20} />} label="Текст" />
-                    <TabButton active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }} icon={<Settings size={20} />} label="Налашт." />
+        <div className="constructor-shell font-sans tracking-tight">
+            {/* Sidebar - Desktop Side Navigation (Hidden on Mobile) */}
+            <aside className="hidden md:flex flex-col nav-panel">
+                <div className="studio-title-v">Студія</div>
+                <nav className="flex flex-col w-full flex-1">
+                    <button
+                        onClick={() => setActiveTab('catalog')}
+                        className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
+                    >
+                        <Layout className="nav-item-icon" />
+                        <span className="nav-item-label">Каталог</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('upload')}
+                        className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
+                    >
+                        <Upload className="nav-item-icon" />
+                        <span className="nav-item-label">Дизайн</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('text')}
+                        className={`nav-item ${activeTab === 'text' ? 'active' : ''}`}
+                    >
+                        <Type className="nav-item-icon" />
+                        <span className="nav-item-label">Текст</span>
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }}
+                        className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+                    >
+                        <Settings className="nav-item-icon" />
+                        <span className="nav-item-label">Кошик</span>
+                    </button>
                 </nav>
                 {user && (
-                    <div className="mt-auto mb-4 group relative">
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">
+                    <div className="mt-auto mb-2 px-3 w-full">
+                        <div className="w-8 h-8 mx-auto rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-zinc-400">
                             {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0)}
-                        </div>
-                        <div className="absolute left-16 bottom-0 w-max bg-black/90 backdrop-blur border border-white/10 p-3 rounded-xl opacity-0 translate-x-4 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all z-50">
-                            <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Вітаємо</p>
-                            <p className="text-sm font-bold text-white whitespace-nowrap">Привіт, {user.user_metadata?.full_name || user.email?.split('@')[0]}</p>
                         </div>
                     </div>
                 )}
             </aside>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-black border-t border-white/10 flex items-center justify-around px-4 z-50">
-                <MobileTabButton active={activeTab === 'catalog' && isMobilePanelOpen} onClick={() => { setActiveTab('catalog'); setIsMobilePanelOpen(true); }} icon={<Layout size={20} />} label="Товари" />
-                <MobileTabButton active={activeTab === 'upload' && isMobilePanelOpen} onClick={() => { setActiveTab('upload'); setIsMobilePanelOpen(true); }} icon={<Upload size={20} />} label="Дизайн" />
-
-                <div
-                    className="relative -top-4 w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/40 border-4 border-black active:scale-95 transition-transform"
-                    onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }}
+            <nav className="md:hidden mobile-nav">
+                <button
+                    onClick={() => { setActiveTab('catalog'); setIsMobilePanelOpen(true); }}
+                    className={`nav-item ${activeTab === 'catalog' && isMobilePanelOpen ? 'active' : ''} flex-1`}
                 >
-                    <ShoppingCart size={24} className="text-white" />
+                    <Layout className="nav-item-icon" />
+                    <span className="nav-item-label">База</span>
+                </button>
+                <button
+                    onClick={() => { setActiveTab('upload'); setIsMobilePanelOpen(true); }}
+                    className={`nav-item ${activeTab === 'upload' && isMobilePanelOpen ? 'active' : ''} flex-1`}
+                >
+                    <Upload className="nav-item-icon" />
+                    <span className="nav-item-label">Дизайн</span>
+                </button>
+
+                <div className="w-20 flex justify-center -mt-6">
+                    <button
+                        className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform border-4 border-[var(--c-bg-sidebar)]"
+                        onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }}
+                    >
+                        <ShoppingCart size={24} className="text-white" />
+                    </button>
                 </div>
 
-                <MobileTabButton active={activeTab === 'text' && isMobilePanelOpen} onClick={() => { setActiveTab('text'); setIsMobilePanelOpen(true); }} icon={<Type size={20} />} label="Текст" />
-                <MobileTabButton active={activeTab === 'settings' && isMobilePanelOpen} onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }} icon={<Settings size={20} />} label="Кошик" />
+                <button
+                    onClick={() => { setActiveTab('text'); setIsMobilePanelOpen(true); }}
+                    className={`nav-item ${activeTab === 'text' && isMobilePanelOpen ? 'active' : ''} flex-1`}
+                >
+                    <Type className="nav-item-icon" />
+                    <span className="nav-item-label">Текст</span>
+                </button>
+                <div className="flex-1 invisible"></div> {/* Spacer for symmetry if needed, but flex-1 on others should handle it */}
             </nav>
 
             {/* Backdrop for Mobile */}
             <div className={`
-                fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity md:hidden
+                fixed inset-0 z-40 bg-black/70 backdrop-blur-md transition-opacity md:hidden
                 ${isMobilePanelOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
-            `} onClick={() => setIsMobilePanelOpen(false)} />
+            `} onClick={() => { setIsMobilePanelOpen(false); setActiveTab(null); }} />
 
             {/* Control Panel / Mobile Drawer */}
-            <main className={`
-                fixed inset-x-0 bottom-0 md:relative md:inset-auto md:w-80 
-                h-[85vh] md:h-full bg-[#121212] border-t md:border-t-0 md:border-r border-white/5 
-                overflow-y-auto z-50 transition-transform duration-300 md:translate-y-0
-                ${isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full'} rounded-t-[32px] md:rounded-none
+            {/* Resource Panel (Catalog/Uploads) - Slides from left on desktop, from bottom on mobile */}
+            <aside className={`
+                ${activeTab ? 'flex' : 'hidden md:hidden'} 
+                fixed md:relative inset-0 md:inset-auto z-[60] md:z-auto md:w-[var(--pane-w)] bg-[var(--c-bg-panel)] border-r border-[var(--c-border)] flex-col shadow-2xl md:shadow-none animate-in md:animate-none slide-in-from-bottom md:slide-in-from-left duration-300
+                transform transition-transform duration-300 ease-out 
+                ${isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
             `}>
-                <div className="p-6 space-y-8 pb-32">
-                    {activeTab === 'catalog' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold tracking-tight">Каталог</h2>
-                                <button onClick={() => setIsMobilePanelOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg">
-                                    <X size={20} />
-                                </button>
-                            </div>
+                <div className="panel-header">
+                    <div className="md:hidden panel-drag-handle" />
+                    <div className="panel-mobile-top">
+                        <h2 className="panel-title text-zinc-100 font-black tracking-tighter">
+                            {activeTab === 'catalog' && "КАТАЛОГ ТОВАРІВ"}
+                            {activeTab === 'upload' && "ВАШІ ДИЗАЙНИ"}
+                            {activeTab === 'text' && "ДОДАТИ ТЕКСТ"}
+                            {activeTab === 'settings' && "ОПЦІЇ ЗАМОВЛЕННЯ"}
+                        </h2>
+                        <button
+                            onClick={() => { setIsMobilePanelOpen(false); setActiveTab(null); }}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/80 active:scale-90 transition-all border border-white/5"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
 
+                <div className="panel-scroll">
+                    {activeTab === 'catalog' && (
+                        <div className="animate-pane flex flex-col gap-3">
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => { setSelectedMainCat(null); setSelectedSubCat(null); }}
-                                    className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all border ${!selectedMainCat ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                    className={`btn-studio btn-studio-secondary text-[11px] ${!selectedMainCat ? 'border-zinc-500 bg-zinc-800' : ''}`}
                                 >
-                                    Всі товари
+                                    Всі категорії
                                 </button>
                                 {mainCategories.map(cat => (
                                     <button
                                         key={cat.id}
                                         onClick={() => { setSelectedMainCat(cat.id); setSelectedSubCat(null); }}
-                                        className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all border ${selectedMainCat === cat.id ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                        className={`btn-studio btn-studio-secondary text-[11px] ${selectedMainCat === cat.id ? 'border-zinc-500 bg-zinc-800' : ''}`}
                                     >
                                         {cat.name}
                                     </button>
@@ -980,12 +1131,12 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                             </div>
 
                             {selectedMainCat && subCategories.length > 0 && (
-                                <div className="flex flex-nowrap gap-2 overflow-x-auto py-2 no-scrollbar scroll-smooth mask-fade-right">
+                                <div className="flex flex-wrap gap-2 py-2 overflow-visible">
                                     {subCategories.map(sub => (
                                         <button
                                             key={sub.id}
                                             onClick={() => setSelectedSubCat(sub.id)}
-                                            className={`px-4 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${selectedSubCat === sub.id ? 'bg-white text-black border-white' : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'}`}
+                                            className={`sub-pill ${selectedSubCat === sub.id ? 'active' : ''}`}
                                         >
                                             {sub.name}
                                         </button>
@@ -994,23 +1145,32 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                             )}
 
                             {isLoadingProducts ? (
-                                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                    <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                                    <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Завантаження...</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {Array.from({ length: 4 }).map((_, i) => (
+                                        <div key={i} className="asset-card animate-pulse bg-zinc-800/50">
+                                            <div className="w-[85%] h-[85%] bg-zinc-700/50 rounded-md"></div>
+                                            <div className="h-3 w-3/4 bg-zinc-700/50 rounded mt-1"></div>
+                                            <div className="h-2 w-1/2 bg-zinc-700/50 rounded mt-1"></div>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-2">
                                     {products.map((p) => (
                                         <button
                                             key={p.id}
-                                            onClick={() => { setSelectedProduct(p); setIsMobilePanelOpen(false); }}
-                                            className={`group p-2 rounded-2xl transition-all border ${selectedProduct?.id === p.id ? 'border-blue-500 bg-blue-500/20' : 'border-transparent bg-white/5 hover:bg-white/10'}`}
+                                            onClick={() => {
+                                                setSelectedProduct(p);
+                                                setIsMobilePanelOpen(false);
+                                                setActiveTab(null);
+                                            }}
+                                            className={`asset-card ${selectedProduct?.id === p.id ? 'active' : ''}`}
                                         >
-                                            <div className="overflow-hidden rounded-xl mb-2 aspect-square bg-[#1a1a1a]">
-                                                <img src={p.image_url} alt={p.title} className="w-full h-full object-contain transition-transform group-hover:scale-110" />
+                                            <div className="asset-img-container shadow-inner">
+                                                <img src={p.image_url} alt={p.title} className="w-[85%] h-[85%] object-contain" />
                                             </div>
-                                            <p className="text-[10px] font-bold text-white/80 leading-tight truncate px-1">{p.title}</p>
-                                            <p className="text-[10px] text-blue-400 font-bold mt-1 px-1">₴{p.base_price}</p>
+                                            <p className="text-[10px] font-bold text-zinc-300 truncate mb-1">{p.title}</p>
+                                            <p className="text-[10px] font-mono text-zinc-500">₴{p.base_price}</p>
                                         </button>
                                     ))}
                                 </div>
@@ -1019,260 +1179,235 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                     )}
 
                     {activeTab === 'upload' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold">Логотипи</h2>
-                                <button onClick={() => setIsMobilePanelOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <label className="group flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-2xl p-10 hover:border-blue-500/50 cursor-pointer transition-all bg-white/5">
-                                <Upload className="text-blue-500 mb-4" size={24} />
-                                <p className="text-sm font-semibold">Завантажити файл</p>
+                        <div className="animate-pane space-y-6">
+                            <label className="drop-zone border-2 border-dashed border-zinc-800 rounded-xl p-8 flex flex-col items-center justify-center hover:bg-zinc-800/50 transition-colors cursor-pointer">
+                                <Upload className="text-zinc-500 mb-2" size={24} />
+                                <p className="text-[13px] font-bold">Протокол завантаження</p>
+                                <p className="text-[11px] text-zinc-500 mt-1">PNG, SVG, JPG або WebP</p>
                                 <input type="file" className="hidden" onChange={handleUpload} accept="image/*" />
                             </label>
 
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Фільтри</h3>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={() => applyLogoFilter('invert')} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">Інверсія</button>
-                                    <button onClick={() => applyLogoFilter('grayscale')} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">Ч/Б</button>
-                                    <button onClick={removeBackground} className="text-xs py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg hover:bg-blue-600/30">Видалити фон</button>
-                                    <button onClick={() => applyLogoFilter('none')} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">Скинути</button>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] text-white/40 mb-2 font-bold uppercase tracking-widest">Накладання кольору (Маска)</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button onClick={() => { applyLogoTint('#ffffff'); }} className="w-8 h-8 rounded-lg bg-white border border-white/20 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#000000'); }} className="w-8 h-8 rounded-lg bg-black border border-white/20 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#ff0000'); }} className="w-8 h-8 rounded-lg bg-red-600 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#3b82f6'); }} className="w-8 h-8 rounded-lg bg-blue-600 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#eab308'); }} className="w-8 h-8 rounded-lg bg-yellow-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#22c55e'); }} className="w-8 h-8 rounded-lg bg-green-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#a855f7'); }} className="w-8 h-8 rounded-lg bg-purple-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#f97316'); }} className="w-8 h-8 rounded-lg bg-orange-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#ec4899'); }} className="w-8 h-8 rounded-lg bg-pink-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('#06b6d4'); }} className="w-8 h-8 rounded-lg bg-cyan-500 shadow-lg transition-transform hover:scale-110 active:scale-95"></button>
-                                        <button onClick={() => { applyLogoTint('none'); }} className="w-8 h-8 rounded-lg bg-gray-800 border border-white/10 flex items-center justify-center text-[10px] font-bold transition-transform hover:scale-110 active:scale-95">X</button>
-                                    </div>
-                                </div>
-
-                                {/* Transformation Tools */}
-                                <div className="space-y-3 pt-4 border-t border-white/5">
-                                    <h3 className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Трансформація</h3>
-
-                                    {isCropping && (
-                                        <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl space-y-2">
-                                            <p className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Режим обрізки</p>
-                                            <button
-                                                onClick={() => setIsCropping(false)}
-                                                className="w-full py-2 bg-purple-500 text-white text-xs font-bold rounded-lg"
-                                            >
-                                                Завершити
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Mobile-friendly scaling */}
-                                    <div>
-                                        <p className="text-[10px] text-white/40 mb-2">Швидке масштабування</p>
-                                        <div className="grid grid-cols-4 gap-2">
-                                            <button onClick={() => scaleActiveObject(0.5)} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">50%</button>
-                                            <button onClick={() => scaleActiveObject(0.75)} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">75%</button>
-                                            <button onClick={() => scaleActiveObject(1)} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">100%</button>
-                                            <button onClick={() => scaleActiveObject(1.5)} className="text-xs py-2 bg-white/5 rounded-lg hover:bg-white/10 border border-white/5">150%</button>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={centerActiveObject}
-                                        className="w-full text-xs py-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg hover:bg-blue-600/30 font-semibold"
-                                    >
-                                        🎯 Відцентрувати об'єкт
-                                    </button>
-                                </div>
-
-                                <button onClick={deleteActiveObject} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 text-xs font-bold mt-4">
-                                    <Trash2 size={16} />
-                                    Видалити лого
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'text' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold">Додати текст</h2>
-                                <button onClick={() => setIsMobilePanelOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <button onClick={() => { addText(); setIsMobilePanelOpen(false); }} className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20">Додати текстовий шар</button>
-
-                            <div className="space-y-4 pt-4 border-t border-white/5">
-                                <h3 className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Стиль тексту</h3>
-                                <div className="flex gap-2">
-                                    <button onClick={() => updateTextStyle({ fontWeight: 'bold' })} className="flex-1 py-2 bg-white/5 rounded-lg font-bold border border-white/5">B</button>
-                                    <button onClick={() => updateTextStyle({ fontStyle: 'italic' })} className="flex-1 py-2 bg-white/5 rounded-lg italic border border-white/5">I</button>
-                                    <button onClick={() => updateTextStyle({ fontWeight: 'normal', fontStyle: 'normal' })} className="flex-1 py-2 bg-white/5 rounded-lg border border-white/5">Reset</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <select
-                                        onChange={(e) => updateTextStyle({ fontFamily: e.target.value })}
-                                        className="bg-[#1a1a1a] border border-white/10 rounded-lg py-2.5 px-3 text-xs text-white outline-none focus:border-blue-500"
-                                    >
-                                        <option value="Inter">Inter</option>
-                                        <option value="Roboto">Roboto</option>
-                                        <option value="Montserrat">Montserrat</option>
-                                        <option value="Georgia">Georgia</option>
-                                    </select>
-                                    <input
-                                        type="color"
-                                        onChange={(e) => updateTextStyle({ fill: e.target.value })}
-                                        className="w-full h-10 bg-[#1a1a1a] border border-white/10 rounded-lg p-1 cursor-pointer"
-                                    />
-                                </div>
-                                <button onClick={deleteActiveObject} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 text-xs font-bold mt-4">
-                                    <Trash2 size={16} />
-                                    Видалити текст
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'settings' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold">Замовлення</h2>
-                                <button onClick={() => setIsMobilePanelOpen(false)} className="md:hidden px-4 py-1.5 bg-blue-600 rounded-lg text-xs font-black uppercase tracking-widest">Готово</button>
-                            </div>
-
-                            {/* Color Selection */}
-                            {uniqueColorVariants.length > 1 && (
-                                <div className="space-y-3 pb-4 border-b border-white/5">
-                                    <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Колір виробу</p>
-                                    <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar pb-2 mask-fade-right">
-                                        {uniqueColorVariants.map((v, idx) => (
+                            {uploadedLogos.length > 0 && (
+                                <div className="space-y-4">
+                                    <p className="section-tag">Історія завантажень</p>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {uploadedLogos.map((url, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => {
-                                                    setSelectedColor(v.color);
-                                                    setCurrentImageUrl(v.image);
+                                                    fabric.Image.fromURL(url).then((img: any) => {
+                                                        img.scaleToWidth(150);
+                                                        img.set({
+                                                            left: 220, top: 180,
+                                                            globalCompositeOperation: 'multiply',
+                                                            opacity: 0.95
+                                                        });
+                                                        canvas?.add(img);
+                                                        canvas?.setActiveObject(img);
+                                                        canvas?.renderAll();
+                                                        setIsMobilePanelOpen(false);
+                                                        setActiveTab(null);
+                                                    });
                                                 }}
-                                                className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${selectedColor === v.color ? 'border-blue-500 scale-110 shadow-lg shadow-blue-500/20' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                                title={v.color}
+                                                className="aspect-square bg-white rounded-lg p-1 border border-zinc-800 hover:border-blue-500 transition-all overflow-hidden"
                                             >
-                                                <img src={v.image} alt={v.color} className="w-full h-full object-contain rounded-full bg-white" />
+                                                <img src={url} className="w-full h-full object-contain" alt="History" />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Mobile View/Angle Selector */}
-                            <div className="md:hidden space-y-3 pb-4 border-b border-white/5">
-                                <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Ракурс виробу</p>
-                                <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar pb-2 mask-fade-right">
-                                    {availableAngles.map((url, idx) => (
+                            <div className="space-y-4">
+                                <p className="section-tag">Модифікатори об'єкта</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={() => applyLogoFilter('invert')} className="btn-studio btn-studio-secondary text-[11px]">Інверсія</button>
+                                    <button onClick={() => applyLogoFilter('grayscale')} className="btn-studio btn-studio-secondary text-[11px]">Відтінки сірого</button>
+                                    <button onClick={removeBackground} className="btn-studio btn-studio-secondary text-[11px] border-emerald-900/50 text-emerald-500">Видалити фон</button>
+                                    <button onClick={() => applyLogoFilter('none')} className="btn-studio btn-studio-secondary text-[11px] border-red-900/50 text-red-500">Скинути</button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="section-tag">Тонування об'єкта</p>
+                                <div className="swatch-grid">
+                                    {['#000000', '#FFFFFF', '#FF0000', '#0000FF', '#FFFF00', '#00FF00', '#808080', '#FFA500'].map((c) => (
                                         <button
-                                            key={idx}
-                                            onClick={() => setCurrentImageUrl(url)}
-                                            className={`w-14 h-14 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 bg-white/5 ${currentImageUrl === url ? 'border-blue-500 scale-105 shadow-lg shadow-blue-500/20' : 'border-transparent opacity-50'}`}
+                                            key={c}
+                                            onClick={() => applyColorTint(c)}
+                                            className="swatch-circle"
+                                            style={{ backgroundColor: c, border: c === '#FFFFFF' ? '1px solid #3f3f46' : 'none' }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 pt-4 border-t border-zinc-800">
+                                <p className="section-tag">Трансформація</p>
+                                <div className="grid grid-cols-4 gap-2">
+                                    <button onClick={() => scaleActiveObject(0.5)} className="text-xs py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700">50%</button>
+                                    <button onClick={() => scaleActiveObject(1)} className="text-xs py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700">100%</button>
+                                    <button onClick={() => scaleActiveObject(1.5)} className="text-xs py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700">150%</button>
+                                    <button onClick={centerActiveObject} className="text-xs py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700">🎯</button>
+                                </div>
+                                <button onClick={deleteActiveObject} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 text-xs font-bold">
+                                    <Trash2 size={16} /> Видалити об'єкт
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'text' && (
+                        <div className="animate-pane space-y-6">
+                            <div className="space-y-4">
+                                <p className="section-tag">Додати текст</p>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Введіть текст..."
+                                        className="input-studio flex-1"
+                                        value={textInput}
+                                        onChange={(e) => setTextInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && addText()}
+                                    />
+                                    <button onClick={addText} className="btn-studio btn-studio-primary px-4">+</button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="section-tag">Шрифтова пара</p>
+                                <div className="grid grid-cols-1 gap-1.5">
+                                    {fonts.map((f) => (
+                                        <button
+                                            key={f}
+                                            onClick={() => { setSelectedFont(f); updateTextStyle({ fontFamily: f }); }}
+                                            className={`btn-studio btn-studio-secondary justify-start text-[12px] h-10 ${selectedFont === f ? 'active border-zinc-500 bg-zinc-800' : ''}`}
+                                            style={{ fontFamily: f }}
                                         >
-                                            <img src={url} alt={`View ${idx}`} className="w-full h-full object-contain" />
+                                            {f}
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
-                            <PriceCalculator
-                                basePrice={selectedProduct?.base_price || 0}
-                                quantity={quantity} setQuantity={setQuantity}
-                                method={method} setMethod={setMethod}
-                                placement={placement} size={printSize}
-                            />
+                            <div className="space-y-4 pt-4 border-t border-zinc-800">
+                                <p className="section-tag">Стилізація тексту</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => updateTextStyle({ fontWeight: 'bold' })} className="btn-studio btn-studio-secondary flex-1 font-bold">B</button>
+                                    <button onClick={() => updateTextStyle({ fontStyle: 'italic' })} className="btn-studio btn-studio-secondary flex-1 italic">I</button>
+                                    <button onClick={deleteActiveObject} className="btn-studio btn-studio-secondary flex-1 text-red-400"><Trash2 size={14} /></button>
+                                </div>
+                                <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                                    <div className="flex-1 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Колір шрифту</div>
+                                    <input
+                                        type="color"
+                                        onChange={(e) => updateTextStyle({ fill: e.target.value })}
+                                        className="w-10 h-6 bg-transparent cursor-pointer border-none"
+                                        defaultValue="#ffffff"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-                            <button
-                                onClick={handlePlaceOrder}
-                                disabled={isLoadingProducts}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl mt-6 flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-500/20 active:scale-95 disabled:opacity-50"
-                            >
-                                {isLoadingProducts ? (
-                                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                ) : (
-                                    <>
-                                        <ShoppingCart size={20} />
-                                        ОФОРМИТИ ЗАМОВЛЕННЯ — ₴{Math.round(totalPrice).toLocaleString()}
-                                    </>
-                                )}
-                            </button>
-                            <p className="text-[10px] text-center text-white/20 font-medium py-2">Замовлення буде збережено у вашому кабінеті</p>
+                    {activeTab === 'settings' && (
+                        <div className="animate-pane space-y-6">
+                            <div className="inspector-section p-0 border-none">
+                                <PriceCalculator
+                                    basePrice={selectedProduct?.base_price || 0}
+                                    quantity={quantity} setQuantity={setQuantity}
+                                    method={method} setMethod={setMethod}
+                                    placement={placement} size={printSize}
+                                    onPlaceOrder={handlePlaceOrder}
+                                    isLoading={isLoadingProducts}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
-            </main>
+            </aside>
 
-            {/* Workspace */}
-            <section className="flex-1 relative flex flex-col md:items-center md:justify-center bg-[#080808] overflow-hidden pt-16 md:pt-0">
-                <header className="absolute top-0 left-0 right-0 h-16 flex items-center justify-between px-6 md:px-8 bg-black/40 backdrop-blur-xl z-20 border-b border-white/5">
-                    <div className="flex items-center gap-4">
-                        <span className="text-[10px] md:text-xs text-white/40 uppercase tracking-widest truncate max-w-[150px] md:max-w-none">{selectedProduct?.title}</span>
+            {/* Main Workspace */}
+            <main className="flex-1 flex flex-col workspace relative">
+                {/* Workspace Header - Desktop Only */}
+                <div className="!hidden md:flex workspace-header px-6 py-3 border-b border-[var(--c-border)]/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-[var(--c-text-dim)] uppercase tracking-wider truncate max-w-[200px]">
+                            {selectedProduct?.title} // ВІЗУАЛІЗАЦІЯ
+                        </span>
                     </div>
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <button onClick={clearCanvas} className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-white/60 bg-white/5 px-4 py-2 md:px-5 md:py-2.5 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all">
-                            <Eraser size={18} />
-                            <span className="hidden md:inline">Очистити</span>
+                    <div className="flex gap-2 ml-auto">
+                        <button onClick={clearCanvas} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--c-bg-surface)] hover:bg-[var(--c-bg-hover)] text-xs font-bold transition-all">
+                            <Trash2 size={14} /> <span>Очистити</span>
                         </button>
-                        <button className="p-2 md:px-5 md:py-2.5 rounded-xl bg-white/5 text-white/60 hover:bg-white/10 transition-all">
-                            <Save size={18} className="md:hidden" />
-                            <span className="hidden md:inline text-xs font-bold">Зберегти</span>
+                        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--c-bg-surface)] hover:bg-[var(--c-bg-hover)] text-xs font-bold transition-all">
+                            <Save size={14} /> <span>Синхрон.</span>
                         </button>
-                        <button className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-white bg-blue-600 px-4 py-2 md:px-6 md:py-2.5 rounded-xl shadow-lg shadow-blue-500/40 border border-blue-400/30">
-                            <FileDown size={18} />
-                            <span className="hidden md:inline">Експорт PDF</span>
+                        <button onClick={handleExportPDF} className="flex items-center gap-2 px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold transition-all shadow-xl shadow-blue-500/20 uppercase tracking-widest">
+                            <FileDown size={14} /> Експорт PDF
                         </button>
                     </div>
-                </header>
+                </div>
 
-                <div className="relative flex-1 flex flex-col items-center justify-center p-4 md:p-12">
-                    <div className="relative w-full max-w-[450px] md:max-w-none md:w-[800px] md:h-[800px] aspect-square bg-[#1a1a1a] rounded-[32px] md:rounded-[48px] shadow-2xl overflow-hidden border border-white/5 flex items-center justify-center">
-                        {currentImageUrl && <img src={currentImageUrl} alt="Product" className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90 transition-opacity" />}
-                        <div className="absolute inset-0 z-10 flex items-center justify-center">
-                            <canvas ref={canvasRef} className="w-full h-full" />
+                {/* Mobile Top Bar (Restored from Screenshot 1) */}
+                <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--c-border)] bg-[var(--c-bg-sidebar)]">
+                    <div className="text-[10px] font-black uppercase text-[var(--c-text-dim)] truncate max-w-[150px]">
+                        {selectedProduct?.title}
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={handleExportPDF} className="p-2 rounded-lg bg-blue-600/10 text-blue-500 active:scale-90 transition-all">
+                            <Save size={18} />
+                        </button>
+                        <button onClick={clearCanvas} className="p-2 rounded-lg bg-red-500/10 text-red-500 active:scale-90 transition-all">
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Top Controls (Colors & Angles) - Desktop Only */}
+                <div className="hidden md:flex top-controls flex-col items-center py-3 bg-[var(--c-bg-workspace)]/50 border-b border-[var(--c-border)]/20 z-20 overflow-hidden">
+                    <div className="w-full max-w-7xl px-4 flex flex-row items-center gap-10">
+
+                        <div className="flex items-center gap-3 whitespace-nowrap">
+                            <button
+                                onClick={() => setShowInStockOnly(!showInStockOnly)}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[10px] font-bold uppercase tracking-tight group hover:bg-white/5 ${showInStockOnly ? 'text-green-500' : 'text-zinc-400'}`}
+                            >
+                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${showInStockOnly ? 'bg-green-500 border-green-500' : 'border-zinc-700 bg-zinc-900 group-hover:border-zinc-500'}`}>
+                                    {showInStockOnly && <Check size={12} className="text-white" />}
+                                </div>
+                                Тільки в наявності
+                            </button>
                         </div>
-                    </div>
 
-                    <div className="mt-6 md:mt-8 flex flex-col items-center gap-6 pb-20 md:pb-0">
+                        {/* Color Swatches - Scrollable row */}
                         {uniqueColorVariants.length > 1 && (
-                            <div className="flex flex-col items-center gap-3">
-                                <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">В наявності різні кольори</p>
-                                <div className="flex flex-nowrap gap-3 bg-white/5 p-2 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-full backdrop-blur-md mask-fade-right">
+                            <div className="flex-1 flex items-center gap-3 min-w-0">
+                                <p className="hidden xl:block text-[9px] uppercase font-black text-[var(--c-text-muted)] tracking-widest shrink-0">Колір</p>
+                                <div className="flex gap-2 p-1.5 bg-[var(--c-bg-panel)]/40 backdrop-blur-md border border-[var(--c-border)] rounded-full shadow-lg overflow-x-auto no-scrollbar scroll-smooth flex-nowrap">
                                     {uniqueColorVariants.map((v, idx) => (
                                         <button
                                             key={idx}
-                                            onClick={() => {
-                                                setSelectedColor(v.color);
-                                                setCurrentImageUrl(v.image);
-                                            }}
-                                            className={`w-10 h-10 md:w-12 md:h-12 rounded-full border-2 transition-all flex-shrink-0 overflow-hidden ${selectedColor === v.color ? 'border-blue-500 scale-110 shadow-lg shadow-blue-500/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
-                                            title={v.color}
+                                            onClick={() => { setSelectedColor(v.color); setCurrentImageUrl(v.image); }}
+                                            className={`w-7 h-7 rounded-full border-2 transition-all active:scale-90 shrink-0 ${selectedColor === v.color ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-80'}`}
                                         >
-                                            <img src={v.image} alt={v.color} className="w-full h-full object-contain bg-white" />
+                                            <img src={v.image} alt={v.color} className="w-full h-full object-contain bg-white rounded-full p-0.5" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        <div className="flex flex-col items-center gap-3">
-                            <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Оберіть ракурс виробу</p>
-                            <div className="flex flex-nowrap gap-3 bg-white/5 p-2 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-full backdrop-blur-md mask-fade-right">
+                        {/* View Angles - Scrollable row */}
+                        <div className="flex items-center gap-3 shrink-0">
+                            <p className="hidden xl:block text-[9px] uppercase font-black text-[var(--c-text-muted)] tracking-widest shrink-0">Ракурс</p>
+                            <div className="flex gap-2 p-1.5 bg-[var(--c-bg-panel)]/40 backdrop-blur-md border border-[var(--c-border)] rounded-full shadow-lg overflow-x-auto no-scrollbar flex-nowrap min-w-[100px]">
                                 {availableAngles.map((url, idx) => (
                                     <button
                                         key={idx}
                                         onClick={() => setCurrentImageUrl(url)}
-                                        className={`w-14 h-14 md:w-16 md:h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 bg-[#1a1a1a] ${currentImageUrl === url ? 'border-blue-500 scale-110 shadow-lg shadow-blue-500/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
+                                        className={`w-7 h-7 rounded-full border-2 transition-all active:scale-95 overflow-hidden shrink-0 ${currentImageUrl === url ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-80'}`}
                                     >
                                         <img src={url} alt={`View ${idx}`} className="w-full h-full object-contain" />
                                     </button>
@@ -1281,34 +1416,123 @@ export default function ConstructorClient({ initialProducts, categories }: Props
                         </div>
                     </div>
                 </div>
-            </section>
 
-            {/* Desktop-only Summary Sidebar */}
-            <aside className="hidden lg:flex w-[380px] bg-[#121212] border-l border-white/5 p-8 flex flex-col overflow-y-auto">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-blue-600/10 rounded-lg">
-                        <ShoppingCart className="text-blue-500" size={20} />
+                <div className="workspace-canvas-container flex-1 relative flex items-center justify-center">
+                    <div className="canvas-wrapper" style={{ width: canvasSize, height: canvasSize }}>
+                        {currentImageUrl && (
+                            <img
+                                src={currentImageUrl.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(currentImageUrl.replace('https://', '').replace('http://', ''))}&w=800` : currentImageUrl}
+                                alt="Product"
+                                className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-300"
+                            />
+                        )}
+                        <div className="absolute inset-0 z-10">
+                            <canvas ref={canvasRef} className="w-full h-full" />
+                        </div>
                     </div>
-                    <h2 className="text-xl font-bold tracking-tight">Розрахунок вартості</h2>
                 </div>
 
-                <div className="flex-1">
+                {/* Mobile Bottom Control Block (New Phase 8.3) */}
+                <div className="md:hidden bottom-controls flex flex-col gap-4 p-4 bg-[var(--c-bg-sidebar)] border-t border-[var(--c-border)]/50">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase text-[var(--c-text-dim)] tracking-widest">Вибір варіанту</p>
+
+                            {/* Mobile Stock Filter */}
+                            <button
+                                onClick={() => setShowInStockOnly(!showInStockOnly)}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[10px] font-bold uppercase tracking-tight ${showInStockOnly ? 'text-green-500' : 'text-zinc-400'}`}
+                            >
+                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${showInStockOnly ? 'bg-green-500 border-green-500' : 'border-zinc-700 bg-zinc-900'}`}>
+                                    {showInStockOnly && <Check size={12} className="text-white" />}
+                                </div>
+                                Тільки в наявності
+                            </button>
+                        </div>
+
+                        {/* Mobile Color Swatches - Larger buttons + Scrollable */}
+                        {uniqueColorVariants.length > 1 && (
+                            <div className="flex flex-col gap-2">
+                                <p className="text-[9px] font-black uppercase opacity-40 tracking-widest pl-1">КОЛІР</p>
+                                <div className="flex gap-3 overflow-x-auto no-scrollbar py-1">
+                                    {uniqueColorVariants.map((v, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => { setSelectedColor(v.color); setCurrentImageUrl(v.image); }}
+                                            className={`w-11 h-11 rounded-full border-2 transition-all active:scale-90 shrink-0 ${selectedColor === v.color ? 'border-blue-500 scale-110 shadow-lg' : 'border-white/10 opacity-70'}`}
+                                        >
+                                            <img src={v.image} alt={v.color} className="w-full h-full object-contain bg-white rounded-full p-0.5" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile View Angles - Larger buttons + Scrollable */}
+                        <div className="flex flex-col gap-2">
+                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest pl-1">РАКУРС</p>
+                            <div className="flex gap-3 overflow-x-auto no-scrollbar py-1">
+                                {availableAngles.map((url, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentImageUrl(url)}
+                                        className={`w-11 h-11 rounded-full border-2 transition-all active:scale-95 overflow-hidden shrink-0 ${currentImageUrl === url ? 'border-blue-500 scale-110 shadow-lg' : 'border-white/10 opacity-70'}`}
+                                    >
+                                        <img src={url} alt={`View ${idx}`} className="w-full h-full object-contain" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom Tools (Colors & Angles) - MOVED TO TOP */}
+
+                {/* Mobile Bottom Tab Bar */}
+                {/* Mobile Bottom Tab Bar */}
+                <div className="md:hidden flex items-center justify-around bg-[var(--c-bg-sidebar)] border-t border-[var(--c-border)] safe-area-pb">
+                    <button
+                        onClick={() => setActiveTab('catalog')}
+                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'catalog' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                    >
+                        <LayoutGrid size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Каталог</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('upload')} // Changed from 'assets' to 'upload' to match existing tab logic
+                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'upload' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                    >
+                        <Upload size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Дизайн</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('text')}
+                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'text' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                    >
+                        <Type size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Текст</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')} // Changed from 'cart' to 'settings' to match existing tab logic
+                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'settings' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                    >
+                        <ShoppingBag size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Опції</span>
+                    </button>
+                </div>
+            </main>
+
+            {/* Inspector Panel / Right Sidebar */}
+            <aside className="inspector-panel">
+                <div className="inspector-section">
                     <PriceCalculator
                         basePrice={selectedProduct?.base_price || 0}
                         quantity={quantity} setQuantity={setQuantity}
                         method={method} setMethod={setMethod}
                         placement={placement} size={printSize}
+                        onPlaceOrder={handlePlaceOrder}
+                        isLoading={isLoadingProducts}
                     />
-                </div>
-
-                <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-                    <div className="flex justify-between items-end">
-                        <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">Підсумок</span>
-                        <span className="text-2xl font-black">₴{(selectedProduct?.base_price || 0) * quantity}</span>
-                    </div>
-                    <button className="w-full bg-white text-black hover:bg-gray-200 py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-white/5">
-                        Додати в кошик
-                    </button>
                 </div>
             </aside>
         </div>
@@ -1317,19 +1541,39 @@ export default function ConstructorClient({ initialProducts, categories }: Props
 
 function TabButton({ active, icon, label, onClick }: any) {
     return (
-        <button onClick={onClick} className={`flex flex-col items-center gap-1 group transition-all ${active ? 'text-blue-500' : 'text-white/30 hover:text-white/60'}`}>
-            <div className={`p-2 rounded-xl transition-all ${active ? 'bg-blue-500/10' : ''}`}>{icon}</div>
-            <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+        <button onClick={onClick} className={`tab-icon ${active ? 'active' : ''}`}>
+            <span className="indicator" />
+            <div className={`p-2.5 rounded-xl transition-all ${active ? 'bg-[var(--c-accent-subtle)]' : ''}`}>{icon}</div>
+            <span className="text-[9px] font-bold uppercase tracking-wider">{label}</span>
         </button>
     );
 }
 
 function MobileTabButton({ active, icon, label, onClick }: any) {
     return (
-        <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-blue-500' : 'text-white/40'}`}>
+        <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-blue-500' : 'text-[var(--c-text-muted)]'}`}>
             {icon}
             <span className="text-[9px] font-bold uppercase tracking-wider">{label}</span>
         </button>
+    );
+}
+
+function Check({ className, size }: any) {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width={size || 24}
+            height={size || 24}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            <path d="M20 6 9 17l-5-5" />
+        </svg>
     );
 }
 
@@ -1354,7 +1598,7 @@ function ChevronDown({ className, size }: any) {
 
 function MethodButton({ active, label }: any) {
     return (
-        <button className={`py-3 px-3 rounded-xl border text-xs font-medium transition-all ${active ? 'border-blue-500 bg-blue-500/10 text-blue-500' : 'border-white/10 hover:border-white/20'}`}>
+        <button className={`py-3 px-3 rounded-xl border text-xs font-semibold transition-all ${active ? 'border-[var(--c-accent)] bg-[var(--c-accent-subtle)] text-[var(--c-accent-light)]' : 'border-[var(--c-border)] hover:border-[var(--c-border-hover)]'}`}>
             {label}
         </button>
     );

@@ -13,9 +13,11 @@ interface Props {
     setMethod: (m: PrintMethod) => void;
     placement: PrintPlacement;
     size: PrintSize;
+    onPlaceOrder?: () => void;
+    isLoading?: boolean;
 }
 
-export default function PriceCalculator({ basePrice, quantity, setQuantity, method, setMethod, placement, size }: Props) {
+export default function PriceCalculator({ basePrice, quantity, setQuantity, method, setMethod, placement, size, onPlaceOrder, isLoading }: Props) {
     const brandingPrice = calculateBrandingPrice(placement, size, method);
     const unitPriceTotal = basePrice + brandingPrice;
     const total = unitPriceTotal * quantity;
@@ -26,6 +28,7 @@ export default function PriceCalculator({ basePrice, quantity, setQuantity, meth
 
     return (
         <div className="space-y-6">
+            <p className="text-[10px] uppercase font-bold text-[var(--c-text-muted)] tracking-[0.2em] mb-4">Специфікація замовлення</p>
             <div className="space-y-4">
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-widest">Кількість (шт)</label>
                 <div className="flex items-center gap-4">
@@ -74,10 +77,22 @@ export default function PriceCalculator({ basePrice, quantity, setQuantity, meth
                 </div>
             </div>
 
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl mt-4 flex items-center justify-center gap-3 transition-all">
-                <ShoppingCart size={20} />
-                Створити замовлення
-            </button>
+            {onPlaceOrder && (
+                <button
+                    onClick={onPlaceOrder}
+                    disabled={isLoading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl mt-4 flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+                >
+                    {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                        <>
+                            <ShoppingCart size={20} />
+                            Створити замовлення
+                        </>
+                    )}
+                </button>
+            )}
         </div>
     );
 }
