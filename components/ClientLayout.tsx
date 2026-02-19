@@ -32,17 +32,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 try {
                     let updates: any = { last_visit: new Date().toISOString() };
 
-                    try {
-                        const geoRes = await fetch('https://ipwho.is/');
-                        const geoData = await geoRes.json();
-                        if (geoData.success) {
-                            updates.last_ip = geoData.ip;
-                            updates.city = geoData.city;
-                        }
-                    } catch (e) {
-                        console.warn("Geo fetch failed", e);
-                    }
-
                     console.log("Saving updates:", updates);
 
                     const { error } = await supabase

@@ -524,12 +524,28 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                 )}
                             </div>
 
-                            {/* Desktop Add to Cart */}
-                            <div className="hidden md:block pt-4 border-t border-gray-100 dark:border-white/10">
+                            {/* Mobile Constructor CTA */}
+                            <div className="md:hidden mt-6 mb-2">
+                                <Link
+                                    href={`/CONSTRUCTOR?product=${encodeURIComponent(product.slug)}`}
+                                    className="group w-full flex items-center justify-between py-4 px-5 rounded-2xl font-bold text-[13px] bg-zinc-900 border border-zinc-800 text-white active:scale-[0.98] shadow-lg"
+                                >
+                                    <span className="flex items-center gap-3">
+                                        <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M 7 7 L 12 17 L 17 7" /><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" /><circle cx="17" cy="7" r="1.5" fill="currentColor" stroke="none" /></svg>
+                                        </div>
+                                        <span>Спробувати в КОНСТРУКТОРІ</span>
+                                    </span>
+                                    <ArrowRight size={16} className="text-zinc-500" />
+                                </Link>
+                            </div>
+
+                            {/* Desktop Add to Cart & Constructor */}
+                            <div className="hidden md:block pt-8 border-t border-gray-100 dark:border-white/10">
                                 <div className="flex justify-between items-end mb-4">
                                     <div>
                                         <p className="text-gray-500 text-xs uppercase mb-1">Підсумок</p>
-                                        <p className="text-3xl font-black">{formatPrice(totalSelectedPrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
+                                        <p className="text-3xl font-black">{formatPrice(totalSelectedPrice || basePrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
@@ -547,10 +563,37 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         <Heart size={24} fill={isWishlisted ? "currentColor" : "none"} />
                                     </button>
                                 </div>
+
+                                {/* Constructor CTA - High-end Integrated Studio Link */}
+                                <div className="mt-4 group/cta relative">
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl blur opacity-0 group-hover/cta:opacity-20 transition duration-500"></div>
+                                    <Link
+                                        href={`/CONSTRUCTOR?product=${encodeURIComponent(product.slug)}`}
+                                        className="relative w-full flex items-center justify-between py-4.5 px-6 rounded-2xl font-bold text-[14px] transition-all duration-300 bg-zinc-900 border border-zinc-800 hover:border-blue-500/50 text-white shadow-xl active:scale-[0.98] overflow-hidden"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-transparent opacity-0 group-hover/cta:opacity-100 transition-opacity"></div>
+                                        <span className="flex items-center gap-4">
+                                            <div className="relative">
+                                                <div className="absolute -inset-1 bg-blue-500 rounded-full blur-sm opacity-0 group-hover/cta:opacity-40 animate-pulse"></div>
+                                                <div className="relative p-2 rounded-xl bg-blue-600/20 text-blue-400 group-hover/cta:scale-110 transition-transform">
+                                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M 7 7 L 12 17 L 17 7" /><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" /><circle cx="17" cy="7" r="1.5" fill="currentColor" stroke="none" /></svg>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-start leading-tight">
+                                                <span className="tracking-tight text-zinc-100">Відкрити СТУДІЮ</span>
+                                                <span className="text-[10px] text-zinc-500 font-medium">Візуалізація вашого бренду</span>
+                                            </div>
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] uppercase tracking-widest text-blue-500 font-black opacity-0 group-hover/cta:opacity-100 translate-x-2 group-hover/cta:translate-x-0 transition-all">Studio Mode</span>
+                                            <ArrowRight size={18} className="text-zinc-500 group-hover/cta:text-blue-400 group-hover/cta:translate-x-1 transition-all" />
+                                        </div>
+                                    </Link>
+                                </div>
                             </div>
 
                             {/* Description Tabs */}
-                            <div className="pt-8">
+                            <div className="pt-10 mb-8 mt-2 border-t border-gray-100 dark:border-white/10">
                                 <div className="flex gap-6 border-b border-gray-100 dark:border-white/10 mb-6">
                                     <button onClick={() => setActiveTab('features')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'features' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Характеристики</button>
                                     <button onClick={() => setActiveTab('description')} className={`pb-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'description' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400'}`}>Опис</button>
@@ -692,32 +735,38 @@ export default function ProductClient({ product, variants }: ProductClientProps)
             </main >
 
             {/* === MOBILE STICKY FOOTER === */}
-            < div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#0a0a0a] border-t border-gray-100 dark:border-white/10 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] safe-area-pb" >
-                <div className="flex gap-3 items-center">
-                    <button
-                        onClick={() => toggleItem(product.id)}
-                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all ${isWishlisted ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-white/10 text-gray-400'}`}
-                    >
-                        <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
-                    </button>
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#0a0a0a] border-t border-gray-100 dark:border-white/10 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] safe-area-pb">
+                <div className="flex gap-4 items-center">
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold">Разом</span>
-                        <span className="text-xl font-black leading-none">{formatPrice(Math.max(basePrice, totalSelectedPrice))}</span>
+                        <span className="text-[10px] text-gray-400 uppercase font-medium leading-none mb-1">Ціна</span>
+                        <div className="text-lg font-black leading-none">
+                            {formatPrice(totalSelectedPrice || basePrice)}<span className="text-[10px] font-normal text-gray-400 ml-1">грн</span>
+                        </div>
                     </div>
-                    <button
-                        onClick={handleBulkAddToCart}
-                        disabled={totalSelectedQty === 0 && false /* Allow sticking even if 0 to prompt selection? No, standard logic */}
-                        className={`flex-1 ${totalSelectedQty > 0 ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 text-gray-400'} py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]`}
-                    >
-                        {totalSelectedQty > 0 ? (
-                            <>У кошик ({totalSelectedQty})</>
-                        ) : (
-                            <>Оберіть розмір</>
-                        )}
-                    </button>
-                </div>
-            </div >
 
-        </div >
+                    <div className="h-8 w-[1px] bg-gray-100 dark:bg-white/10 mx-1"></div>
+
+                    <div className="flex-1 flex gap-2 items-center">
+                        <button
+                            onClick={() => toggleItem(product.id)}
+                            className={`w-11 h-11 flex items-center justify-center rounded-xl border transition-all ${isWishlisted ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-white/10 text-gray-400'}`}
+                        >
+                            <Heart size={18} fill={isWishlisted ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            onClick={handleBulkAddToCart}
+                            disabled={totalSelectedQty === 0}
+                            className={`flex-1 ${totalSelectedQty > 0 ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 text-gray-400'} py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]`}
+                        >
+                            {totalSelectedQty > 0 ? (
+                                <>У кошик ({totalSelectedQty})</>
+                            ) : (
+                                <>Оберіть розмір</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
