@@ -1,6 +1,17 @@
+import type { Metadata } from 'next';
 import { getProducts, getCategories } from '@/lib/catalog';
 import { createClient } from '@supabase/supabase-js';
 import ConstructorClient from './components/ConstructorClient';
+import { buildCanonical } from '@/lib/seo';
+
+export const metadata: Metadata = {
+    title: 'Онлайн-конструктор нанесення логотипу на одяг та мерч',
+    description:
+        'Створіть макет брендованого одягу онлайн у конструкторі REBRAND STUDIO: завантажте логотип, оберіть місце нанесення, розмір та метод друку (DTF, вишивка, шовкографія, термотрансфер).',
+    alternates: {
+        canonical: buildCanonical('/CONSTRUCTOR'),
+    },
+};
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import IsolatedContent from "@/components/IsolatedContent";
+import { SITE_NAME, buildCanonical } from "@/lib/seo";
 
 // Revalidate every minute so updates appear quickly but invalidation isn't hammed
 export const revalidate = 60;
@@ -20,13 +21,25 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
     const slug = (await params).slug;
-    const { data: page } = await supabase.from("promo_pages").select("title, subtitle").eq("slug", slug).single();
+    const { data: page } = await supabase.from("promo_pages").select("title, subtitle, image_url").eq("slug", slug).single();
 
-    if (!page) return { title: 'Сторінку не знайдено' };
+    if (!page) return { title: 'Сторінку не знайдено', robots: { index: false, follow: false } };
+
+    const canonical = buildCanonical(`/promo/${encodeURIComponent(slug)}`);
 
     return {
-        title: `${page.title} | REBRAND STUDIO`,
-        description: page.subtitle || page.title,
+        title: page.title,
+        description: page.subtitle || `${page.title} — нанесення логотипів та корпоративний мерч у ${SITE_NAME}`,
+        alternates: { canonical },
+        openGraph: {
+            type: 'article',
+            locale: 'uk_UA',
+            url: canonical,
+            siteName: SITE_NAME,
+            title: page.title,
+            description: page.subtitle || page.title,
+            images: page.image_url ? [{ url: page.image_url, alt: page.title }] : undefined,
+        },
     };
 }
 

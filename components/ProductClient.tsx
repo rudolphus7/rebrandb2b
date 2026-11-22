@@ -16,7 +16,7 @@ import {
     Info,
     ArrowRight,
     Heart,
-    Sparkles
+    Palette
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -490,7 +490,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                             className="w-5 h-5 rounded border-2 border-gray-300 dark:border-white/20 text-blue-600 focus:ring-2 focus:ring-blue-500 transition-all"
                                         />
                                         <div className="flex items-center gap-2">
-                                            <Sparkles size={20} className="text-blue-500" />
+                                            <Palette size={20} className="text-blue-500" />
                                             <span className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                 Додати брендування
                                             </span>
@@ -597,6 +597,16 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                             <ArrowRight size={18} className="text-zinc-500 group-hover/cta:text-blue-400 group-hover/cta:translate-x-1 transition-all" />
                                         </div>
                                     </Link>
+                                </div>
+
+                                <div className="mt-6 p-4 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
+                                    <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+                                        Нанесення логотипу на {product.title}
+                                    </h2>
+                                    <p>
+                                        Доступні методи брендування: <strong>DTF-друк</strong>, <strong>машинна вишивка</strong>,{' '}
+                                        <strong>шовкографія</strong> та <strong>термотрансфер</strong>. Оптові замовлення по всій Україні.
+                                    </p>
                                 </div>
                             </div>
 

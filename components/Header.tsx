@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronRight, Sparkles, Flame, Percent, Sun, Moon, Loader2 } from 'lucide-react';
+import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronRight, Tag, Flame, Percent, Sun, Moon, Loader2 } from 'lucide-react';
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
 import { useTheme } from '@/components/ThemeContext';
@@ -189,8 +189,6 @@ export default function Header() {
     router.refresh();
   };
 
-  if (!user) return null;
-
   return (
     <>
       <header className="bg-background text-foreground sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 h-20 flex items-center transition-colors duration-300">
@@ -355,7 +353,7 @@ export default function Header() {
                     </Link>
                   </div>
 
-                  <Link href="/catalog?label=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Sparkles size={24} /> Новинки</Link>
+                  <Link href="/catalog?label=new" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 font-bold text-lg group"><Tag size={24} /> Новинки</Link>
                   <Link href="/catalog?label=promo" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-bold text-lg group"><Flame size={24} /> Акційна пропозиція</Link>
                   <Link href="/catalog?label=sale" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold text-lg group"><Percent size={24} /> Розпродаж</Link>
                 </div>

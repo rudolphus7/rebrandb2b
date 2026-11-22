@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import IsolatedContent from "@/components/IsolatedContent";
+import { SITE_NAME, buildCanonical } from "@/lib/seo";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
@@ -37,15 +38,27 @@ export async function generateMetadata({ params }: PageProps) {
 
     const { data: page } = await supabase
         .from("promo_pages")
-        .select("title, subtitle")
+        .select("title, subtitle, image_url")
         .eq("slug", slug)
         .single();
 
-    if (!page) return { title: 'Сторінку не знайдено' };
+    if (!page) return { title: 'Сторінку не знайдено', robots: { index: false, follow: false } };
+
+    const canonical = buildCanonical(`/${slug}`);
 
     return {
-        title: `${page.title} | REBRAND STUDIO`,
-        description: page.subtitle || page.title,
+        title: page.title,
+        description: page.subtitle || `${page.title} — ${SITE_NAME}`,
+        alternates: { canonical },
+        openGraph: {
+            type: 'article',
+            locale: 'uk_UA',
+            url: canonical,
+            siteName: SITE_NAME,
+            title: page.title,
+            description: page.subtitle || page.title,
+            images: page.image_url ? [{ url: page.image_url, alt: page.title }] : undefined,
+        },
     };
 }
 

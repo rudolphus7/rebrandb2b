@@ -8,7 +8,7 @@ import {
   User, Package, Star, MapPin, LogOut, ArrowLeft,
   Settings, CreditCard, Gift, ShieldCheck, Camera,
   ChevronDown, ChevronUp, Clock, Truck, Plus, Minus, FileText, Printer,
-  Crown, Gem, Shield, Sparkles, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck, Copy, Check, Users
+  Crown, Gem, Shield, Palette, ScanBarcode, Wifi, RotateCcw, QrCode, FileCheck, Copy, Check, Users
 } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
@@ -428,7 +428,7 @@ export default function UserProfile() {
                       >
                         <div className="flex items-center gap-4">
                           <div className="p-3 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
-                            <Sparkles size={24} className="text-blue-600 dark:text-blue-400" />
+                            <Palette size={24} className="text-blue-600 dark:text-blue-400" />
                           </div>
                           <div>
                             <div className="flex items-center gap-3">

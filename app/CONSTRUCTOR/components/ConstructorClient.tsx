@@ -93,7 +93,8 @@ export default function ConstructorClient({ initialProducts, categories, preSele
     const [user, setUser] = useState<any>(null);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [canvasSize, setCanvasSize] = useState(600);
+    const workspaceContainerRef = useRef<HTMLDivElement>(null);
+    const [canvasSize, setCanvasSize] = useState(520);
     const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
     const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -347,13 +348,17 @@ export default function ConstructorClient({ initialProducts, categories, preSele
 
         // Handle Responsive Scaling
         const resizeCanvas = () => {
-            const container = canvasRef.current?.parentElement?.parentElement;
+            const container = workspaceContainerRef.current;
             if (!container || !fabricCanvas) return;
             if (!(fabricCanvas as any).lowerCanvasEl) return;
 
             const rect = container.getBoundingClientRect();
-            const size = Math.floor(Math.min(rect.width, rect.height));
-            if (size <= 100) return;
+            const isDesktop = window.innerWidth >= 768;
+            const maxByWidth = rect.width - 16;
+            const targetHeight = isDesktop ? Math.max(rect.height - 16, 480) : rect.height - 16;
+            const availableSize = Math.min(maxByWidth, targetHeight, 680);
+            const size = Math.floor(Math.max(240, availableSize));
+            if (rect.width <= 100 || rect.height <= 100) return;
 
             const scale = size / 600;
 
@@ -374,7 +379,7 @@ export default function ConstructorClient({ initialProducts, categories, preSele
             resizeCanvas();
         });
 
-        const observerContainer = canvasRef.current?.parentElement?.parentElement;
+        const observerContainer = workspaceContainerRef.current;
         if (observerContainer) {
             resizeObserver.observe(observerContainer);
         }
@@ -1514,7 +1519,7 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                 </div>
 
                 {/* Top Controls (Colors & Angles) - Desktop Only */}
-                <div className="hidden md:flex top-controls flex-col items-center py-3 bg-[var(--c-bg-workspace)]/50 border-b border-[var(--c-border)]/20 z-20 overflow-hidden">
+                <div className="hidden md:flex shrink-0 top-controls flex-col items-center py-1.5 bg-[var(--c-bg-workspace)]/50 border-b border-[var(--c-border)]/20 z-20 overflow-hidden">
                     <div className="w-full max-w-7xl px-4 flex flex-row items-center gap-10">
 
                         <div className="flex items-center gap-3 whitespace-nowrap">
@@ -1565,8 +1570,8 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                     </div>
                 </div>
 
-                <div className="workspace-canvas-container flex-1 relative flex items-center justify-center">
-                    <div className="canvas-wrapper" style={{ width: canvasSize, height: canvasSize }}>
+                <div ref={workspaceContainerRef} className="workspace-canvas-container flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden relative flex flex-col items-center">
+                    <div className="canvas-wrapper my-auto shrink-0" style={{ width: canvasSize, height: canvasSize }}>
                         {currentImageUrl && (
                             <img
                                 src={currentImageUrl.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(currentImageUrl.replace('https://', '').replace('http://', ''))}&w=800` : currentImageUrl}

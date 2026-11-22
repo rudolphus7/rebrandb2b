@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from 'next/link';
 import IsolatedContent from "@/components/IsolatedContent";
+import { BRANDING_SERVICES } from "@/lib/servicesData";
 
 export default function AdminCMSPages() {
     const router = useRouter();
@@ -284,12 +285,91 @@ export default function AdminCMSPages() {
 
     // --- LIST VIEW ---
     return (
-        <div>
-            <div className="flex items-center justify-between mb-8">
-                <h1 className="text-3xl font-bold">Сторінки</h1>
-                <button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition">
-                    <Plus size={20} /> Створити сторінку
-                </button>
+        <div className="space-y-12">
+            <div>
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold">Сторінки</h1>
+                        <p className="text-sm text-gray-500 mt-1">Промо-сторінки з бази та профільні SEO-сторінки послуг</p>
+                    </div>
+                    <button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition">
+                        <Plus size={20} /> Створити сторінку
+                    </button>
+                </div>
+
+                {/* SEO Сторінки послуг */}
+                <div className="mb-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold flex items-center gap-2">
+                            <Globe size={18} className="text-blue-500" />
+                            SEO-сторінки послуг нанесення логотипів
+                        </h2>
+                        <Link
+                            href="/posluhy"
+                            target="_blank"
+                            className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1"
+                        >
+                            Відкрити хаб /posluhy ↗
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <Link
+                            href="/posluhy"
+                            target="_blank"
+                            className="group bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-5 hover:border-blue-500/40 transition-all flex flex-col justify-between"
+                        >
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                                        SEO Хаб
+                                    </span>
+                                    <span className="text-xs font-mono text-gray-400">/posluhy</span>
+                                </div>
+                                <h3 className="font-bold text-base group-hover:text-blue-500 transition">
+                                    Усі методи нанесення логотипів
+                                </h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Головна оглядова сторінка з порівнянням технологій
+                                </p>
+                            </div>
+                        </Link>
+
+                        {BRANDING_SERVICES.map((service) => (
+                            <Link
+                                key={service.slug}
+                                href={`/posluhy/${service.slug}`}
+                                target="_blank"
+                                className="group bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/40 transition-all flex flex-col"
+                            >
+                                <div className="h-28 bg-zinc-900 relative overflow-hidden">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={service.image}
+                                        alt={service.imageAlt}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                    />
+                                    <span className="absolute top-2 left-2 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-black/70 text-white">
+                                        SEO Лендінг
+                                    </span>
+                                </div>
+                                <div className="p-4 flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <h3 className="font-bold text-base group-hover:text-blue-500 transition leading-tight">
+                                            {service.title}
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.shortDesc}</p>
+                                    </div>
+                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs">
+                                        <span className="font-mono text-gray-400">/posluhy/{service.slug}</span>
+                                        <span className="text-blue-500 font-semibold">Переглянути ↗</span>
+                                    </div>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+
+                <h2 className="text-lg font-bold mb-4">Промо-сторінки (CMS)</h2>
             </div>
 
             {loading ? <div className="text-center py-20"><Loader2 className="animate-spin mx-auto" /></div> : (
