@@ -46,7 +46,7 @@ const BUSINESS_SOLUTIONS = [
     href: "/catalog?category=odiah",
   },
   {
-    title: "СТОМАТОЛОГІЇ ТА КЛІНІКИ",
+    title: "СТОМАТОЛОГІЇ\nТА КЛІНІКИ",
     items: "Поло, блокноти, ручки",
     image: "/images/businesses/biz-dental.jpg",
     href: "/catalog?category=ofis",
@@ -286,7 +286,7 @@ export default function HomeClient({
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 md:p-5 text-center">
-                  <h2 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-wide text-white underline underline-offset-4 decoration-2 decoration-white/70 group-hover:decoration-blue-400 transition-colors">
+                  <h2 className="whitespace-pre-line text-sm sm:text-base md:text-lg font-black uppercase tracking-wide text-white underline underline-offset-4 decoration-2 decoration-white/70 group-hover:decoration-blue-400 transition-colors">
                     {biz.title}
                   </h2>
                   <p className="text-[11px] sm:text-xs text-white/80 font-medium mt-1.5 line-clamp-1">
@@ -496,6 +496,67 @@ export default function HomeClient({
               }),
             }}
           />
+
+          {/* === SEO ПЕРЕЛІНКОВКА ТА ПОПУЛЯРНІ НАПРЯМКИ === */}
+          <div className="pt-8 border-t border-gray-200 dark:border-white/10 space-y-3">
+            <h2 className="text-base md:text-lg font-bold text-gray-900 dark:text-white">
+              Корпоративний мерч, сувеніри та нанесення логотипів по Україні
+            </h2>
+            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 leading-relaxed max-w-5xl">
+              REBRAND STUDIO — оптове виробництво брендованої продукції та нанесення логотипів на одяг, аксесуари й бізнес-сувеніри.
+              Швидкий перехід до популярних запитів і категорій:
+            </p>
+            <div className="max-h-36 overflow-y-auto pr-2 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50/70 dark:bg-[#111] p-3">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: 'Футболки з логотипом оптом', href: '/catalog?category=odiah' },
+                  { label: 'Худі та світшоти з принтом', href: '/catalog?category=odiah' },
+                  { label: 'Поло з вишивкою логотипу', href: '/catalog?category=odiah' },
+                  { label: 'Кепки та бейсболки з лого', href: '/catalog?category=odiah' },
+                  { label: 'Фартухи з логотипом для кафе', href: '/catalog?category=odiah' },
+                  { label: 'Корпоративна уніформа з лого', href: '/catalog?category=odiah' },
+                  { label: 'Бейджі з логотипом', href: '/catalog?category=ofis' },
+                  { label: 'Ручки з логотипом оптом', href: '/catalog?category=ofis' },
+                  { label: 'Блокноти та щоденники з лого', href: '/catalog?category=ofis' },
+                  { label: 'Шнурки (лан’ярди) з логотипом', href: '/catalog?category=ofis' },
+                  { label: 'Силіконові браслети з лого', href: '/catalog?q=%D0%B1%D1%80%D0%B0%D1%81%D0%BB%D0%B5%D1%82' },
+                  { label: 'Шопери та еко-сумки з принтом', href: '/catalog?category=bags' },
+                  { label: 'Рюкзаки з нанесенням логотипу', href: '/catalog?category=bags' },
+                  { label: 'Бананки та сумки під друк', href: '/catalog?category=bags' },
+                  { label: 'Чашки та кружки з логотипом', href: '/catalog?category=dim' },
+                  { label: 'Термокружки й термоси з лого', href: '/catalog?category=dim' },
+                  { label: 'Пляшки для води з принтом', href: '/catalog?category=dim' },
+                  { label: 'Пледи та рушники з вишивкою', href: '/catalog?category=dim' },
+                  { label: 'Павербанки з логотипом', href: '/catalog?category=elektronika' },
+                  { label: 'Флешки та гаджети з нанесенням', href: '/catalog?category=elektronika' },
+                  { label: 'Парасолі з логотипом оптом', href: '/catalog?category=parasoli' },
+                  { label: 'Дощовики з брендуванням', href: '/catalog?category=parasoli' },
+                  { label: 'Упаковка та пакети з логотипом', href: '/catalog?category=upakovka' },
+                  { label: 'Корпоративні подарунки B2B', href: '/catalog?label=hit' },
+                  { label: 'Мерч для IT-компаній', href: '/catalog?category=odiah' },
+                  { label: 'Брендування для салонів краси', href: '/catalog?category=dim' },
+                  { label: 'Сувеніри для стоматологій та клінік', href: '/catalog?category=ofis' },
+                  { label: 'Мерч для івентів та конференцій', href: '/catalog?category=bags' },
+                  { label: 'DTF-друк на одязі та тканині', href: '/posluhy/dtf-druk' },
+                  { label: 'Машинна вишивка на замовлення', href: '/posluhy/mashynna-vyshyvka' },
+                  { label: 'Шовкографія на футболках оптом', href: '/posluhy/shovkografiya' },
+                  { label: 'Термотрансферний друк логотипів', href: '/posluhy/termotransfer' },
+                  { label: 'Усі методи нанесення логотипу', href: '/posluhy' },
+                  { label: 'Онлайн-конструктор брендування', href: '/CONSTRUCTOR' },
+                  { label: 'Новинки під нанесення', href: '/catalog?label=new' },
+                  { label: 'Акційні товари B2B', href: '/catalog?label=promo' },
+                ].map((link, idx) => (
+                  <Link
+                    key={`${idx}-${link.label}`}
+                    href={link.href}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-blue-500/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 

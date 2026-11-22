@@ -376,7 +376,7 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         <Package size={20} />
                                     </div>
                                     <div>
-                                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Наявність</h4>
+                                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Показати тільки наявне</h4>
                                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-tight">{showInStockOnly ? 'Тільки доступне' : 'Весь асортимент'}</p>
                                     </div>
                                 </div>
@@ -604,8 +604,11 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                         Нанесення логотипу на {product.title}
                                     </h2>
                                     <p>
-                                        Доступні методи брендування: <strong>DTF-друк</strong>, <strong>машинна вишивка</strong>,{' '}
-                                        <strong>шовкографія</strong> та <strong>термотрансфер</strong>. Оптові замовлення по всій Україні.
+                                        Доступні методи брендування:{' '}
+                                        <Link href="/posluhy/dtf-druk" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">DTF-друк</Link>,{' '}
+                                        <Link href="/posluhy/mashynna-vyshyvka" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">машинна вишивка</Link>,{' '}
+                                        <Link href="/posluhy/shovkografiya" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">шовкографія</Link> та{' '}
+                                        <Link href="/posluhy/termotransfer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">термотрансфер</Link>. Оптові замовлення по всій Україні.
                                     </p>
                                 </div>
                             </div>
