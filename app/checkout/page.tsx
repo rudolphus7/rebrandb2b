@@ -232,80 +232,47 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Prepare branding details for database
-    const brandingDetails = cart
-      .map((item, index) => {
-        if (item.branding?.enabled) {
-          return {
-            itemIndex: index,
-            itemTitle: `${item.title} ${item.size !== 'One Size' ? item.size : ''}`.trim(),
-            placement: item.branding.placement,
-            size: item.branding.size,
-            method: item.branding.method,
-            price: item.branding.price,
-            logoFileName: getLogoFile(item.id)?.name || 'logo.file',
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
+    // 1. Створюємо замовлення на сервері (з перевіркою цін і бонусів)
+    const orderRes = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.map((item) => ({
+          ...item,
+          branding: item.branding?.enabled
+            ? {
+                ...item.branding,
+                logoFileName: getLogoFile(item.id)?.name || "logo.file",
+              }
+            : item.branding,
+        })),
+        bonusesToUse,
+        delivery: {
+          city: formData.deliveryCity,
+          cityRef: selectedCityRef,
+          warehouse: formData.deliveryWarehouse,
+          payment: formData.paymentMethod,
+          comment: formData.comment,
+          fullName: formData.fullName,
+          phone: formData.phone,
+          email: formData.email,
+          company: formData.companyName,
+          edrpou: userEdrpou,
+        },
+      }),
+    });
 
-    const hasBranding = brandingDetails.length > 0;
-
-    const orderData = {
-      user_id: userId,
-      user_email: formData.email,
-      total_price: totalPrice,
-      discount_bonuses: bonusesToUse,
-      final_price: payAmount,
-      items: cart,
-      has_branding: hasBranding,
-      branding_details: hasBranding ? brandingDetails : null,
-      delivery_data: {
-        city: formData.deliveryCity,
-        cityRef: selectedCityRef, // Save Ref for future TTN
-        warehouse: formData.deliveryWarehouse,
-        payment: formData.paymentMethod,
-        comment: formData.comment,
-        fullName: formData.fullName,
-        phone: formData.phone,
-        company: formData.companyName,
-        edrpou: userEdrpou,
-      },
-      status: "new",
-    };
-
-    // 1. Зберігаємо в Supabase
-    const { data: newOrder, error } = await supabase
-      .from("orders")
-      .insert([orderData])
-      .select()
-      .single();
-
-    if (error) {
-      alert(`Помилка: ${error.message}`);
+    const orderResult = await orderRes.json();
+    if (!orderRes.ok || !orderResult.success || !orderResult.order) {
+      alert(`Помилка: ${orderResult.error || "Не вдалося створити замовлення"}`);
       return;
     }
 
-    // 2. Логіка Бонусів
-    if (userId) {
-      if (bonusesToUse > 0) {
-        await supabase.from("loyalty_logs").insert({
-          user_id: userId,
-          amount: bonusesToUse,
-          description: `Оплата замовлення #${newOrder.id}`,
-          type: "spend",
-        });
-      }
-      if (earnedCashback > 0) {
-        await supabase.from("loyalty_logs").insert({
-          user_id: userId,
-          amount: earnedCashback,
-          description: `Кешбек за замовлення #${newOrder.id} (${userTier.percent}%)`,
-          type: "earn",
-        });
-      }
-    }
+    const newOrder = orderResult.order;
+    const serverTotal = orderResult.totalPrice ?? totalPrice;
+    const serverPayAmount = orderResult.payAmount ?? payAmount;
+    const serverBonusesUsed = orderResult.bonusesToUse ?? bonusesToUse;
+    const serverItems = orderResult.items ?? cart;
 
     // 3. CRM Sync
     try {
@@ -317,12 +284,12 @@ export default function CheckoutPage() {
           email: formData.email,
           edrpou: userEdrpou || "",
         },
-        items: cart.map((item) => ({
+        items: serverItems.map((item: { title: string; size?: string; quantity: number; price: number }) => ({
           name: item.title + (item.size && item.size !== 'One Size' ? ` (${item.size})` : ""),
           qty: item.quantity,
           price: item.price,
         })),
-        totalSum: payAmount,
+        totalSum: serverPayAmount,
         delivery: {
           city: formData.deliveryCity,
           cityRef: selectedCityRef,
@@ -350,10 +317,10 @@ export default function CheckoutPage() {
         email: formData.email,
         phone: formData.phone,
         name: formData.fullName,
-        total: totalPrice,
-        pay_amount: payAmount,
-        bonuses_used: bonusesToUse,
-        items: cart,
+        total: serverTotal,
+        pay_amount: serverPayAmount,
+        bonuses_used: serverBonusesUsed,
+        items: serverItems,
         delivery: `${formData.deliveryCity}, ${formData.deliveryWarehouse}`,
         payment: formData.paymentMethod,
         comment: formData.comment,

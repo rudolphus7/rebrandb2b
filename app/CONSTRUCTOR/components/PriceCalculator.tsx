@@ -17,8 +17,16 @@ interface Props {
     isLoading?: boolean;
 }
 
-export default function PriceCalculator({ basePrice, quantity, setQuantity, method, setMethod, placement, size, onPlaceOrder, isLoading }: Props) {
-    const brandingPrice = calculateBrandingPrice(placement, size, method);
+export default function PriceCalculator({
+    basePrice, quantity, setQuantity, method, setMethod, placement, size, onPlaceOrder, isLoading,
+    hasFrontDesign, hasBackDesign
+}: Props & { hasFrontDesign?: boolean, hasBackDesign?: boolean }) {
+
+    // Calculate price for each side
+    const frontPrice = hasFrontDesign ? calculateBrandingPrice('chest-center', size, method) : 0;
+    const backPrice = hasBackDesign ? calculateBrandingPrice('back-center', size, method) : 0;
+
+    const brandingPrice = frontPrice + backPrice;
     const unitPriceTotal = basePrice + brandingPrice;
     const total = unitPriceTotal * quantity;
 
@@ -46,16 +54,25 @@ export default function PriceCalculator({ basePrice, quantity, setQuantity, meth
             </div>
 
             <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                <div className="flex justify-between items-center text-[10px] text-white/40 uppercase tracking-widest border-b border-white/5 pb-2 mb-2">
+                    <span>Деталізація ціни</span>
+                </div>
                 <div className="flex justify-between items-center">
-                    <span className="text-xs text-white/60">Ціна за товар:</span>
+                    <span className="text-xs text-white/60">Базова ціна:</span>
                     <span className="font-bold">₴{basePrice}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-white/60">Друк ({METHOD_LABELS[method]}):</span>
-                    <span className="font-bold text-blue-400">+₴{brandingPrice}</span>
-                </div>
-
-                <div className="h-[1px] bg-white/5"></div>
+                {hasFrontDesign && (
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs text-white/60">Друк перед ({METHOD_LABELS[method]}):</span>
+                        <span className="font-bold text-blue-400">+₴{frontPrice}</span>
+                    </div>
+                )}
+                {hasBackDesign && (
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs text-white/60">Друк зад ({METHOD_LABELS[method]}):</span>
+                        <span className="font-bold text-blue-400">+₴{backPrice}</span>
+                    </div>
+                )}
 
                 <div className="flex justify-between items-center text-sm">
                     <span className="text-white/60 font-medium">Разом за одиницю:</span>

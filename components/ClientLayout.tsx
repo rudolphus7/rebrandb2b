@@ -6,6 +6,7 @@ import CartDrawer from '@/components/CartDrawer';
 import { ThemeProvider } from '@/components/ThemeContext';
 import { CartProvider } from '@/components/CartContext';
 import { WishlistProvider } from '@/components/WishlistContext';
+import { AuthProvider } from '@/components/AuthContext';
 import { Suspense, useEffect } from 'react';
 import { supabase } from "@/lib/supabaseClient";
 
@@ -69,19 +70,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }, [pathname]);
 
     return (
-        <CartProvider>
-            <WishlistProvider>
-                <ThemeProvider>
-                    <GlobalPopupManager />
-                    <Suspense fallback={null}>
-                        <ActivityTracker />
-                        <ReferralTracker />
-                    </Suspense>
-                    {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
-                    {children}
-                    {!isAdmin && <CartDrawer />}
-                </ThemeProvider>
-            </WishlistProvider>
-        </CartProvider>
+        <AuthProvider>
+            <CartProvider>
+                <WishlistProvider>
+                    <ThemeProvider>
+                        <GlobalPopupManager />
+                        <Suspense fallback={null}>
+                            <ActivityTracker />
+                            <ReferralTracker />
+                        </Suspense>
+                        {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
+                        {children}
+                        {!isAdmin && <CartDrawer />}
+                    </ThemeProvider>
+                </WishlistProvider>
+            </CartProvider>
+        </AuthProvider>
     );
 }

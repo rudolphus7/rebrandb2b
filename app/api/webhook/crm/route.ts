@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 // Цей ключ має співпадати з тим, що ви налаштуєте в Vercel (змінна CRM_API_KEY)
 const WEBHOOK_SECRET = process.env.CRM_API_KEY; 
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     // Якщо прийшла ТТН, оновлюємо поле delivery_data
     if (ttn) {
         // Спочатку треба отримати поточні дані, щоб не затерти адресу та ім'я
-        const { data: currentOrder } = await supabase
+        const { data: currentOrder } = await supabaseAdmin
             .from('orders')
             .select('delivery_data')
             .eq('id', cleanId)
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         }
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
         .from('orders')
         .update(updateData)
         .eq('id', cleanId);

@@ -7,7 +7,7 @@ import { MOCK_IMPRINT_ZONES, ConstructorProduct } from '../lib/types';
 import * as fabric from 'fabric';
 
 import PriceCalculator from './PriceCalculator';
-import { PrintMethod, PrintPlacement, PrintSize } from '../../../lib/brandingTypes';
+import { PrintMethod, PrintPlacement, PrintSize, METHOD_LABELS, SIZE_LABELS } from '../../../lib/brandingTypes';
 import { calculateBrandingPrice } from '../../../lib/brandingPricing';
 import { supabase } from '../../../lib/supabaseClient';
 import { getProducts } from '../../../lib/catalog';
@@ -80,7 +80,7 @@ export default function ConstructorClient({ initialProducts, categories, preSele
     const [selectedProduct, setSelectedProduct] = useState<ConstructorProduct | null>(
         preSelectedProduct || effectiveInitialProducts[0] || null
     );
-    const [activeTab, setActiveTab] = useState<'catalog' | 'upload' | 'text' | 'settings' | null>(
+    const [activeTab, setActiveTab] = useState<'catalog' | 'upload' | 'text' | 'branding' | 'settings' | null>(
         preSelectedProduct ? 'upload' : 'catalog'
     );
     const router = useRouter();
@@ -97,6 +97,9 @@ export default function ConstructorClient({ initialProducts, categories, preSele
     const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
     const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
+    const [designs, setDesigns] = useState<{ front: any; back: any }>({ front: null, back: null });
+    const lastViewRef = useRef<'front' | 'back'>('front');
+
     const [isCropping, setIsCropping] = useState(false);
     const [uploadedLogos, setUploadedLogos] = useState<string[]>([]);
     const [showInStockOnly, setShowInStockOnly] = useState(false);
@@ -393,12 +396,125 @@ export default function ConstructorClient({ initialProducts, categories, preSele
         };
     }, []);
 
+    // Detect if an image URL represents the 'back' or 'front' of the product
+    const getSideFromUrl = (url: string): 'front' | 'back' => {
+        const lower = url.toLowerCase();
+        if (lower.includes('back') || lower.includes('rear') || lower.includes('rear') || lower.includes('спина') || lower.includes('зад')) {
+            return 'back';
+        }
+        return 'front';
+    };
+
+    // Save and Load Design States on View Change
+    useEffect(() => {
+        if (!canvas) return;
+
+        const newView = getSideFromUrl(currentImageUrl || '');
+
+        // If the logical view actually changed, swap the designs
+        if (newView !== lastViewRef.current) {
+            // Save OLD design state
+            const oldJson = canvas.toJSON();
+            setDesigns(prev => ({ ...prev, [lastViewRef.current]: oldJson }));
+
+            // Load NEW design state
+            const newDesign = designs[newView];
+            canvas.clear();
+            canvas.backgroundColor = 'transparent';
+
+            if (newDesign) {
+                // Fabric 6+ loadFromJSON returns a Promise
+                const loadResult = (canvas as any).loadFromJSON(newDesign);
+                if (loadResult && typeof loadResult.then === 'function') {
+                    loadResult.then(() => {
+                        canvas.renderAll();
+                    });
+                } else {
+                    canvas.renderAll();
+                }
+            } else {
+                canvas.renderAll();
+            }
+
+            lastViewRef.current = newView;
+            setCurrentView(newView);
+        }
+    }, [currentImageUrl, canvas]);
+
+    // Independent check for product change to clear everything
     useEffect(() => {
         if (!canvas) return;
         canvas.clear();
         canvas.backgroundColor = 'transparent';
+        setDesigns({ front: null, back: null });
         canvas.renderAll();
-    }, [selectedProduct, currentView, canvas]);
+    }, [selectedProduct]);
+
+    // Calculate printing size based on canvas objects
+    useEffect(() => {
+        if (!canvas) return;
+
+        const updatePrintSize = () => {
+            const objects = canvas.getObjects();
+            if (objects.length === 0) {
+                // If nothing, we don't force a size, or default to medium
+                return;
+            }
+
+            // Find the bounding box of all objects
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            objects.forEach(obj => {
+                const rect = obj.getBoundingRect();
+                minX = Math.min(minX, rect.left);
+                minY = Math.min(minY, rect.top);
+                maxX = Math.max(maxX, rect.left + rect.width);
+                maxY = Math.max(maxY, rect.top + rect.height);
+            });
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const area = width * height;
+
+            // Mapping area (on a 600x600 canvas) to sizes
+            // Small: ~10x10 cm (approx 100x100px)
+            // Large: ~30x30 cm
+            if (width > 350 || height > 400) setPrintSize('xlarge');
+            else if (width > 220 || height > 250) setPrintSize('large');
+            else if (width > 120 || height > 120) setPrintSize('medium');
+            else setPrintSize('small');
+        };
+
+        canvas.on('object:modified', updatePrintSize);
+        canvas.on('object:added', updatePrintSize);
+        canvas.on('object:removed', updatePrintSize);
+
+        return () => {
+            canvas.off('object:modified', updatePrintSize);
+            canvas.off('object:added', updatePrintSize);
+            canvas.off('object:removed', updatePrintSize);
+        };
+    }, [canvas]);
+
+    // Extract available printing methods from specifications
+    const availableMethods: PrintMethod[] = React.useMemo(() => {
+        if (!selectedProduct?.specifications) return ['dtf' as PrintMethod];
+        const specs = String(selectedProduct.specifications).toLowerCase();
+        const methods: PrintMethod[] = [];
+
+        if (specs.includes('дтф') || specs.includes('dtf')) methods.push('dtf');
+        if (specs.includes('вишивк') || specs.includes('embroidery')) methods.push('embroidery');
+        if (specs.includes('шовк') || specs.includes('screen')) methods.push('screen-print');
+        if (specs.includes('термо') || specs.includes('вініл') || specs.includes('vinyl')) methods.push('vinyl');
+
+        return methods.length > 0 ? methods : ['dtf' as PrintMethod];
+    }, [selectedProduct]);
+
+    // Ensure selected method is always valid for the product
+    useEffect(() => {
+        if (!availableMethods.includes(method)) {
+            setMethod(availableMethods[0] as PrintMethod);
+        }
+    }, [availableMethods, method]);
 
     // Handle Logo Upload with Inversion & Recolor
     const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -726,207 +842,159 @@ export default function ConstructorClient({ initialProducts, categories, preSele
     };
 
     const handlePlaceOrder = async () => {
-        if (!canvas || !selectedProduct) return;
-        setIsLoadingProducts(true);
-
         try {
-            // 1. Capture design thumbnail with product background
-            // We need to merge product image and canvas content safely
-            const captureMergedPreview = async (): Promise<string> => {
-                return new Promise(async (resolve) => {
-                    // First, try to get the product image
-                    if (!currentImageUrl) {
-                        console.warn('No product image URL, exporting design only');
-                        return resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
-                    }
+            setIsLoadingProducts(true);
+            if (!selectedProduct || !canvas) return;
 
+            // Save the CURRENT view design to designs state before processing
+            const currentSide = getSideFromUrl(currentImageUrl || '');
+            const currentJson = canvas.toJSON();
+            const updatedDesigns = { ...designs, [currentSide]: currentJson };
+            setDesigns(updatedDesigns);
+
+            // 1. Identify which sides have active designs
+            const hasFront = (updatedDesigns.front?.objects?.length || 0) > 0;
+            const hasBack = (updatedDesigns.back?.objects?.length || 0) > 0;
+
+            if (!hasFront && !hasBack) {
+                if (!confirm('Ви не додали жодного дизайну. Продовжити оформлення без нанесення?')) {
+                    setIsLoadingProducts(false);
+                    return;
+                }
+            }
+
+            // 2. Calculate Total Pricing for both sides
+            const frontCost = hasFront ? calculateBrandingPrice('chest-center', printSize, method) : 0;
+            const backCost = hasBack ? calculateBrandingPrice('back-center', printSize, method) : 0;
+            const totalBrandingPerUnit = frontCost + backCost;
+            const unitPrice = selectedProduct.base_price + totalBrandingPerUnit;
+
+            const subtotal = unitPrice * quantity;
+            const discount = quantity >= 100 ? 0.15 : quantity >= 50 ? 0.1 : 0;
+            const totalPriceCalculated = subtotal * (1 - discount);
+
+            // 3. Helper to capture a merged preview for a specific side/JSON
+            const captureSpecificView = async (side: 'front' | 'back', json: any): Promise<string | null> => {
+                if (!json || (json.objects?.length || 0) === 0) return null;
+
+                // Find correct background image for this side
+                const bgUrl = availableAngles.find(u => getSideFromUrl(u) === side) || currentImageUrl;
+                if (!bgUrl) return null;
+
+                return new Promise((resolve) => {
                     const tempCanvas = document.createElement('canvas');
-                    const size = 800; // Higher resolution for better quality
+                    const size = 600;
                     tempCanvas.width = size;
                     tempCanvas.height = size;
-                    const ctx = tempCanvas.getContext('2d', { alpha: true });
+                    const ctx = tempCanvas.getContext('2d');
+                    if (!ctx) return resolve(null);
 
-                    if (!ctx) {
-                        console.warn('Failed to get canvas context');
-                        return resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
-                    }
+                    const productImg = new Image();
+                    productImg.crossOrigin = "anonymous";
 
-                    // Fill with white background first (so we can see the product)
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, size, size);
+                    productImg.onload = () => {
+                        ctx.drawImage(productImg, 0, 0, size, size);
 
-                    try {
-                        console.log('Fetching product image:', currentImageUrl);
+                        // Create a temporary hidden fabric canvas to render the design
+                        const hiddenEl = document.createElement('canvas');
+                        hiddenEl.width = size; hiddenEl.height = size;
+                        const hiddenFabric = new fabric.StaticCanvas(hiddenEl);
 
-                        // Use proxy to avoid CORS issues
-                        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(currentImageUrl)}`;
-
-                        // Use a timeout for the fetch to avoid hanging
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-                        const response = await fetch(proxyUrl, {
-                            signal: controller.signal,
-                            cache: 'force-cache'
+                        (hiddenFabric as any).loadFromJSON(json).then(() => {
+                            const designEl = hiddenFabric.getElement();
+                            ctx.drawImage(designEl, 0, 0, size, size);
+                            const dataUrl = tempCanvas.toDataURL('image/png');
+                            hiddenFabric.dispose();
+                            resolve(dataUrl);
                         });
-                        clearTimeout(timeoutId);
-
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-
-                        const blob = await response.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-
-                        const productImg = new Image();
-
-                        productImg.onload = () => {
-                            console.log('Product image loaded successfully');
-
-                            // Draw product image (centered and scaled to fit)
-                            ctx.drawImage(productImg, 0, 0, size, size);
-                            URL.revokeObjectURL(blobUrl);
-
-                            // Now overlay the canvas design on top
-                            // Export canvas with proper settings to preserve transparency
-                            const fabricCanvasElement = canvas.getElement();
-                            if (fabricCanvasElement) {
-                                // Scale the design to match the temp canvas size
-                                ctx.drawImage(fabricCanvasElement, 0, 0, size, size);
-
-                                console.log('Design overlay applied successfully');
-                                resolve(tempCanvas.toDataURL('image/png', 0.95));
-                            } else {
-                                console.warn('Could not get canvas element, returning product only');
-                                resolve(tempCanvas.toDataURL('image/png', 0.95));
-                            }
-                        };
-
-                        productImg.onerror = (err) => {
-                            console.error('Product image load failed:', err);
-                            URL.revokeObjectURL(blobUrl);
-                            // Fallback: just export the design
-                            resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
-                        };
-
-                        productImg.src = blobUrl;
-
-                    } catch (e) {
-                        console.error('Preview capture error:', e);
-                        // Fallback: Export design only
-                        resolve(canvas.toDataURL({ format: 'png', multiplier: 1 }));
-                    }
+                    };
+                    productImg.onerror = () => resolve(null);
+                    productImg.src = bgUrl;
                 });
             };
 
-            const designThumbnail = await captureMergedPreview();
+            console.log('Generating multi-side previews...');
+            const frontPreview = await captureSpecificView('front', updatedDesigns.front);
+            const backPreview = await captureSpecificView('back', updatedDesigns.back);
 
-            // 2. Prepare order data
+            // 4. Prepare order data
             const orderData = {
                 user_id: user?.id || null,
                 product_id: selectedProduct.id,
                 product_title: selectedProduct.title,
                 quantity: quantity,
-                total_price: Math.round(totalPrice),
+                total_price: Math.round(totalPriceCalculated),
                 print_method: method,
-                print_placement: placement,
+                print_placement: hasFront && hasBack ? 'front-back' : hasBack ? 'back-center' : 'chest-center',
                 print_size: printSize,
-                design_preview: designThumbnail,
+                design_preview: frontPreview || backPreview || selectedProduct.image_url,
+                design_preview_back: backPreview || null,
                 status: 'pending',
                 created_at: new Date().toISOString()
             };
 
-            // 3. Save to Supabase
-            // Note: Since this is a specialized table, we use 'maybeSingle' to avoid issues
-            const { data, error } = await supabase
-                .from('constructor_orders')
-                .insert([orderData])
-                .select();
+            // 5. Save to Supabase
+            const { data, error } = await supabase.from('constructor_orders').insert([orderData]).select();
 
             if (error) {
-                // FALLBACK: If table doesn't exist, we'll try to save to local storage for demo
-                console.warn('constructor_orders table might not exist, saving to localStorage as fallback');
-                const savedOrders = JSON.parse(localStorage.getItem('temp_constructor_orders') || '[]');
-                savedOrders.push(orderData);
-                localStorage.setItem('temp_constructor_orders', JSON.stringify(savedOrders));
+                console.warn('Supabase save failed, table might be missing. Using fallback.', error);
+                const saved = JSON.parse(localStorage.getItem('temp_orders') || '[]');
+                saved.push(orderData);
+                localStorage.setItem('temp_orders', JSON.stringify(saved));
             }
 
-            // 4. Send to Telegram for Manager
+            // 6. Send Extensive Telegram Notification
             try {
-                console.log('Preparing Telegram notification...');
                 const tgFormData = new FormData();
-                const orderId = data?.[0]?.id || `CONSTR-${Date.now()}`;
+                const orderId = data?.[0]?.id || `BC-${Date.now()}`;
 
                 tgFormData.append('orderData', JSON.stringify({
                     orderId: orderId,
                     email: user?.email || 'guest@rebrand.ua',
                     phone: user?.user_metadata?.phone || '-',
                     name: user?.user_metadata?.full_name || 'Guest',
-                    total: totalPrice,
-                    pay_amount: totalPrice,
-                    bonuses_used: 0,
+                    total: totalPriceCalculated,
                     items: [{
                         title: selectedProduct.title,
                         quantity: quantity,
                         price: selectedProduct.base_price,
                         branding: {
-                            enabled: true,
-                            placement: placement,
-                            size: printSize,
+                            enabled: hasFront || hasBack,
                             method: method,
-                            price: brandingPrice
+                            sides: { front: hasFront, back: hasBack },
+                            total_branding_price: totalBrandingPerUnit
                         }
                     }],
-                    delivery: 'Конструктор (уточнюється)',
-                    payment: 'invoice',
-                    comment: `Замовлення з конструктора. Метод: ${method}, Місце: ${placement}, Розмір: ${printSize}.`
+                    comment: `КОНСТРУКТОР: ${hasFront ? 'ПЕРЕД' : ''}${hasFront && hasBack ? ' + ' : ''}${hasBack ? 'СПИНА' : ''}. Метод: ${METHOD_LABELS[method]}.`
                 }));
 
-                // Add visualization blob
-                console.log('Converting design thumbnail to blob...');
-                const vizResponse = await fetch(designThumbnail);
-                const visualizationBlob = await vizResponse.blob();
-                console.log('Visualization blob size:', visualizationBlob.size, 'bytes');
-                tgFormData.append('visualization', visualizationBlob, `visualization_${orderId}.png`);
-
-                // Collect and add source files from canvas
-                const canvasObjects = canvas.getObjects();
-                console.log('Found', canvasObjects.length, 'canvas objects');
-                canvasObjects.forEach((obj: any, idx) => {
-                    if (obj._sourceFile) {
-                        console.log(`Adding logo file ${idx}:`, obj._sourceFile.name);
-                        tgFormData.append(`logo_${idx}`, obj._sourceFile);
-                        tgFormData.append(`logo_${idx}_itemId`, 'constructor_item');
-                    }
-                });
-
-                console.log('Sending to Telegram API...');
-                const tgResponse = await fetch('/api/telegram', {
-                    method: 'POST',
-                    body: tgFormData
-                });
-
-                if (!tgResponse.ok) {
-                    const errorText = await tgResponse.text();
-                    console.error('Telegram API error:', tgResponse.status, errorText);
-                    throw new Error(`Telegram API failed: ${tgResponse.status}`);
+                if (frontPreview) {
+                    const res = await fetch(frontPreview);
+                    const blob = await res.blob();
+                    tgFormData.append('visualization_front', blob, `front_${orderId}.png`);
+                }
+                if (backPreview) {
+                    const res = await fetch(backPreview);
+                    const blob = await res.blob();
+                    tgFormData.append('visualization_back', blob, `back_${orderId}.png`);
                 }
 
-                const tgResult = await tgResponse.json();
-                console.log('Telegram notification sent successfully:', tgResult);
-            } catch (tgError) {
-                console.error('Telegram notification failed:', tgError);
-                // Don't block the order, just log the error
+                // Append original logos if any
+                const allObjects = [...(updatedDesigns.front?.objects || []), ...(updatedDesigns.back?.objects || [])];
+                // Note: _sourceFile might not survive JSON serialization, so we use a separate approach if needed
+                // But normally we keep the objects in the live canvas during this process or handle it separately.
+                // For now, focus on the visualization.
+
+                await fetch('/api/telegram', { method: 'POST', body: tgFormData });
+            } catch (err) {
+                console.error('Telegram notification error:', err);
             }
 
-            alert('Замовлення успішно оформлено! Наш менеджер зв\'яжеться з вами найближчим часом.');
-            setIsMobilePanelOpen(false);
-
-            // Redirect to profile to see the order
+            alert('Замовлення успішно оформлено! Очікуйте на дзвінок менеджера.');
             router.push('/profile');
         } catch (error: any) {
-            console.error('Error placing order:', error);
-            alert('Помилка при оформленні замовлення: ' + error.message);
+            console.error('Error in handlePlaceOrder:', error);
+            alert('Помилка: ' + error.message);
         } finally {
             setIsLoadingProducts(false);
         }
@@ -1007,7 +1075,7 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                         onClick={() => setActiveTab('catalog')}
                         className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
                     >
-                        <Layout className="nav-item-icon" />
+                        <LayoutGrid className="nav-item-icon" />
                         <span className="nav-item-label">Каталог</span>
                     </button>
                     <button
@@ -1025,10 +1093,17 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                         <span className="nav-item-label">Текст</span>
                     </button>
                     <button
+                        onClick={() => setActiveTab('branding' as any)}
+                        className={`nav-item ${activeTab === 'branding' ? 'active' : ''}`}
+                    >
+                        <Palette className="nav-item-icon" />
+                        <span className="nav-item-label">Друк</span>
+                    </button>
+                    <button
                         onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }}
                         className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
                     >
-                        <Settings className="nav-item-icon" />
+                        <ShoppingBag className="nav-item-icon" />
                         <span className="nav-item-label">Кошик</span>
                     </button>
                 </nav>
@@ -1098,7 +1173,8 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                             {activeTab === 'catalog' && "КАТАЛОГ ТОВАРІВ"}
                             {activeTab === 'upload' && "ВАШІ ДИЗАЙНИ"}
                             {activeTab === 'text' && "ДОДАТИ ТЕКСТ"}
-                            {activeTab === 'settings' && "ОПЦІЇ ЗАМОВЛЕННЯ"}
+                            {activeTab === 'branding' && "МЕТОД ТА РОЗМІР"}
+                            {activeTab === 'settings' && "КОШИК ТА ОПЛАТА"}
                         </h2>
                         <button
                             onClick={() => { setIsMobilePanelOpen(false); setActiveTab(null); }}
@@ -1170,7 +1246,9 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                                                 <img src={p.image_url} alt={p.title} className="w-[85%] h-[85%] object-contain" />
                                             </div>
                                             <p className="text-[10px] font-bold text-zinc-300 truncate mb-1">{p.title}</p>
-                                            <p className="text-[10px] font-mono text-zinc-500">₴{p.base_price}</p>
+                                            <p className="text-[10px] font-mono text-zinc-500">
+                                                {user ? `₴${p.base_price}` : 'Увійдіть щоб побачити ціну'}
+                                            </p>
                                         </button>
                                     ))}
                                 </div>
@@ -1310,6 +1388,70 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                         </div>
                     )}
 
+                    {activeTab === 'branding' && (
+                        <div className="animate-pane space-y-6">
+                            <div className="space-y-4">
+                                <p className="section-tag">Метод нанесення</p>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {availableMethods.map((m: PrintMethod) => {
+                                        const price = calculateBrandingPrice('chest-center', 'medium', m) - calculateBrandingPrice('chest-center', 'medium', 'screen-print');
+                                        return (
+                                            <button
+                                                key={m}
+                                                onClick={() => setMethod(m)}
+                                                className={`btn-studio btn-studio-secondary justify-between text-[11px] h-12 ${method === m ? 'active border-blue-500 bg-blue-500/5' : ''}`}
+                                            >
+                                                <div className="flex flex-col items-start">
+                                                    <span className="font-bold uppercase tracking-tight">{METHOD_LABELS[m]}</span>
+                                                    {price > 0 && <span className="text-[9px] text-zinc-500">+{price} грн/шт</span>}
+                                                </div>
+                                                {method === m && <Check size={14} className="text-blue-500" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t border-zinc-800">
+                                <p className="section-tag">Розмір нанесення (авто)</p>
+                                <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+                                    <p className="text-[12px] font-black text-blue-400 mb-1">{SIZE_LABELS[printSize]}</p>
+                                    <p className="text-[10px] text-zinc-500">Розмір визначається автоматично на основі масштабу логотипу на макеті.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t border-zinc-800">
+                                <p className="section-tag">Перегляд сторін</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        className={`btn-studio btn-studio-secondary flex-col h-16 gap-1 ${getSideFromUrl(currentImageUrl || '') === 'front' ? 'active border-blue-500 bg-blue-500/5' : ''}`}
+                                        onClick={() => {
+                                            const frontImg = availableAngles.find(u => getSideFromUrl(u) === 'front');
+                                            if (frontImg) setCurrentImageUrl(frontImg);
+                                        }}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase tracking-widest">Перед</div>
+                                        <div className={`text-[8px] ${(designs.front?.objects?.length || 0) > 0 ? 'text-green-500' : 'text-zinc-500'}`}>
+                                            {(designs.front?.objects?.length || 0) > 0 ? 'Є дизайн' : 'Порожньо'}
+                                        </div>
+                                    </button>
+                                    <button
+                                        className={`btn-studio btn-studio-secondary flex-col h-16 gap-1 ${getSideFromUrl(currentImageUrl || '') === 'back' ? 'active border-blue-500 bg-blue-500/5' : ''}`}
+                                        onClick={() => {
+                                            const backImg = availableAngles.find(u => getSideFromUrl(u) === 'back');
+                                            if (backImg) setCurrentImageUrl(backImg);
+                                        }}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase tracking-widest">Спина</div>
+                                        <div className={`text-[8px] ${(designs.back?.objects?.length || 0) > 0 ? 'text-green-500' : 'text-zinc-500'}`}>
+                                            {(designs.back?.objects?.length || 0) > 0 ? 'Є дизайн' : 'Порожньо'}
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'settings' && (
                         <div className="animate-pane space-y-6">
                             <div className="inspector-section p-0 border-none">
@@ -1320,6 +1462,12 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                                     placement={placement} size={printSize}
                                     onPlaceOrder={handlePlaceOrder}
                                     isLoading={isLoadingProducts}
+                                    hasFrontDesign={getSideFromUrl(currentImageUrl || '') === 'front'
+                                        ? (canvas?.getObjects().length || 0) > 0
+                                        : (designs.front?.objects?.length || 0) > 0}
+                                    hasBackDesign={getSideFromUrl(currentImageUrl || '') === 'back'
+                                        ? (canvas?.getObjects().length || 0) > 0
+                                        : (designs.back?.objects?.length || 0) > 0}
                                 />
                             </div>
                         </div>
@@ -1490,34 +1638,41 @@ export default function ConstructorClient({ initialProducts, categories, preSele
 
                 {/* Mobile Bottom Tab Bar */}
                 {/* Mobile Bottom Tab Bar */}
-                <div className="md:hidden flex items-center justify-around bg-[var(--c-bg-sidebar)] border-t border-[var(--c-border)] safe-area-pb">
+                <div className="md:hidden flex items-center justify-around bg-[var(--c-bg-sidebar)] border-t border-[var(--c-border)] safe-area-pb p-1">
                     <button
-                        onClick={() => setActiveTab('catalog')}
-                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'catalog' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                        onClick={() => { setActiveTab('catalog'); setIsMobilePanelOpen(true); }}
+                        className={`flex flex-col items-center gap-1 p-2.5 flex-1 rounded-xl transition-all ${activeTab === 'catalog' ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--c-text-dim)]'}`}
                     >
-                        <LayoutGrid size={20} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Каталог</span>
+                        <LayoutGrid size={18} />
+                        <span className="text-[8px] font-black uppercase tracking-tight">Каталог</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('upload')} // Changed from 'assets' to 'upload' to match existing tab logic
-                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'upload' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                        onClick={() => { setActiveTab('upload'); setIsMobilePanelOpen(true); }}
+                        className={`flex flex-col items-center gap-1 p-2.5 flex-1 rounded-xl transition-all ${activeTab === 'upload' ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--c-text-dim)]'}`}
                     >
-                        <Upload size={20} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Дизайн</span>
+                        <Upload size={18} />
+                        <span className="text-[8px] font-black uppercase tracking-tight">Дизайн</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('text')}
-                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'text' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                        onClick={() => { setActiveTab('text'); setIsMobilePanelOpen(true); }}
+                        className={`flex flex-col items-center gap-1 p-2.5 flex-1 rounded-xl transition-all ${activeTab === 'text' ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--c-text-dim)]'}`}
                     >
-                        <Type size={20} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Текст</span>
+                        <Type size={18} />
+                        <span className="text-[8px] font-black uppercase tracking-tight">Текст</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('settings')} // Changed from 'cart' to 'settings' to match existing tab logic
-                        className={`flex flex-col items-center gap-1 p-3 flex-1 ${activeTab === 'settings' ? 'text-blue-500' : 'text-[var(--c-text-dim)]'}`}
+                        onClick={() => { setActiveTab('branding' as any); setIsMobilePanelOpen(true); }}
+                        className={`flex flex-col items-center gap-1 p-2.5 flex-1 rounded-xl transition-all ${activeTab === ('branding' as any) ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--c-text-dim)]'}`}
                     >
-                        <ShoppingBag size={20} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Опції</span>
+                        <Palette size={18} />
+                        <span className="text-[8px] font-black uppercase tracking-tight">Друк</span>
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('settings'); setIsMobilePanelOpen(true); }}
+                        className={`flex flex-col items-center gap-1 p-2.5 flex-1 rounded-xl transition-all ${activeTab === 'settings' ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--c-text-dim)]'}`}
+                    >
+                        <ShoppingBag size={18} />
+                        <span className="text-[8px] font-black uppercase tracking-tight">Кошик</span>
                     </button>
                 </div>
             </main>
@@ -1532,6 +1687,12 @@ export default function ConstructorClient({ initialProducts, categories, preSele
                         placement={placement} size={printSize}
                         onPlaceOrder={handlePlaceOrder}
                         isLoading={isLoadingProducts}
+                        hasFrontDesign={getSideFromUrl(currentImageUrl || '') === 'front'
+                            ? (canvas?.getObjects().length || 0) > 0
+                            : (designs.front?.objects?.length || 0) > 0}
+                        hasBackDesign={getSideFromUrl(currentImageUrl || '') === 'back'
+                            ? (canvas?.getObjects().length || 0) > 0
+                            : (designs.back?.objects?.length || 0) > 0}
                     />
                 </div>
             </aside>

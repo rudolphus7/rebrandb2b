@@ -4,11 +4,13 @@ import { useWishlist } from "@/components/WishlistContext";
 import { Trash2, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/components/CartContext";
+import { useAuth } from "@/components/AuthContext";
 import Image from "next/image";
 
 export default function WishlistItem({ product }: { product: any }) {
     const { toggleItem } = useWishlist();
     const { addItem } = useCart();
+    const { isAuthenticated } = useAuth();
 
     const handleAddToCart = () => {
         addItem({
@@ -56,9 +58,15 @@ export default function WishlistItem({ product }: { product: any }) {
                 </div>
 
                 <div className="mt-auto flex items-center justify-between">
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">
-                        {new Intl.NumberFormat('uk-UA').format(product.base_price)} <span className="text-sm text-gray-500 font-medium">грн</span>
-                    </span>
+                    {isAuthenticated ? (
+                        <span className="text-xl font-bold text-gray-900 dark:text-white">
+                            {new Intl.NumberFormat('uk-UA').format(product.base_price)} <span className="text-sm text-gray-500 font-medium">грн</span>
+                        </span>
+                    ) : (
+                        <Link href="/login" className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                            Увійдіть щоб побачити ціну
+                        </Link>
+                    )}
 
                     <button
                         onClick={handleAddToCart}

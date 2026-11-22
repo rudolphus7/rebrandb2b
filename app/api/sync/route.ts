@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 import { detectGeneralColor } from '@/lib/colors';
+import { getAuthenticatedUser, isAdminUser } from '@/lib/serverAuth';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -29,14 +30,22 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const manualKey = searchParams.get('key');
 
-    // Перевірка авторизації
-    const isAuthorized =
-        authHeader === `Bearer ${process.env.CRON_SECRET}` ||
-        manualKey === process.env.CRON_SECRET;
+    // Перевірка авторизації (CRON_SECRET, dev-режим або авторизований адмін)
+    const hasSecret =
+        Boolean(process.env.CRON_SECRET) &&
+        (authHeader === `Bearer ${process.env.CRON_SECRET}` || manualKey === process.env.CRON_SECRET);
 
     const isDev = process.env.NODE_ENV === 'development';
+    let isAdmin = false;
 
-    if (!isAuthorized && !isDev) {
+    if (!hasSecret && !isDev) {
+        const user = await getAuthenticatedUser();
+        if (user) {
+            isAdmin = await isAdminUser(user.id);
+        }
+    }
+
+    if (!hasSecret && !isDev && !isAdmin) {
         return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 

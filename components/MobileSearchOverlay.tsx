@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 // Initialize Supabase client inside component or importing it (better to create here to avoid props drilling if simple)
 // Actually, usually we pass it or import a shared one. Let's assume shared client logic or just create new simple one for search
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/components/AuthContext';
 
 interface MobileSearchOverlayProps {
     isOpen: boolean;
@@ -16,6 +17,7 @@ interface MobileSearchOverlayProps {
 }
 
 export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOverlayProps) {
+    const { isAuthenticated } = useAuth();
     // Helper function to extract image URL from various formats
     // Helper function to extract image URL from various formats
     const getImageUrl = (images: any): string => {
@@ -173,7 +175,7 @@ export default function MobileSearchOverlay({ isOpen, onClose }: MobileSearchOve
                                             {product.title}
                                         </h4>
                                         <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
-                                            {product.price} грн
+                                            {isAuthenticated ? `${product.price} грн` : 'Увійдіть щоб побачити ціну'}
                                         </p>
                                     </div>
                                     <ChevronRight size={16} className="text-gray-300" />

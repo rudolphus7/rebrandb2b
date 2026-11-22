@@ -158,10 +158,7 @@ function HomeContent() {
     setIsVerified(null);
   };
 
-  if (!session) return <LoginPage onLogin={handleLogin} />;
-  if (isVerified === null) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500">Завантаження...</div>;
-
-  if (isVerified === false) {
+  if (session && isVerified === false) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 text-center shadow-2xl">

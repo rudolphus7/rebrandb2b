@@ -27,6 +27,7 @@ export interface ConstructorProduct {
         other?: string[];
     };
     imprint_zones: Record<string, ImprintZone[]>; // Key is color or "default", value is zones
+    specifications?: string;
 }
 
 export const MOCK_IMPRINT_ZONES: Record<string, ImprintZone[]> = {

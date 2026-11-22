@@ -258,7 +258,9 @@ export default function Header() {
                               <div className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors mb-0.5">{product.title}</div>
                               <div className="flex items-center gap-3">
                                 <span className="text-xs text-gray-500 font-mono bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Арт: {product.vendor_article}</span>
-                                <span className="text-sm font-bold text-black dark:text-white">{product.price} грн</span>
+                                <span className="text-sm font-bold text-black dark:text-white">
+                                  {user ? `${product.price} грн` : 'Увійдіть щоб побачити ціну'}
+                                </span>
                               </div>
                             </div>
                           </Link>

@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
+import { useAuth } from '@/components/AuthContext';
 import { useSearchParams } from 'next/navigation';
 import {
     ShoppingBag,
@@ -38,6 +39,7 @@ const LABELS_MAP: Record<string, { text: string, className: string }> = {
 export default function ProductClient({ product, variants }: ProductClientProps) {
     const { addItem, setLogoFile } = useCart();
     const { toggleItem, isInWishlist } = useWishlist();
+    const { isAuthenticated } = useAuth();
     const searchParams = useSearchParams();
     const colorParam = searchParams.get('color');
 
@@ -545,7 +547,13 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                                 <div className="flex justify-between items-end mb-4">
                                     <div>
                                         <p className="text-gray-500 text-xs uppercase mb-1">Підсумок</p>
-                                        <p className="text-3xl font-black">{formatPrice(totalSelectedPrice || basePrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
+                                        {isAuthenticated ? (
+                                            <p className="text-3xl font-black">{formatPrice(totalSelectedPrice || basePrice)} <span className="text-lg text-gray-400 font-normal">грн</span></p>
+                                        ) : (
+                                            <Link href="/login" className="text-base font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                                                Увійдіть щоб побачити ціну
+                                            </Link>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
@@ -739,9 +747,15 @@ export default function ProductClient({ product, variants }: ProductClientProps)
                 <div className="flex gap-4 items-center">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-gray-400 uppercase font-medium leading-none mb-1">Ціна</span>
-                        <div className="text-lg font-black leading-none">
-                            {formatPrice(totalSelectedPrice || basePrice)}<span className="text-[10px] font-normal text-gray-400 ml-1">грн</span>
-                        </div>
+                        {isAuthenticated ? (
+                            <div className="text-lg font-black leading-none">
+                                {formatPrice(totalSelectedPrice || basePrice)}<span className="text-[10px] font-normal text-gray-400 ml-1">грн</span>
+                            </div>
+                        ) : (
+                            <Link href="/login" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline leading-tight">
+                                Увійдіть щоб побачити ціну
+                            </Link>
+                        )}
                     </div>
 
                     <div className="h-8 w-[1px] bg-gray-100 dark:bg-white/10 mx-1"></div>

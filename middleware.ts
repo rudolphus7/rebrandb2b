@@ -41,23 +41,20 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // 3. УНІВЕРСАЛЬНИЙ ЗАХИСТ СТОРІНОК
-  // Якщо користувач не авторизований і це не головна сторінка, не API і не статичні файли
-  if (!user && pathname !== '/') {
-    // Перевіряємо, чи це не системні запити
-    const isPublicAsset = pathname.includes('.') || pathname.startsWith('/_next') || pathname.startsWith('/api');
+  // 3. ЗАХИСТ ПРИВАТНИХ СТОРІНОК (профіль, оформлення замовлення)
+  const protectedRoutes = ['/profile', '/checkout', '/order-success'];
+  const requiresAuth = protectedRoutes.some((route) => pathname.startsWith(route));
 
-    if (!isPublicAsset) {
-      const redirectUrl = new URL('/', request.url)
-      redirectUrl.searchParams.set('next', pathname)
-      return NextResponse.redirect(redirectUrl)
-    }
+  if (!user && requiresAuth) {
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('next', pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
   // 4. ЗАХИСТ АДМІНКИ (додаткова перевірка ролі)
   if (pathname.startsWith('/admin')) {
     if (!user) {
-      const redirectUrl = new URL('/', request.url)
+      const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('next', pathname)
       return NextResponse.redirect(redirectUrl)
     }

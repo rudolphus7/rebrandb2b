@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { useWishlist } from './WishlistContext';
+import { useAuth } from './AuthContext';
 import Image from 'next/image';
 
 interface ProductCardProps {
@@ -30,6 +31,7 @@ const LABELS_MAP: Record<string, { text: string, className: string }> = {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { isInWishlist, toggleItem } = useWishlist();
+  const { isAuthenticated } = useAuth();
   const isDefaultActive = isInWishlist(product.id);
 
   // Стейт для зміни головної картинки при наведенні на мініатюру
@@ -139,14 +141,26 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="mt-auto pt-3 md:pt-4 flex items-end justify-between border-t border-gray-100 dark:border-white/5">
           <div className="flex flex-col">
-            {hasDiscount && product.old_price && (
-              <span className="text-[10px] md:text-xs text-gray-400 line-through mb-0.5">
-                {formatPrice(product.old_price)}
-              </span>
+            {isAuthenticated ? (
+              <>
+                {hasDiscount && product.old_price && (
+                  <span className="text-[10px] md:text-xs text-gray-400 line-through mb-0.5">
+                    {formatPrice(product.old_price)}
+                  </span>
+                )}
+                <span className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white leading-none">
+                  {formatPrice(product.base_price)}
+                </span>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs md:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline leading-tight"
+              >
+                Увійдіть щоб побачити ціну
+              </Link>
             )}
-            <span className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white leading-none">
-              {formatPrice(product.base_price)}
-            </span>
           </div>
 
           <button className="bg-black dark:bg-white text-white dark:text-black w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl hover:opacity-80 transition shadow-md active:scale-95">

@@ -1,5 +1,36 @@
 import { NextResponse } from 'next/server';
 
+const ALLOWED_IMAGE_HOSTS = new Set<string>([
+    'totobi.com.ua',
+    'toptime.com.ua',
+]);
+
+if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+        ALLOWED_IMAGE_HOSTS.add(new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname);
+    } catch {
+        // Ignore invalid env URL
+    }
+}
+
+function isAllowedImageUrl(rawUrl: string): boolean {
+    try {
+        const parsed = new URL(rawUrl);
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+            return false;
+        }
+        const host = parsed.hostname.toLowerCase();
+        for (const allowed of ALLOWED_IMAGE_HOSTS) {
+            if (host === allowed || host.endsWith(`.${allowed}`)) {
+                return true;
+            }
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -7,6 +38,10 @@ export async function GET(request: Request) {
 
         if (!imageUrl) {
             return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
+        }
+
+        if (!isAllowedImageUrl(imageUrl)) {
+            return NextResponse.json({ error: 'Forbidden image host' }, { status: 403 });
         }
 
         // Fetch the image from the external source

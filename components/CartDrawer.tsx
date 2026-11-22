@@ -1,12 +1,14 @@
 'use client';
 
 import { useCart } from './CartContext';
+import { useAuth } from './AuthContext';
 import Link from 'next/link';
 import Image from 'next/image';
 import { PLACEMENT_LABELS, SIZE_LABELS, METHOD_LABELS } from '@/lib/brandingTypes';
 
 export default function CartDrawer() {
   const { items, removeItem, updateQuantity, totalPrice, isCartOpen, toggleCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('uk-UA', { style: 'decimal', maximumFractionDigits: 0 }).format(price) + ' грн';
@@ -95,9 +97,15 @@ export default function CartDrawer() {
                       <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-2 py-1 hover:bg-gray-50 dark:hover:bg-white/10">+</button>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900 dark:text-white">
-                        {formatPrice((item.price + (item.branding?.price || 0)) * item.quantity)}
-                      </p>
+                      {isAuthenticated ? (
+                        <p className="font-bold text-gray-900 dark:text-white">
+                          {formatPrice((item.price + (item.branding?.price || 0)) * item.quantity)}
+                        </p>
+                      ) : (
+                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                          Увійдіть щоб побачити ціну
+                        </p>
+                      )}
                       <button onClick={() => removeItem(item.id)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 underline mt-1">Видалити</button>
                     </div>
                   </div>
@@ -112,7 +120,13 @@ export default function CartDrawer() {
           <div className="p-6 border-t border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-[#111]">
             <div className="flex justify-between items-center mb-4">
               <span className="text-gray-600 dark:text-gray-400">Разом:</span>
-              <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(totalPrice)}</span>
+              {isAuthenticated ? (
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(totalPrice)}</span>
+              ) : (
+                <Link href="/login" onClick={toggleCart} className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                  Увійдіть щоб побачити ціну
+                </Link>
+              )}
             </div>
             <Link href="/checkout" onClick={toggleCart} className="block w-full bg-[#222] dark:bg-white text-white dark:text-black text-center font-bold py-4 rounded-xl hover:bg-black dark:hover:bg-gray-200 transition-colors">
               Оформити замовлення
