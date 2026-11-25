@@ -14,6 +14,12 @@
   --foreground: #ededed;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -22,9 +28,6 @@ body {
   /* Робить шрифти чіткішими і тоншими (High-End вигляд) */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Забороняємо горизонтальну прокрутку, якщо щось вилізе */
-  overflow-x: hidden;
 }
 
 /* 2. Кастомний скролбар (щоб виглядав дорого) */

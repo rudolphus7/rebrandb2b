@@ -29,11 +29,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const toggleTheme = () => {
-        const newTheme = theme === 'dark' ? 'light' : 'dark';
-        setTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
-        document.documentElement.setAttribute('data-theme', newTheme);
+        setTheme((prev) => {
+            const newTheme: Theme = prev === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', newTheme);
+            document.documentElement.classList.toggle('dark', newTheme === 'dark');
+            document.documentElement.setAttribute('data-theme', newTheme);
+            return newTheme;
+        });
     };
 
     return (

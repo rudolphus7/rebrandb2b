@@ -7,6 +7,7 @@ import { ShoppingBag, Heart, User, LogOut, Search, Menu, X, LayoutGrid, ChevronR
 import { useCart } from '@/components/CartContext';
 import { useWishlist } from '@/components/WishlistContext';
 import { useTheme } from '@/components/ThemeContext';
+import { useAuth } from '@/components/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import MobileSearchOverlay from '@/components/MobileSearchOverlay';
 
@@ -68,13 +69,14 @@ export default function Header() {
   const { toggleCart, items } = useCart();
   const { items: wishlistItems } = useWishlist();
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false); // New state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [user, setUser] = useState<any>(null);
 
   // Instant Search Logic for Desktop
   useEffect(() => {
@@ -117,20 +119,16 @@ export default function Header() {
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     // Синхронізація пошукового запиту
     const q = searchParams.get('q');
     if (q) setSearchQuery(q);
+  }, [searchParams]);
 
-    // Авторизація...
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-    };
-    checkUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
+  useEffect(() => {
     // --- ЗАВАНТАЖЕННЯ КАТЕГОРІЙ ---
     async function fetchCategories() {
       const { data } = await supabase
@@ -172,8 +170,6 @@ export default function Header() {
       }
     }
     fetchCategories();
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -191,8 +187,8 @@ export default function Header() {
 
   return (
     <>
-      <header className="bg-background text-foreground sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 h-20 flex items-center transition-colors duration-300">
-        <div className="container mx-auto px-4 flex items-center justify-between gap-6">
+      <header className="w-full bg-white dark:bg-[#111111] text-gray-900 dark:text-white sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 h-20 flex items-center transition-colors duration-200">
+        <div className="container mx-auto px-4 flex items-center justify-between gap-3 sm:gap-6">
           <div className="flex items-center gap-8">
             <Link href="/" className="text-2xl font-black italic tracking-tighter shrink-0 hover:text-gray-200 transition">
               REBRAND
@@ -315,8 +311,8 @@ export default function Header() {
           </Link>
           <Link href={user ? "/profile" : "/login"} className="hidden md:block hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
           <Link href={user ? "/profile" : "/login"} className="md:hidden hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300"><User size={24} /></Link>
-          <button onClick={toggleTheme} className="hidden md:block hover:text-yellow-400 transition-colors text-gray-700 dark:text-gray-300">
-            {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+          <button onClick={toggleTheme} aria-label="Змінити тему" className="hidden md:block hover:text-yellow-400 transition-colors text-gray-700 dark:text-gray-300">
+            {(mounted ? theme : 'dark') === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
           </button>
           <button onClick={toggleCart} className="relative hover:text-blue-400 transition-colors text-gray-700 dark:text-gray-300">
             <ShoppingBag size={24} />
@@ -331,7 +327,7 @@ export default function Header() {
 
       {
         isMenuOpen && (
-          <div className="fixed inset-0 z-30 top-20 bg-background text-foreground animate-in slide-in-from-top-5 duration-300 overflow-y-auto">
+          <div className="fixed inset-0 z-[35] top-20 bg-white dark:bg-[#111111] text-gray-900 dark:text-white animate-in slide-in-from-top-5 duration-200 overflow-y-auto transition-colors">
             <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row h-full gap-10">
 
               <div className="w-full md:w-64 flex-shrink-0 space-y-8 md:border-r border-gray-200 dark:border-white/10 pr-6">
@@ -341,7 +337,7 @@ export default function Header() {
                   {/* Mobile Controls Row */}
                   <div className="flex items-center gap-6 md:hidden border-b border-gray-100 dark:border-white/10 pb-6">
                     <button onClick={toggleTheme} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
-                      {theme === 'dark' ? <><Sun size={20} /> Світла</> : <><Moon size={20} /> Темна</>}
+                      {(mounted ? theme : 'dark') === 'dark' ? <><Sun size={20} /> Світла</> : <><Moon size={20} /> Темна</>}
                     </button>
                     <Link href="/wishlist" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
                       <Heart size={20} /> Обране {wishlistItems.length > 0 && `(${wishlistItems.length})`}

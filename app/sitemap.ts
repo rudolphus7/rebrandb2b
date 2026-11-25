@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { SITE_URL } from '@/lib/seo';
 import { BRANDING_SERVICES } from '@/lib/servicesData';
+import { INFO_PAGES } from '@/lib/infoPagesData';
 
 export const revalidate = 3600;
 
@@ -40,6 +41,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }));
 
+  const infoRoutes: MetadataRoute.Sitemap = INFO_PAGES.map((p) => ({
+    url: `${SITE_URL}/info/${p.slug}`,
+    lastModified: new Date(p.updatedAt),
+    changeFrequency: 'monthly' as const,
+    priority: 0.5,
+  }));
+
   const [categoriesRes, productsRes, promoRes] = await Promise.all([
     supabase.from('categories').select('slug'),
     supabase.from('products').select('slug, updated_at, created_at').limit(5000),
@@ -74,5 +82,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-  return [...staticRoutes, ...serviceRoutes, ...categoryRoutes, ...productRoutes, ...promoRoutes];
+  return [...staticRoutes, ...serviceRoutes, ...infoRoutes, ...categoryRoutes, ...productRoutes, ...promoRoutes];
 }

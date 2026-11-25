@@ -154,8 +154,8 @@ export async function getProducts(params: SearchParams) {
     const filteringVariants = selectedColors.length > 0 || params.inStock === 'true';
 
     const selectFields = filteringVariants
-        ? `${baseFields}, categories(slug), product_variants!inner(color, image_url, available), product_images(image_url, color)`
-        : `${baseFields}, categories(slug), product_variants(color, image_url, available), product_images(image_url, color)`;
+        ? `${baseFields}, categories(slug), product_variants!inner(color, image_url, available)`
+        : `${baseFields}, categories(slug), product_variants(color, image_url, available)`;
 
 
     // 6. Determine Fetch Strategy

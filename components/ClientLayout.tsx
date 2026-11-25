@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
 import { ThemeProvider } from '@/components/ThemeContext';
 import { CartProvider } from '@/components/CartContext';
@@ -18,6 +19,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     // Hide Header and Sidebar on admin pages
     const isAdmin = pathname?.startsWith('/admin');
+    const isConstructor = pathname?.startsWith('/CONSTRUCTOR');
 
     // Track Last Visit (Throttled 1hr)
     useEffect(() => {
@@ -81,6 +83,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                         </Suspense>
                         {!isAdmin && <Suspense fallback={<div className="h-20" />}><Header /></Suspense>}
                         {children}
+                        {!isAdmin && !isConstructor && <Footer />}
                         {!isAdmin && <CartDrawer />}
                     </ThemeProvider>
                 </WishlistProvider>

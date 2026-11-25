@@ -19,17 +19,17 @@ export const DEFAULT_SLIDES = [
   {
     id: 1,
     title: "НОВА КОЛЕКЦІЯ",
-    subtitle: "WINTER 2025",
-    description: "Оверсайз худі з преміум бавовни. Ідеально під нанесення.",
-    image_url: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=2070&auto=format&fit=crop",
-    link: "/catalog",
+    subtitle: "ОДЯГ ПІД БРЕНДУВАННЯ",
+    description: "Преміум оверсайз худі, футболки та світшоти з нанесенням вашого логотипу оптом.",
+    image_url: "/images/banners/hero-1.jpg",
+    link: "/catalog?category=odiah",
   },
   {
     id: 2,
     title: "КОРПОРАТИВНИЙ",
-    subtitle: "МЕРЧ",
-    description: "Одягніть команду в якість. Знижки для B2B до -30%.",
-    image_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=2000&auto-format&fit=crop",
+    subtitle: "МЕРЧ ПІД КЛЮЧ",
+    description: "Одягніть команду в якість: худі, шопери, термоси та блокноти. Знижки для B2B до -30%.",
+    image_url: "/images/banners/hero-2.jpg",
     link: "/catalog",
   }
 ];
@@ -108,6 +108,12 @@ export default function HomeClient({
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.scrollX !== 0) {
+      window.scrollTo(0, window.scrollY);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!sessionUser) {
       setIsVerified(null);
       return;
@@ -184,120 +190,186 @@ export default function HomeClient({
   const currentBanner = banners[currentSlide];
   if (!currentBanner) return null;
 
+  const resolveBannerImage = (url: string | undefined, idx: number) => {
+    if (!url || url.includes('images.unsplash.com')) {
+      return DEFAULT_SLIDES[idx % DEFAULT_SLIDES.length].image_url;
+    }
+    return url;
+  };
+
   const showcaseProducts = initialShowcase.length > 0 ? initialShowcase : [...hits, ...news].slice(0, 8);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col transition-colors duration-300">
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 md:py-8 space-y-14 md:space-y-20">
-        {/* === СЛАЙДЕР === */}
-        <div className="relative w-full h-[320px] md:h-[430px] bg-gray-100 dark:bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/5 group">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentBanner.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.7 }}
-              className="absolute inset-0"
-            >
-              <div className="absolute inset-0">
-                {currentBanner.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentBanner.image_url}
-                    alt={currentBanner.title || "REBRAND STUDIO"}
-                    fetchPriority="high"
-                    decoding="async"
-                    className="w-full h-full object-cover opacity-60"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-zinc-800"></div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#111] via-[#111]/75 to-transparent"></div>
-              </div>
+    <div className="min-h-screen w-full overflow-x-clip bg-background text-foreground font-sans flex flex-col transition-colors duration-300">
+      {/* === FULL-WIDTH HERO СЛАЙДЕР === */}
+      <section className="relative w-full h-[500px] sm:h-[450px] lg:h-[510px] bg-[#09090b] overflow-hidden border-b border-white/10 group">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentBanner.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7 }}
+            className="absolute inset-0"
+          >
+            <div className="absolute inset-0">
+              <Image
+                src={resolveBannerImage(currentBanner.image_url, currentSlide)}
+                alt={currentBanner.title || "REBRAND STUDIO"}
+                fill
+                priority
+                sizes="100vw"
+                className="object-cover object-[78%_12%] md:object-center opacity-90"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/75 to-[#09090b]/15 sm:bg-gradient-to-r sm:from-[#09090b] sm:via-[#09090b]/75 sm:to-transparent" />
+              <div className="hidden sm:block absolute inset-0 bg-gradient-to-t from-[#09090b]/80 via-transparent to-transparent" />
+            </div>
 
-              <div className="absolute inset-0 flex items-center">
-                <div className="px-6 md:px-16 w-full max-w-3xl">
-                  <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="inline-block border border-white/20 text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider bg-black/30 backdrop-blur-md">REBRAND STUDIO B2B</motion.div>
-                  <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-3xl sm:text-4xl md:text-6xl font-black leading-none mb-2 text-white uppercase">{currentBanner.title}</motion.h2>
-                  <motion.h3 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="text-2xl sm:text-3xl md:text-5xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 uppercase">{currentBanner.subtitle}</motion.h3>
-                  <p className="text-gray-300 text-sm md:text-lg mb-6 max-w-lg line-clamp-2">{currentBanner.description}</p>
-                  <div className="flex flex-wrap gap-3">
-                    <Link href={currentBanner.link || "/catalog"} className="bg-white text-black font-bold px-6 md:px-8 py-3 rounded-xl hover:bg-gray-200 transition inline-flex items-center gap-2 text-sm md:text-base">
-                      Перейти в каталог <ArrowRight size={18} />
-                    </Link>
-                    <Link href="/CONSTRUCTOR" className="bg-blue-600 text-white font-bold px-6 md:px-8 py-3 rounded-xl hover:bg-blue-500 transition inline-flex items-center gap-2 text-sm md:text-base shadow-lg">
-                      <Palette size={18} /> Конструктор
-                    </Link>
-                  </div>
+            <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 flex items-end sm:items-center pb-16 sm:pb-0">
+              <div className="w-full max-w-2xl space-y-2.5 sm:space-y-4">
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.15 }}
+                  className="inline-flex items-center gap-2 border border-white/20 text-zinc-200 text-[10px] sm:text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-widest bg-black/40 backdrop-blur-md"
+                >
+                  REBRAND STUDIO B2B
+                </motion.div>
+                <motion.h2
+                  initial={{ y: 16, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.25 }}
+                  className="text-2xl sm:text-5xl lg:text-6xl font-black leading-[1.05] text-white uppercase tracking-tight drop-shadow-md"
+                >
+                  {currentBanner.title}
+                </motion.h2>
+                <motion.h3
+                  initial={{ y: 16, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.35 }}
+                  className="text-lg sm:text-3xl lg:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 uppercase tracking-tight"
+                >
+                  {currentBanner.subtitle}
+                </motion.h3>
+                <p className="text-zinc-300 text-xs sm:text-base lg:text-lg max-w-xl line-clamp-2 leading-relaxed">
+                  {currentBanner.description}
+                </p>
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2.5 sm:gap-3 pt-1.5">
+                  <Link
+                    href={currentBanner.link || "/catalog"}
+                    className="bg-white text-black font-bold px-3 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:bg-zinc-200 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-base shadow-xl whitespace-nowrap"
+                  >
+                    Каталог <ArrowRight size={16} />
+                  </Link>
+                  <Link
+                    href="/CONSTRUCTOR"
+                    className="bg-blue-600 text-white font-bold px-3 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:bg-blue-500 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-base shadow-lg shadow-blue-600/25 whitespace-nowrap"
+                  >
+                    <Palette size={16} /> Конструктор
+                  </Link>
                 </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
-          <div className="absolute bottom-6 right-6 flex items-center gap-4 z-20">
+        {/* Bottom Controls: Dots + Arrows */}
+        <div className="absolute bottom-5 inset-x-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {banners.map((b, idx) => (
+                <button
+                  key={b.id || idx}
+                  onClick={() => setCurrentSlide(idx)}
+                  aria-label={`Слайд ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${
+                    currentSlide === idx ? 'w-8 bg-white' : 'w-2.5 bg-white/35 hover:bg-white/60'
+                  }`}
+                />
+              ))}
+            </div>
             <div className="flex gap-2">
-              <button onClick={() => setCurrentSlide((prev) => (prev === 0 ? banners.length - 1 : prev - 1))} aria-label="Попередній слайд" className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition"><ArrowLeft size={18} /></button>
-              <button onClick={() => setCurrentSlide((prev) => (prev === banners.length - 1 ? 0 : prev + 1))} aria-label="Наступний слайд" className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition shadow-lg"><ArrowRight size={18} /></button>
+              <button
+                onClick={() => setCurrentSlide((prev) => (prev === 0 ? banners.length - 1 : prev - 1))}
+                aria-label="Попередній слайд"
+                className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white hover:text-black transition"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <button
+                onClick={() => setCurrentSlide((prev) => (prev === banners.length - 1 ? 0 : prev + 1))}
+                aria-label="Наступний слайд"
+                className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition shadow-lg"
+              >
+                <ArrowRight size={18} />
+              </button>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* === РІШЕННЯ ДЛЯ РІЗНИХ БІЗНЕСІВ (ЯСКРАВА 4-КОЛОНКОВА СІТКА) === */}
-        <section className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
-                Галузеві підбірки
-              </span>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight mt-1">
-                Нанесення логотипів для вашого бізнесу
-              </h1>
-              <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">
-                Оберіть сферу діяльності — ми підготували рішення для команд, закладів та брендів
-              </p>
-            </div>
-            <Link href="/catalog" className="inline-flex items-center gap-2 font-bold text-sm hover:gap-3 transition-all shrink-0 text-blue-600 dark:text-blue-400">
-              Весь каталог <ArrowRight size={18} />
+      {/* === РІШЕННЯ ДЛЯ РІЗНИХ БІЗНЕСІВ (FULL-WIDTH БЕЗ ВІДСТУПІВ І ЗАОКРУГЛЕНЬ) === */}
+      <section className="w-full bg-background pt-10 md:pt-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-6 md:pb-8 flex flex-col md:flex-row md:items-end justify-between gap-3">
+          <div>
+            <span className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+              Галузеві підбірки
+            </span>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight mt-1">
+              Нанесення логотипів для вашого бізнесу
+            </h1>
+            <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">
+              Оберіть сферу діяльності — ми підготували рішення для команд, закладів та брендів
+            </p>
+          </div>
+          <Link href="/catalog" className="inline-flex items-center gap-2 font-bold text-sm hover:gap-3 transition-all shrink-0 text-blue-600 dark:text-blue-400">
+            Весь каталог <ArrowRight size={18} />
+          </Link>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-0 border border-black/15 dark:border-white/10">
+          {BUSINESS_SOLUTIONS.map((biz) => (
+            <Link
+              key={biz.title}
+              href={biz.href}
+              className="group relative aspect-square overflow-hidden block bg-zinc-900 rounded-none ring-1 ring-inset ring-black/15 dark:ring-white/10"
+            >
+              <Image
+                src={biz.image}
+                alt={`${biz.title} — ${biz.items}`}
+                fill
+                sizes="(max-width: 1024px) 50vw, 25vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent group-hover:from-black/85 transition-all duration-300" />
+
+              {/* Bottom Bold Label */}
+              <div className="absolute inset-x-0 bottom-0 p-3 sm:p-5 lg:p-6 text-center flex flex-col items-center">
+                <h2 className="whitespace-pre-line text-sm sm:text-lg lg:text-xl xl:text-2xl font-black uppercase tracking-wide text-white leading-tight drop-shadow-md">
+                  {biz.title}
+                </h2>
+                <span className="mt-2 h-0.5 w-12 bg-white/80 group-hover:w-24 group-hover:bg-blue-400 transition-all duration-300" />
+                <p className="text-[11px] sm:text-xs lg:text-sm text-white/85 font-medium mt-2 line-clamp-1">
+                  {biz.items}
+                </p>
+              </div>
             </Link>
+          ))}
           </div>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
-            {BUSINESS_SOLUTIONS.map((biz) => (
-              <Link
-                key={biz.title}
-                href={biz.href}
-                className="group relative aspect-square rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 block bg-zinc-900"
-              >
-                <Image
-                  src={biz.image}
-                  alt={`${biz.title} — ${biz.items}`}
-                  fill
-                  sizes="(max-width: 1024px) 50vw, 25vw"
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
-                <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 md:p-5 text-center">
-                  <h2 className="whitespace-pre-line text-sm sm:text-base md:text-lg font-black uppercase tracking-wide text-white underline underline-offset-4 decoration-2 decoration-white/70 group-hover:decoration-blue-400 transition-colors">
-                    {biz.title}
-                  </h2>
-                  <p className="text-[11px] sm:text-xs text-white/80 font-medium mt-1.5 line-clamp-1">
-                    {biz.items}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-10 md:py-14 space-y-14 md:space-y-20">
 
         {/* === Trending === */}
         <section>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-6 md:gap-8">
-              <h2 className="text-2xl md:text-3xl font-black uppercase">Trending</h2>
-              <div className="flex text-xs md:text-sm font-bold text-gray-400 gap-4">
-                <button onClick={() => setActiveTab('hit')} className={`border-b-2 transition-colors pb-1 ${activeTab === 'hit' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}>Хіти Продажів</button>
-                <button onClick={() => setActiveTab('new')} className={`border-b-2 transition-colors pb-1 ${activeTab === 'new' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}>Нові Надходження</button>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 md:gap-8">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase">Trending</h2>
+              <div className="flex text-xs md:text-sm font-bold text-gray-400 gap-3 sm:gap-4">
+                <button onClick={() => setActiveTab('hit')} className={`whitespace-nowrap border-b-2 transition-colors pb-1 ${activeTab === 'hit' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}>Хіти Продажів</button>
+                <button onClick={() => setActiveTab('new')} className={`whitespace-nowrap border-b-2 transition-colors pb-1 ${activeTab === 'new' ? 'text-black dark:text-white border-black dark:border-white' : 'border-transparent hover:text-black dark:hover:text-white'}`}>Нові Надходження</button>
               </div>
             </div>
             <div className="flex gap-2">
@@ -550,19 +622,6 @@ export default function HomeClient({
           </div>
         </section>
       </main>
-
-      <footer className="bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-white/10 py-12 mt-12 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-gray-500 text-sm">
-          <p>&copy; {new Date().getFullYear()} REBRAND STUDIO. Всі права захищено.</p>
-          <nav className="flex flex-wrap items-center justify-center gap-6 text-xs font-semibold">
-            <Link href="/catalog" className="hover:text-foreground transition-colors">Каталог</Link>
-            <Link href="/posluhy" className="hover:text-foreground transition-colors">Послуги нанесення</Link>
-            <Link href="/posluhy/dtf-druk" className="hover:text-foreground transition-colors">DTF-друк</Link>
-            <Link href="/posluhy/mashynna-vyshyvka" className="hover:text-foreground transition-colors">Вишивка</Link>
-            <Link href="/CONSTRUCTOR" className="hover:text-foreground transition-colors">Конструктор</Link>
-          </nav>
-        </div>
-      </footer>
       <CartDrawer />
     </div>
   );
