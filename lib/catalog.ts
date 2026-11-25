@@ -149,13 +149,13 @@ export async function getProducts(params: SearchParams) {
 
     let rawProducts: any[] = [];
 
-    const baseFields = 'id, title, base_price, old_price, label, image_url, description, vendor_article, slug, material, specifications';
+    const baseFields = 'id, title, base_price, old_price, label, image_url, vendor_article, slug';
     const selectedColors = params.color?.split(',').filter(Boolean) || [];
     const filteringVariants = selectedColors.length > 0 || params.inStock === 'true';
 
     const selectFields = filteringVariants
-        ? `${baseFields}, categories(slug), product_variants!inner(*), product_images(*)`
-        : `${baseFields}, categories(slug), product_variants(*), product_images(*)`;
+        ? `${baseFields}, categories(slug), product_variants!inner(color, image_url, available), product_images(image_url, color)`
+        : `${baseFields}, categories(slug), product_variants(color, image_url, available), product_images(image_url, color)`;
 
 
     // 6. Determine Fetch Strategy

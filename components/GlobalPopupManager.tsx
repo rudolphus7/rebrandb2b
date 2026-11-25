@@ -26,26 +26,35 @@ type Popup = {
 export default function GlobalPopupManager() {
     const pathname = usePathname();
     const [activePopup, setActivePopup] = useState<Popup | null>(null);
+    const [allPopups, setAllPopups] = useState<Popup[] | null>(null);
     const [isVisible, setIsVisible] = useState(false);
 
-    // 1. Fetch popups on mount (or pathname change)
+    // 1. Fetch active popups once on mount
     useEffect(() => {
-        // Reset state on navigation if needed, or keep persistent? 
-        // Usually close popups on navigation.
-        setIsVisible(false);
-
-        // Check for popups matching this route
-        checkPopups();
-    }, [pathname]);
-
-    async function checkPopups() {
-        // Fetch all active popups (Optimization: could filter by page in SQL, but array logic is easier in JS)
-        const { data: popups } = await supabase
+        let mounted = true;
+        supabase
             .from("popups")
             .select("*")
-            .eq("is_active", true);
+            .eq("is_active", true)
+            .then(({ data }) => {
+                if (mounted) {
+                    setAllPopups(data || []);
+                }
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
-        if (!popups || popups.length === 0) return;
+    // 2. Match popups when pathname or loaded popups change
+    useEffect(() => {
+        setIsVisible(false);
+        if (allPopups && allPopups.length > 0) {
+            checkPopups(allPopups);
+        }
+    }, [pathname, allPopups]);
+
+    function checkPopups(popups: Popup[]) {
 
         // Filter relevant popups
         const matched = popups.find(p => {

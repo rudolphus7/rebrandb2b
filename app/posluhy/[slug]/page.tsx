@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import {
   ArrowRight,
@@ -118,12 +119,13 @@ export default async function BrandingServicePage({
 
         {/* HERO З ЖИВИМ ЦЕХОВИМ ФОТО */}
         <section className="relative rounded-3xl overflow-hidden border border-gray-200 dark:border-white/10 bg-zinc-950 text-white shadow-2xl">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={service.image}
             alt={service.imageAlt}
-            fetchPriority="high"
-            className="absolute inset-0 w-full h-full object-cover opacity-50"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 1024px"
+            className="object-cover opacity-50"
           />
           <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/95 via-black/75 to-black/30" />
 
@@ -296,14 +298,13 @@ export default async function BrandingServicePage({
                 href={`/posluhy/${other.slug}`}
                 className="group rounded-2xl overflow-hidden bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 hover:border-blue-500/40 transition-all flex flex-col"
               >
-                <div className="h-32 overflow-hidden bg-zinc-900">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <div className="relative h-32 overflow-hidden bg-zinc-900">
+                  <Image
                     src={other.image}
                     alt={other.imageAlt}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 </div>
                 <div className="p-4">

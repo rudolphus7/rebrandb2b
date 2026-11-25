@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Clock, Layers, Palette, ShieldCheck } from 'lucide-react';
 import { BRANDING_SERVICES } from '@/lib/servicesData';
 import { SITE_NAME, SITE_URL, buildCanonical, buildBreadcrumbJsonLd } from '@/lib/seo';
@@ -33,12 +34,13 @@ export default function ServicesHubPage() {
 
         {/* HERO */}
         <section className="relative rounded-3xl overflow-hidden border border-gray-200 dark:border-white/10 bg-zinc-950 text-white shadow-2xl">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src="/images/services/hero-workshop.jpg"
             alt="Корпоративний одяг та текстиль під нанесення логотипу REBRAND STUDIO"
-            fetchPriority="high"
-            className="absolute inset-0 w-full h-full object-cover opacity-45"
+            fill
+            priority
+            sizes="(max-width: 1200px) 100vw, 1152px"
+            className="object-cover opacity-45"
           />
           <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/90 via-black/70 to-black/30" />
 
@@ -89,13 +91,12 @@ export default function ServicesHubPage() {
                 className="group rounded-2xl overflow-hidden bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 hover:border-blue-500/50 transition-all shadow-sm hover:shadow-xl flex flex-col"
               >
                 <div className="relative h-52 sm:h-60 overflow-hidden bg-zinc-900">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={service.image}
                     alt={service.imageAlt}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
                   <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-2 text-[11px] font-bold text-white">

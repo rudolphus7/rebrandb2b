@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Briefcase,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/components/AuthContext";
 import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
 import { BRANDING_SERVICES } from "@/lib/servicesData";
@@ -96,7 +98,7 @@ export default function HomeClient({
   initialShowcase = [],
   initialBanners,
 }: HomeClientProps) {
-  const [session, setSession] = useState<any>(null);
+  const { user: sessionUser } = useAuth();
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
   const [hits] = useState<any[]>(initialHits);
   const [news] = useState<any[]>(initialNews);
@@ -106,34 +108,25 @@ export default function HomeClient({
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    const checkUserStatus = async (currentSession: any) => {
-      if (!currentSession) return;
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_verified')
-        .eq('id', currentSession.user.id)
-        .single();
-      setIsVerified(profile ? profile.is_verified : false);
+    if (!sessionUser) {
+      setIsVerified(null);
+      return;
+    }
+    let mounted = true;
+    supabase
+      .from('profiles')
+      .select('is_verified')
+      .eq('id', sessionUser.id)
+      .single()
+      .then(({ data: profile }) => {
+        if (mounted) {
+          setIsVerified(profile ? profile.is_verified : false);
+        }
+      });
+    return () => {
+      mounted = false;
     };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        checkUserStatus(session);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      if (nextSession) {
-        checkUserStatus(nextSession);
-      } else {
-        setIsVerified(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  }, [sessionUser]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -166,7 +159,7 @@ export default function HomeClient({
     setIsVerified(null);
   };
 
-  if (session && isVerified === false) {
+  if (sessionUser && isVerified === false) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 text-center shadow-2xl">
@@ -276,13 +269,12 @@ export default function HomeClient({
                 href={biz.href}
                 className="group relative aspect-square rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 block bg-zinc-900"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={biz.image}
                   alt={`${biz.title} — ${biz.items}`}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 25vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 md:p-5 text-center">
@@ -349,13 +341,12 @@ export default function HomeClient({
                 className="group rounded-2xl overflow-hidden bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-white/10 hover:border-blue-500/50 transition-all flex flex-col"
               >
                 <div className="h-32 sm:h-40 overflow-hidden bg-zinc-900 relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={service.image}
                     alt={service.imageAlt}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 1024px) 50vw, 25vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <span className="absolute bottom-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded bg-black/70 text-white">
                     {service.minBatch}
