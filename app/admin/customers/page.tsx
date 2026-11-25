@@ -10,20 +10,21 @@ import {
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 
-// --- ВАЖЛИВО: Впишіть сюди свій email ---
-const ADMIN_EMAIL = "rebrand.com.ua@gmail.com";
-
 export default function AdminCustomers() {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+    const [isAdminRole, setIsAdminRole] = useState(false);
 
     useEffect(() => {
-        // 1. Перевіряємо, хто зайшов
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user?.email) {
-                setCurrentUserEmail(session.user.email);
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (session?.user?.id) {
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("id", session.user.id)
+                    .single();
+                setIsAdminRole(profile?.role === "admin");
             }
         });
 
@@ -44,8 +45,7 @@ export default function AdminCustomers() {
     }
 
     const toggleVerification = async (id: string, currentStatus: boolean) => {
-        // Перевірка прав на рівні UI
-        if (currentUserEmail !== ADMIN_EMAIL) {
+        if (!isAdminRole) {
             alert("У вас немає прав для виконання цієї дії. Зверніться до головного адміністратора.");
             return;
         }
@@ -71,7 +71,7 @@ export default function AdminCustomers() {
         (u.phone || "").includes(search)
     );
 
-    const isSuperAdmin = currentUserEmail === ADMIN_EMAIL;
+    const isSuperAdmin = isAdminRole;
 
     return (
         <div>

@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import { ArrowRight } from 'lucide-react';
 import { INFO_PAGES, getInfoPageBySlug } from '@/lib/infoPagesData';
 import { SITE_NAME, SITE_URL, buildCanonical, buildBreadcrumbJsonLd } from '@/lib/seo';
+import PuckRenderer from '@/components/PuckRenderer';
+import { parsePuckContent } from '@/lib/puckUtils';
+
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   return INFO_PAGES.map((p) => ({ slug: p.slug }));
@@ -55,6 +60,17 @@ export default async function InfoDetailPage({
     { name: page.title, url: buildCanonical(`/info/${page.slug}`) },
   ]);
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data: customRow } = await supabase
+    .from('promo_pages')
+    .select('content')
+    .eq('slug', `info/${page.slug}`)
+    .maybeSingle();
+  const customPuckData = parsePuckContent(customRow?.content);
+
   return (
     <div className="min-h-screen bg-background text-foreground py-10 md:py-14">
       <script
@@ -73,6 +89,9 @@ export default async function InfoDetailPage({
           <p className="text-xs text-gray-500">Оновлено: {page.updatedAt}</p>
         </header>
 
+        {customPuckData ? (
+          <PuckRenderer data={customPuckData} />
+        ) : (
         <div className="space-y-8">
           {page.sections.map((section) => (
             <section
@@ -95,6 +114,7 @@ export default async function InfoDetailPage({
             </section>
           ))}
         </div>
+        )}
 
         <section className="pt-4 border-t border-gray-200 dark:border-white/10 flex flex-wrap gap-3">
           <Link

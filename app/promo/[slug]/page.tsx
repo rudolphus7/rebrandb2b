@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import IsolatedContent from "@/components/IsolatedContent";
+import PuckRenderer from "@/components/PuckRenderer";
+import { parsePuckContent } from "@/lib/puckUtils";
 import { SITE_NAME, buildCanonical } from "@/lib/seo";
 
 // Revalidate every minute so updates appear quickly but invalidation isn't hammed
@@ -93,11 +95,18 @@ export default async function PromoPage({ params }: { params: Promise<{ slug: st
                 </header>
 
                 {/* Content */}
-                {/* Content - Isolated Shadow DOM */}
-                <IsolatedContent
-                    content={page.content || ''}
-                    className="max-w-none"
-                />
+                {(() => {
+                    const puckData = parsePuckContent(page.content);
+                    if (puckData) {
+                        return <PuckRenderer data={puckData} />;
+                    }
+                    return (
+                        <IsolatedContent
+                            content={page.content || ''}
+                            className="max-w-none"
+                        />
+                    );
+                })()}
 
             </article>
         </div>

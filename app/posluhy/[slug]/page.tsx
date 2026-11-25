@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import {
   ArrowRight,
   CheckCircle2,
@@ -13,6 +14,10 @@ import {
 } from 'lucide-react';
 import { BRANDING_SERVICES, getBrandingServiceBySlug } from '@/lib/servicesData';
 import { SITE_NAME, SITE_URL, buildCanonical, buildBreadcrumbJsonLd } from '@/lib/seo';
+import PuckRenderer from '@/components/PuckRenderer';
+import { parsePuckContent } from '@/lib/puckUtils';
+
+export const dynamic = 'force-dynamic';
 
 export async function generateStaticParams() {
   return BRANDING_SERVICES.map((s) => ({ slug: s.slug }));
@@ -95,6 +100,17 @@ export default async function BrandingServicePage({
 
   const otherServices = BRANDING_SERVICES.filter((s) => s.slug !== service.slug);
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data: customRow } = await supabase
+    .from('promo_pages')
+    .select('content')
+    .eq('slug', `posluhy/${service.slug}`)
+    .maybeSingle();
+  const customPuckData = parsePuckContent(customRow?.content);
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-16">
       <script
@@ -116,6 +132,11 @@ export default async function BrandingServicePage({
           <Link href="/posluhy" className="hover:text-foreground transition-colors">Послуги</Link> /{' '}
           <span className="text-foreground font-bold">{service.title}</span>
         </nav>
+
+        {customPuckData ? (
+          <PuckRenderer data={customPuckData} />
+        ) : (
+        <>
 
         {/* HERO З ЖИВИМ ЦЕХОВИМ ФОТО */}
         <section className="relative rounded-3xl overflow-hidden border border-gray-200 dark:border-white/10 bg-zinc-950 text-white shadow-2xl">
@@ -284,6 +305,8 @@ export default async function BrandingServicePage({
         </section>
 
         {/* ІНШІ МЕТОДИ НАНЕСЕННЯ (перелінковка) */}
+        </>
+        )}
         <section className="pt-6 border-t border-gray-200 dark:border-white/10 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Інші методи нанесення логотипів</h2>

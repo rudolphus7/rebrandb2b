@@ -23,11 +23,15 @@ export default async function AdminOrdersPage({
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false });
 
-  // Фільтрація (Пошук по ID або Email або Телефону з JSON)
-  if (queryText) {
-    // Пошук складніший, бо delivery_data це JSON. 
-    // Для простоти шукаємо по email або ID.
-    query = query.or(`id.eq.${queryText},user_email.ilike.%${queryText}%`);
+  // Фільтрація (Безпечний пошук по числовому ID або Email)
+  const trimmedQuery = queryText.trim();
+  if (trimmedQuery) {
+    const safeEmailQuery = trimmedQuery.replace(/[,%()]/g, ' ').trim();
+    if (/^\d+$/.test(trimmedQuery)) {
+      query = query.or(`id.eq.${trimmedQuery},user_email.ilike.%${safeEmailQuery}%`);
+    } else if (safeEmailQuery) {
+      query = query.ilike('user_email', `%${safeEmailQuery}%`);
+    }
   }
 
   const { data, count } = await query.range(from, to);

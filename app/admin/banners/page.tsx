@@ -155,12 +155,30 @@ export default function AdminBanners() {
                         value={formData.subtitle}
                         onChange={e => setFormData({ ...formData, subtitle: e.target.value })}
                     />
-                    <input
-                        type="text" placeholder="Посилання на картинку (URL)"
-                        className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
-                        value={formData.image_url}
-                        onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                    />
+                    <div className="space-y-2">
+                        <input
+                            type="text" placeholder="Посилання на картинку (URL або /images/banners/hero-1.jpg)"
+                            className="w-full bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
+                            value={formData.image_url}
+                            onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                        />
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, image_url: '/images/banners/hero-1.jpg' })}
+                                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 transition"
+                            >
+                                Студійне фото 1 (Моделі)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, image_url: '/images/banners/hero-2.jpg' })}
+                                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 transition"
+                            >
+                                Студійне фото 2 (Мерч набір)
+                            </button>
+                        </div>
+                    </div>
                     <input
                         type="text" placeholder="Посилання кнопки (приклад: /catalog/odyah)"
                         className="bg-black border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none"

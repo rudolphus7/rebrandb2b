@@ -8,8 +8,13 @@ import {
     Layout, Image as ImageIcon, Type, Monitor as MonitorIcon, Smartphone, ArrowLeft
 } from "lucide-react";
 import Link from 'next/link';
+import { Puck, type Data } from '@measured/puck';
+import '@measured/puck/puck.css';
 import IsolatedContent from "@/components/IsolatedContent";
 import { BRANDING_SERVICES } from "@/lib/servicesData";
+import { INFO_PAGES } from "@/lib/infoPagesData";
+import { puckConfig } from "@/lib/puckConfig";
+import { DEFAULT_PUCK_DATA, infoToPuckData, parsePuckContent, serviceToPuckData } from "@/lib/puckUtils";
 
 export default function AdminCMSPages() {
     const router = useRouter();
@@ -21,6 +26,8 @@ export default function AdminCMSPages() {
     // Editor State
     const [activeTab, setActiveTab] = useState<'general' | 'visuals' | 'content'>('general');
     const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+    const [visualMode, setVisualMode] = useState(false);
+    const [puckData, setPuckData] = useState<Data>(DEFAULT_PUCK_DATA);
 
     const [formData, setFormData] = useState({
         title: "",
@@ -51,6 +58,14 @@ export default function AdminCMSPages() {
 
     function handleEdit(page: any) {
         setEditingId(page.id);
+        const parsedPuck = parsePuckContent(page.content);
+        if (parsedPuck) {
+            setPuckData(parsedPuck);
+            setVisualMode(true);
+        } else {
+            setPuckData(DEFAULT_PUCK_DATA);
+            setVisualMode(false);
+        }
         setFormData({
             title: page.title || "",
             slug: page.slug || "",
@@ -62,7 +77,40 @@ export default function AdminCMSPages() {
 
     function handleCreate() {
         setEditingId('new');
-        setFormData({ title: "", slug: "", subtitle: "", content: "<h2>Ласкаво просимо!</h2><p>Це текст вашої нової промо-сторінки.</p>", image_url: "" });
+        setPuckData(DEFAULT_PUCK_DATA);
+        setVisualMode(true);
+        setFormData({
+            title: "",
+            slug: "",
+            subtitle: "",
+            content: JSON.stringify(DEFAULT_PUCK_DATA),
+            image_url: ""
+        });
+    }
+
+    function openSystemPageInVisualEditor(
+        systemSlug: string,
+        title: string,
+        subtitle: string,
+        imageUrl: string,
+        fallbackData: Data
+    ) {
+        const existing = pages.find((p) => p.slug === systemSlug);
+        if (existing) {
+            handleEdit(existing);
+            setVisualMode(true);
+            return;
+        }
+        setEditingId('new');
+        setPuckData(fallbackData);
+        setVisualMode(true);
+        setFormData({
+            title,
+            slug: systemSlug,
+            subtitle,
+            content: JSON.stringify(fallbackData),
+            image_url: imageUrl,
+        });
     }
 
     function handleTitleChange(val: string) {
@@ -96,9 +144,110 @@ export default function AdminCMSPages() {
         }
     }
 
+    async function handlePuckPublish(data: Data) {
+        if (!formData.title || !formData.slug) {
+            alert("Спочатку вкажіть Заголовок та Slug у вкладці «Налаштування» (або в полях зверху)!");
+            return;
+        }
+        setPuckData(data);
+        const serialized = JSON.stringify(data);
+        setFormData(prev => ({ ...prev, content: serialized }));
+        setIsSaving(true);
+
+        const payload = { ...formData, content: serialized };
+        let error;
+        if (editingId && editingId !== 'new') {
+            const { error: e } = await supabase.from("promo_pages").update(payload).eq("id", editingId);
+            error = e;
+        } else {
+            const { error: e } = await supabase.from("promo_pages").insert([payload]);
+            error = e;
+        }
+
+        setIsSaving(false);
+        if (error) alert("Помилка збереження: " + error.message);
+        else {
+            setEditingId(null);
+            fetchPages();
+        }
+    }
+
     // --- RENDER ---
 
     if (editingId) {
+        if (visualMode) {
+            return (
+                <div className="fixed inset-0 z-[100] bg-zinc-950 text-white flex flex-col">
+                    {/* FULLSCREEN TOP BAR */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-[#111] border-b border-white/10 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setEditingId(null)}
+                                className="p-2 hover:bg-white/10 rounded-lg transition"
+                                title="Назад до списку сторінок"
+                            >
+                                <ArrowLeft size={20} />
+                            </button>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Заголовок сторінки"
+                                    className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-sm font-semibold outline-none focus:border-blue-500 w-56"
+                                    value={formData.title}
+                                    onChange={(e) => handleTitleChange(e.target.value)}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="URL slug"
+                                    className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-300 outline-none focus:border-blue-500 w-48"
+                                    value={formData.slug}
+                                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setVisualMode(false)}
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition"
+                            >
+                                Класичний HTML-режим
+                            </button>
+                            {editingId !== 'new' && (
+                                <Link
+                                    href={`/${formData.slug}`}
+                                    target="_blank"
+                                    className="text-xs font-bold text-blue-400 hover:underline flex items-center gap-1 px-2"
+                                >
+                                    <Globe size={14} /> На сайт
+                                </Link>
+                            )}
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition flex items-center gap-1.5"
+                            >
+                                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Зберегти
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* FULLSCREEN PUCK CANVAS */}
+                    <div className="flex-1 min-h-0 overflow-hidden bg-white text-black">
+                        <Puck
+                            config={puckConfig}
+                            data={puckData}
+                            onChange={(d) => {
+                                setPuckData(d);
+                                setFormData(prev => ({ ...prev, content: JSON.stringify(d) }));
+                            }}
+                            onPublish={handlePuckPublish}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="flex flex-col h-[calc(100vh-120px)]">
                 {/* HEADER */}
@@ -113,6 +262,17 @@ export default function AdminCMSPages() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setVisualMode(!visualMode)}
+                            className={`text-xs font-bold px-3.5 py-2 rounded-lg border transition ${
+                                visualMode
+                                    ? 'bg-emerald-600/15 border-emerald-500/40 text-emerald-500'
+                                    : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300'
+                            }`}
+                        >
+                            {visualMode ? 'Режим: Візуальний конструктор' : 'Увімкнути візуальний конструктор'}
+                        </button>
                         {editingId !== 'new' && (
                             <Link href={`/${formData.slug}`} target="_blank" className="text-sm font-bold text-blue-500 hover:underline flex items-center gap-1">
                                 <Globe size={14} /> Відкрити на сайті
@@ -335,13 +495,22 @@ export default function AdminCMSPages() {
                         </Link>
 
                         {BRANDING_SERVICES.map((service) => (
-                            <Link
+                            <div
                                 key={service.slug}
-                                href={`/posluhy/${service.slug}`}
-                                target="_blank"
                                 className="group bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/40 transition-all flex flex-col"
                             >
-                                <div className="h-28 bg-zinc-900 relative overflow-hidden">
+                                <div
+                                    onClick={() =>
+                                        openSystemPageInVisualEditor(
+                                            `posluhy/${service.slug}`,
+                                            service.title,
+                                            service.shortDesc,
+                                            service.image,
+                                            serviceToPuckData(service)
+                                        )
+                                    }
+                                    className="h-28 bg-zinc-900 relative overflow-hidden cursor-pointer"
+                                >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={service.image}
@@ -354,17 +523,94 @@ export default function AdminCMSPages() {
                                 </div>
                                 <div className="p-4 flex-1 flex flex-col justify-between">
                                     <div>
-                                        <h3 className="font-bold text-base group-hover:text-blue-500 transition leading-tight">
+                                        <h3 className="font-bold text-base leading-tight">
                                             {service.title}
                                         </h3>
                                         <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.shortDesc}</p>
                                     </div>
-                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs">
-                                        <span className="font-mono text-gray-400">/posluhy/{service.slug}</span>
-                                        <span className="text-blue-500 font-semibold">Переглянути ↗</span>
+                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                openSystemPageInVisualEditor(
+                                                    `posluhy/${service.slug}`,
+                                                    service.title,
+                                                    service.shortDesc,
+                                                    service.image,
+                                                    serviceToPuckData(service)
+                                                )
+                                            }
+                                            className="inline-flex items-center gap-1 font-bold text-blue-500 hover:underline"
+                                        >
+                                            <Edit2 size={13} /> Редагувати
+                                        </button>
+                                        <Link
+                                            href={`/posluhy/${service.slug}`}
+                                            target="_blank"
+                                            className="text-gray-400 hover:text-white font-semibold"
+                                        >
+                                            Переглянути ↗
+                                        </Link>
                                     </div>
                                 </div>
-                            </Link>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Інформаційні та юридичні сторінки */}
+                <div className="mb-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold flex items-center gap-2">
+                            <FileText size={18} className="text-emerald-500" />
+                            Інформаційні та юридичні сторінки (/info/*)
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {INFO_PAGES.map((info) => (
+                            <div
+                                key={info.slug}
+                                className="group bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 hover:border-emerald-500/40 transition-all flex flex-col justify-between"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
+                                            Інфо / Право
+                                        </span>
+                                        <span className="text-[11px] font-mono text-gray-400 truncate max-w-[160px]">
+                                            /info/{info.slug}
+                                        </span>
+                                    </div>
+                                    <h3 className="font-bold text-base leading-tight">
+                                        {info.title}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{info.metaDescription}</p>
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            openSystemPageInVisualEditor(
+                                                `info/${info.slug}`,
+                                                info.title,
+                                                info.metaDescription,
+                                                '',
+                                                infoToPuckData(info)
+                                            )
+                                        }
+                                        className="inline-flex items-center gap-1 font-bold text-emerald-500 hover:underline"
+                                    >
+                                        <Edit2 size={13} /> Редагувати
+                                    </button>
+                                    <Link
+                                        href={`/info/${info.slug}`}
+                                        target="_blank"
+                                        className="text-gray-400 hover:text-white font-semibold"
+                                    >
+                                        Переглянути ↗
+                                    </Link>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </div>

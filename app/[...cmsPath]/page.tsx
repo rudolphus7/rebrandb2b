@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import IsolatedContent from "@/components/IsolatedContent";
+import PuckRenderer from "@/components/PuckRenderer";
+import { parsePuckContent } from "@/lib/puckUtils";
 import { SITE_NAME, buildCanonical } from "@/lib/seo";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -125,12 +127,20 @@ export default async function CMSPage({ params }: PageProps) {
                     )}
                 </header>
 
-                {/* Content - Isolated Shadow DOM */}
-                <IsolatedContent
-                    content={page.content || ''}
-                    className="max-w-none"
-                    referralCode={referralCode}
-                />
+                {/* Content */}
+                {(() => {
+                    const puckData = parsePuckContent(page.content);
+                    if (puckData) {
+                        return <PuckRenderer data={puckData} />;
+                    }
+                    return (
+                        <IsolatedContent
+                            content={page.content || ''}
+                            className="max-w-none"
+                            referralCode={referralCode}
+                        />
+                    );
+                })()}
             </article>
         </div>
     );
